@@ -12,6 +12,10 @@
         <div class="game-header">
             <h1>DiceDefend</h1>
             <div class="score">Score: <span id="score">0</span></div>
+            <div class="wave-info">
+                <div>Wave: <span id="wave">1</span></div>
+                <div>Enemies: <span id="enemyCount">0</span></div>
+            </div>
         </div>
 
         <!-- Game Field -->
@@ -52,10 +56,23 @@
         <!-- Control Panel -->
         <div class="control-panel">
             <button id="rollButton" class="roll-button">ROLL</button>
-            <div class="game-info">
-                <div>Wave: <span id="wave">1</span></div>
-                <div>Enemies: <span id="enemyCount">0</span></div>
-                <div>Enemy Count: <span id="enemyRemaining">0/0</span></div>
+            <div class="stats-display">
+                <div class="stat-item">
+                    <span class="stat-label">Speed</span>
+                    <span class="stat-value" id="bulletSpeed">1.0x</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">DMG</span>
+                    <span class="stat-value" id="bulletDamage">1</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Crit</span>
+                    <span class="stat-value" id="criticalChance">0%</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Def</span>
+                    <span class="stat-value" id="damageReduction">0%</span>
+                </div>
             </div>
         </div>
     </div>

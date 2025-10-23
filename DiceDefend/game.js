@@ -29,7 +29,18 @@ let gameState = {
     currentResources: 0,
     resourceDiceRolled: false,
     availablePowerups: [],
-    gameLoopRunning: false
+    gameLoopRunning: false,
+    
+    // Power-up effects
+    powerupEffects: {
+        damageBoost: 0,           // Additional damage per bullet
+        criticalChance: 0,        // Chance for critical hit (0-1)
+        bulletSpeedMultiplier: 1, // Multiplier for bullet speed
+        cooldownReduction: 0,     // Cooldown reduction percentage (0-1)
+        damageReduction: 0,       // Damage reduction percentage (0-1)
+        multiShot: 0,             // Additional bullets per dice
+        piercing: false           // Bullets pierce through enemies
+    }
 };
 
 // DOM Elements
@@ -39,8 +50,12 @@ const elements = {
     castleHealth: document.getElementById('castleHealth'),
     healthFill: document.getElementById('healthFill'),
     enemyCount: document.getElementById('enemyCount'),
-    enemyRemaining: document.getElementById('enemyRemaining'),
     rollButton: document.getElementById('rollButton'),
+    // Stats display elements
+    bulletSpeed: document.getElementById('bulletSpeed'),
+    bulletDamage: document.getElementById('bulletDamage'),
+    criticalChance: document.getElementById('criticalChance'),
+    damageReduction: document.getElementById('damageReduction'),
     enemyArea: document.getElementById('enemyArea'),
     diceSlots: document.querySelectorAll('.dice-slot'),
     // Upgrade phase elements
@@ -94,10 +109,6 @@ function showWavePopup(waveNumber, config) {
     popup.innerHTML = `
         <div class="wave-number">WAVE ${waveNumber}</div>
         <div class="wave-info">
-            ${description}<br>
-            Enemies: ${config.enemies}<br>
-            Type: ${config.enemyType}<br>
-            HP: ${enemyStats.health} | Speed: ${enemyStats.speed}x | Dmg: ${enemyStats.damage}
         </div>
     `;
     
@@ -344,9 +355,11 @@ function rollDice() {
             const newValue = DICE_CONFIG.rollDice(diceData.type);
             diceData.value = newValue;
             
-            // Set cooldown timer based on dice type
+            // Set cooldown timer based on dice type with cooldown reduction
             const diceConfig = DICE_CONFIG.getDiceConfig(diceData.type);
-            diceData.cooldownTimer = diceConfig.cooldownTime / 16; // Convert ms to frames (60fps)
+            const baseCooldown = diceConfig.cooldownTime / 16; // Convert ms to frames (60fps)
+            const cooldownReduction = gameState.powerupEffects.cooldownReduction;
+            diceData.cooldownTimer = Math.max(1, baseCooldown * (1 - cooldownReduction)); // Minimum 1 frame
             
             // Shoot bullets based on dice value
             shootBullets(slotIndex, newValue, diceData.type);
@@ -378,7 +391,10 @@ function shootBullets(laneIndex, bulletCount, diceType) {
     const laneWidth = elements.enemyArea.offsetWidth / 6;
     const diceX = laneWidth * laneIndex + laneWidth / 2;
     
-    for (let i = 0; i < bulletCount; i++) {
+    // Apply multi-shot effect
+    const totalBullets = bulletCount + gameState.powerupEffects.multiShot;
+    
+    for (let i = 0; i < totalBullets; i++) {
         setTimeout(() => {
             createBullet(diceX, diceConfig.bulletSpeed);
         }, i * 100); // Stagger bullet creation
@@ -413,7 +429,7 @@ function createBullet(x, bulletSpeed = 3) {
         element: bullet,
         x: x,
         y: diceSlotsY,
-        speed: bulletSpeed,
+        speed: bulletSpeed * gameState.powerupEffects.bulletSpeedMultiplier,
         targetEnemy: null, // Will be set when bullet finds a target
         direction: null // Will be set if no target
     });
@@ -472,8 +488,10 @@ function updateEnemies() {
         const castleStartY = gameFieldHeight * 0.8; // Castle starts at 80% of game field height
         
         if (enemy.y >= castleStartY) {
-            // Enemy reached castle border
-            gameState.castleHealth -= enemy.damage;
+            // Enemy reached castle border - apply damage reduction
+            const damageReduction = gameState.powerupEffects.damageReduction;
+            const actualDamage = enemy.damage * (1 - damageReduction);
+            gameState.castleHealth -= actualDamage;
             gameState.enemiesRemaining--; // Decrease remaining count
             enemy.element.remove();
             gameState.enemies.splice(enemyIndex, 1);
@@ -576,14 +594,24 @@ function updateBullets() {
             );
             
             if (distance < 20) { // Collision radius
-                // Hit!
-                enemy.health--;
+                // Hit! Calculate damage with power-up effects
+                let damage = 1 + gameState.powerupEffects.damageBoost;
+                
+                // Check for critical hit
+                if (Math.random() < gameState.powerupEffects.criticalChance) {
+                    damage *= 2; // Double damage on critical hit
+                }
+                
+                enemy.health -= damage;
                 
                 // Show damage popup
-                showDamagePopup(bullet.x, bullet.y, 1);
+                showDamagePopup(bullet.x, bullet.y, Math.floor(damage));
                 
-                bullet.element.remove();
-                gameState.bullets.splice(bulletIndex, 1);
+                // Remove bullet unless piercing
+                if (!gameState.powerupEffects.piercing) {
+                    bullet.element.remove();
+                    gameState.bullets.splice(bulletIndex, 1);
+                }
                 
                 if (enemy.health <= 0) {
                     enemy.element.remove();
@@ -670,6 +698,24 @@ function checkWaveCompletion() {
     }
 }
 
+// Update Stats Display
+function updateStatsDisplay() {
+    // Update bullet speed multiplier
+    elements.bulletSpeed.textContent = gameState.powerupEffects.bulletSpeedMultiplier.toFixed(1) + 'x';
+    
+    // Update bullet damage (base damage + boost)
+    const totalDamage = 1 + gameState.powerupEffects.damageBoost;
+    elements.bulletDamage.textContent = totalDamage.toString();
+    
+    // Update critical chance percentage
+    const critPercent = Math.round(gameState.powerupEffects.criticalChance * 100);
+    elements.criticalChance.textContent = critPercent + '%';
+    
+    // Update damage reduction percentage
+    const defPercent = Math.round(gameState.powerupEffects.damageReduction * 100);
+    elements.damageReduction.textContent = defPercent + '%';
+}
+
 // Update UI
 function updateUI() {
     elements.score.textContent = gameState.score;
@@ -677,8 +723,8 @@ function updateUI() {
     elements.castleHealth.textContent = `${gameState.castleHealth}/${gameState.maxCastleHealth}`;
     elements.enemyCount.textContent = gameState.enemies.length;
     
-    // Update enemy remaining count
-    elements.enemyRemaining.textContent = `${gameState.enemiesRemaining}/${gameState.enemiesToSpawn}`;
+    // Update stats display
+    updateStatsDisplay();
     
     // Update health bar
     const healthPercentage = (gameState.castleHealth / gameState.maxCastleHealth) * 100;
@@ -737,7 +783,18 @@ function resetGame() {
         currentResources: 0,
         resourceDiceRolled: false,
         availablePowerups: [],
-        gameLoopRunning: false
+        gameLoopRunning: false,
+        
+        // Power-up effects
+        powerupEffects: {
+            damageBoost: 0,           // Additional damage per bullet
+            criticalChance: 0,        // Chance for critical hit (0-1)
+            bulletSpeedMultiplier: 1, // Multiplier for bullet speed
+            cooldownReduction: 0,     // Cooldown reduction percentage (0-1)
+            damageReduction: 0,       // Damage reduction percentage (0-1)
+            multiShot: 0,             // Additional bullets per dice
+            piercing: false           // Bullets pierce through enemies
+        }
     };
     
     // Clear all enemies and bullets
@@ -954,7 +1011,34 @@ function applyPowerupEffect(powerup) {
             gameState.castleHealth = Math.min(gameState.castleHealth + powerup.value, gameState.maxCastleHealth);
             break;
             
-        // Add more power-up effects later
+        case 'increase_damage':
+            gameState.powerupEffects.damageBoost += powerup.value;
+            break;
+            
+        case 'critical_chance':
+            gameState.powerupEffects.criticalChance += powerup.value;
+            break;
+            
+        case 'increase_bullet_speed':
+            gameState.powerupEffects.bulletSpeedMultiplier += powerup.value;
+            break;
+            
+        case 'reduce_cooldown':
+            gameState.powerupEffects.cooldownReduction += powerup.value;
+            break;
+            
+        case 'damage_reduction':
+            gameState.powerupEffects.damageReduction += powerup.value;
+            break;
+            
+        case 'multi_shot':
+            gameState.powerupEffects.multiShot += powerup.value;
+            break;
+            
+        case 'piercing':
+            gameState.powerupEffects.piercing = true;
+            break;
+            
         default:
             console.log('Power-up effect not implemented:', powerup.effect);
     }
