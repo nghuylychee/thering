@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DiceDefend</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="game-container">
+        <!-- Game Header -->
+        <div class="game-header">
+            <h1>DiceDefend</h1>
+            <div class="score">Score: <span id="score">0</span></div>
+        </div>
+
+        <!-- Game Field -->
+        <div class="game-field">
+            <!-- Enemy Area -->
+            <div class="enemy-area" id="enemyArea">
+                <!-- Enemies will spawn here -->
+            </div>
+            <!-- Castle/Base -->
+            <div class="castle">
+                <div class="castle-header">
+                    <div class="castle-health">
+                        <div class="health-bar">
+                            <div class="health-fill" id="healthFill"></div>
+                            <div class="health-text" id="castleHealth">100/100</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Dice Slots -->
+                <div class="dice-slots">
+                    <div class="dice-slot" data-lane="0">
+                        <div class="dice" id="dice-0" data-dice-type="D2" draggable="true">1</div>
+                    </div>
+                    <div class="dice-slot" data-lane="1">
+                        <div class="dice" id="dice-1" data-dice-type="D3" draggable="true">2</div>
+                    </div>
+                    <div class="dice-slot" data-lane="2">
+                        <div class="dice" id="dice-2" data-dice-type="D4" draggable="true">3</div>
+                    </div>
+                    <div class="dice-slot" data-lane="3"></div>
+                    <div class="dice-slot" data-lane="4"></div>
+                    <div class="dice-slot" data-lane="5"></div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Control Panel -->
+        <div class="control-panel">
+            <button id="rollButton" class="roll-button">ROLL</button>
+            <div class="game-info">
+                <div>Wave: <span id="wave">1</span></div>
+                <div>Enemies: <span id="enemyCount">0</span></div>
+                <div>Enemy Count: <span id="enemyRemaining">0/0</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upgrade Phase Overlay -->
+    <div id="upgradePhase" class="upgrade-phase" style="display: none;">
+        <div class="upgrade-container">
+            <div class="upgrade-header">
+                <h2>Wave Complete!</h2>
+                <p>Choose your upgrades</p>
+            </div>
+            
+            <div class="powerup-cards" id="powerupCards">
+                <!-- Power-up cards will be generated here -->
+            </div>
+            
+            <div class="upgrade-actions">
+                <div class="resource-dice">
+                    <div class="dice" id="resourceDice">?</div>
+                </div>
+                <button id="rollResourceDice" class="roll-resource-btn">Roll</button>
+                <button id="skipUpgrade" class="skip-btn">SKIP</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="enemy-config.js"></script>
+    <script src="wave-config.js"></script>
+    <script src="dice-config.js"></script>
+    <script src="powerup-config.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
