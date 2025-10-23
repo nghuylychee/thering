@@ -254,11 +254,16 @@ function updateDiceSlots() {
                 
                 // Update rollable state
                 if (diceData.isRollable) {
-                    diceElement.classList.remove('unrollable');
+                    diceElement.classList.remove('unrollable', 'cooldown-active');
                     diceElement.classList.add('rollable');
                 } else {
                     diceElement.classList.remove('rollable');
                     diceElement.classList.add('unrollable');
+                    
+                    // Start cooldown animation immediately if dice just became unrollable
+                    if (diceData.cooldownTimer > 0) {
+                        diceElement.classList.add('cooldown-active');
+                    }
                 }
                 
                 // Always allow dragging regardless of rollable state
@@ -283,6 +288,11 @@ function updateDiceSlots() {
                     newDice.classList.add('rollable');
                 } else {
                     newDice.classList.add('unrollable');
+                    
+                    // Start cooldown animation immediately if dice is unrollable
+                    if (diceData.cooldownTimer > 0) {
+                        newDice.classList.add('cooldown-active');
+                    }
                 }
                 
                 // Always allow dragging regardless of rollable state
@@ -333,7 +343,6 @@ function rollDice() {
         rollableDice.forEach(({ diceData, slotIndex }) => {
             const newValue = DICE_CONFIG.rollDice(diceData.type);
             diceData.value = newValue;
-            diceData.isRollable = false; // Set to unrollable after rolling
             
             // Set cooldown timer based on dice type
             const diceConfig = DICE_CONFIG.getDiceConfig(diceData.type);
@@ -341,9 +350,12 @@ function rollDice() {
             
             // Shoot bullets based on dice value
             shootBullets(slotIndex, newValue, diceData.type);
+            
+            // Set to unrollable immediately after shooting
+            diceData.isRollable = false;
         });
         
-        updateDiceSlots(); // Update UI immediately to show unrollable state
+        updateDiceSlots(); // Update UI immediately to show unrollable state and start cooldown animation
         
         // Remove rolling animation
         rollableDice.forEach(({ slotIndex }) => {
@@ -493,58 +505,68 @@ function findNearestEnemy(bulletX, bulletY) {
     return nearestEnemy;
 }
 
+// Show Damage Popup
+function showDamagePopup(x, y, damage) {
+    const popup = document.createElement('div');
+    popup.className = 'damage-popup';
+    popup.textContent = `${damage}`;
+    popup.style.left = x + 'px';
+    popup.style.top = y + 'px';
+    
+    elements.enemyArea.appendChild(popup);
+    
+    // Remove popup after animation
+    setTimeout(() => {
+        if (popup.parentNode) {
+            popup.parentNode.removeChild(popup);
+        }
+    }, 1000);
+}
+
 // Update Bullets
 function updateBullets() {
     gameState.bullets.forEach((bullet, bulletIndex) => {
-        // Find nearest enemy only once when bullet is created (no retargeting)
-        if (!bullet.targetEnemy) {
-            bullet.targetEnemy = findNearestEnemy(bullet.x, bullet.y);
-        }
-        
-        // Move bullet towards target enemy
-        if (bullet.targetEnemy && gameState.enemies.includes(bullet.targetEnemy)) {
-            const dx = bullet.targetEnemy.x - bullet.x;
-            const dy = bullet.targetEnemy.y - bullet.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
+        // Set direction towards nearest enemy when bullet is created, then fly in fixed direction
+        if (!bullet.direction) {
+            // Find nearest enemy to aim at
+            const nearestEnemy = findNearestEnemy(bullet.x, bullet.y);
             
-            if (distance > 0) {
-                // Normalize direction and move
-                const moveX = (dx / distance) * bullet.speed;
-                const moveY = (dy / distance) * bullet.speed;
+            if (nearestEnemy) {
+                // Calculate direction towards enemy
+                const dx = nearestEnemy.x - bullet.x;
+                const dy = nearestEnemy.y - bullet.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
                 
-                // Store direction for when target is destroyed
-                bullet.direction = { x: moveX, y: moveY };
-                
-                bullet.x += moveX;
-                bullet.y += moveY;
-                
-                bullet.element.style.left = bullet.x + 'px';
-                bullet.element.style.top = bullet.y + 'px';
-            }
-        } else if (bullet.direction) {
-            // Target destroyed, continue in the stored direction
-            bullet.x += bullet.direction.x;
-            bullet.y += bullet.direction.y;
-            
-            bullet.element.style.left = bullet.x + 'px';
-            bullet.element.style.top = bullet.y + 'px';
-        } else {
-            // No target, continue moving in a random direction
-            if (!bullet.direction) {
-                // Set random direction if not set
-                const angle = Math.random() * Math.PI * 2; // Random angle 0-2π
+                if (distance > 0) {
+                    // Normalize direction and set fixed movement
+                    bullet.direction = {
+                        x: (dx / distance) * bullet.speed,
+                        y: (dy / distance) * bullet.speed
+                    };
+                } else {
+                    // Fallback: random direction if enemy is at same position
+                    const angle = Math.random() * Math.PI * 2;
+                    bullet.direction = {
+                        x: Math.cos(angle) * bullet.speed,
+                        y: Math.sin(angle) * bullet.speed
+                    };
+                }
+            } else {
+                // No enemy found, use random direction
+                const angle = Math.random() * Math.PI * 2;
                 bullet.direction = {
                     x: Math.cos(angle) * bullet.speed,
                     y: Math.sin(angle) * bullet.speed
                 };
             }
-            
-            bullet.x += bullet.direction.x;
-            bullet.y += bullet.direction.y;
-            
-            bullet.element.style.left = bullet.x + 'px';
-            bullet.element.style.top = bullet.y + 'px';
         }
+        
+        // Move bullet in fixed direction (no more target tracking)
+        bullet.x += bullet.direction.x;
+        bullet.y += bullet.direction.y;
+        
+        bullet.element.style.left = bullet.x + 'px';
+        bullet.element.style.top = bullet.y + 'px';
         
         // Check collision with enemies
         gameState.enemies.forEach((enemy, enemyIndex) => {
@@ -556,6 +578,10 @@ function updateBullets() {
             if (distance < 20) { // Collision radius
                 // Hit!
                 enemy.health--;
+                
+                // Show damage popup
+                showDamagePopup(bullet.x, bullet.y, 1);
+                
                 bullet.element.remove();
                 gameState.bullets.splice(bulletIndex, 1);
                 
@@ -615,18 +641,13 @@ function updateDiceCooldowns() {
                 diceData.isRollable = true;
                 diceData.cooldownTimer = 0;
                 
-                // Update UI to show dice is rollable again with cooldown effect
+                // Update UI to show dice is rollable again
                 const diceElement = elements.diceSlots[index].querySelector('.dice');
                 if (diceElement) {
-                    // Add cooldown animation class
-                    diceElement.classList.add('cooldown-active');
-                    
-                    // After animation completes, update to rollable state
-                    setTimeout(() => {
-                        diceElement.classList.remove('unrollable', 'cooldown-active');
-                        diceElement.classList.add('rollable');
-                        diceElement.draggable = true;
-                    }, 1000); // Match animation duration
+                    // Remove cooldown classes and add rollable class
+                    diceElement.classList.remove('unrollable', 'cooldown-active');
+                    diceElement.classList.add('rollable');
+                    diceElement.draggable = true;
                 }
             }
         }
@@ -758,6 +779,10 @@ function hideUpgradePhase() {
     gameState.upgradePhase = false;
     gameState.gameRunning = true;
     elements.upgradePhase.style.display = 'none';
+    
+    // Reset resources for next upgrade phase
+    gameState.currentResources = 0;
+    gameState.resourceDiceRolled = false;
     
     console.log('Game state after hideUpgradePhase:', {
         upgradePhase: gameState.upgradePhase,

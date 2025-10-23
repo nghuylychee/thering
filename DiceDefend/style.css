@@ -417,6 +417,33 @@ body {
     margin-top: 10px;
 }
 
+/* Damage Popup */
+.damage-popup {
+    position: absolute;
+    color: #e74c3c;
+    font-size: 18px;
+    font-weight: bold;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+    pointer-events: none;
+    z-index: 1000;
+    animation: damagePopupAnimation 1s ease-out forwards;
+}
+
+@keyframes damagePopupAnimation {
+    0% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+    50% {
+        opacity: 1;
+        transform: translateY(-20px) scale(1.2);
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(-40px) scale(0.8);
+    }
+}
+
 /* Upgrade Phase */
 .upgrade-phase {
     position: fixed;
