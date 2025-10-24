@@ -41,11 +41,11 @@ const POWERUP_CONFIG = {
         // Speed Upgrades
         'bullet_speed': {
             name: 'Bullet Speed',
-            description: 'Tăng tốc độ bullets +0.5',
+            description: 'Tăng tốc độ bullets +0.2',
             diceRequired: 1,
             category: 'speed',
             effect: 'increase_bullet_speed',
-            value: 0.5
+            value: 0.2
         },
         'cooldown_reduction': {
             name: 'Cooldown Reduction',
