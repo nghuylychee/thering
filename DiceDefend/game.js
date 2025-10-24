@@ -49,8 +49,8 @@ const GAME_SCALE = {
 // Game State
 let gameState = {
     wave: 1,
-    castleHealth: 100,
-    maxCastleHealth: 100,
+    castleHealth: 20,
+    maxCastleHealth: 20,
     enemies: [],
     bullets: [],
     diceSlots: [
@@ -77,6 +77,13 @@ let gameState = {
     resourceDiceRolled: false,
     availablePowerups: [],
     gameLoopRunning: false,
+    
+    // Game stats for summary
+    gameStats: {
+        maxWave: 1,
+        goldEarned: 0,
+        enemiesKilled: 0
+    },
     
     // Power-up effects
     powerupEffects: {
@@ -117,12 +124,48 @@ function initGame() {
     // Log resolution info for debugging
     console.log('Game initialized with resolution info:', GAME_SCALE.getResolutionInfo());
     
+    // Apply player upgrades
+    applyPlayerUpgrades();
+    
+    // Reset game stats
+    gameState.gameStats = {
+        maxWave: 1,
+        goldEarned: 0,
+        enemiesKilled: 0
+    };
+    
     updateUI();
     setupEventListeners();
     updateDiceSlots(); // Ensure dice colors are set correctly from start
     gameState.gameLoopRunning = true;
     startWave(1);
     gameLoop();
+}
+
+// Apply player upgrades from home screen
+function applyPlayerUpgrades() {
+    if (typeof HOME_MANAGER !== 'undefined') {
+        const upgrades = HOME_MANAGER.getPlayerUpgrades();
+        
+        // Apply castle HP
+        gameState.maxCastleHealth = upgrades.castleHP;
+        gameState.castleHealth = upgrades.castleHP;
+        
+        // Apply damage boost
+        gameState.powerupEffects.damageBoost = upgrades.damage - 1; // -1 because base damage is 1
+        
+        // Apply speed multiplier
+        gameState.powerupEffects.bulletSpeedMultiplier = upgrades.speed;
+        
+        // Apply crit chance
+        gameState.powerupEffects.criticalChance = upgrades.critChance;
+        
+        // Apply crit multiplier (will be used in damage calculation)
+        gameState.powerupEffects.critMultiplier = upgrades.critMultiplier;
+        
+        // Apply defense points
+        gameState.powerupEffects.defensePoints = upgrades.defense;
+    }
 }
 
 // Start Wave
@@ -672,9 +715,14 @@ function updateBullets() {
                 }
                 
                 if (enemy.health <= 0) {
+                    // Award gold for killing enemy
+                    const goldReward = getEnemyGoldReward(enemy.type, gameState.wave);
+                    awardGold(enemy.x, enemy.y, goldReward);
+                    
                     enemy.element.remove();
                     gameState.enemies.splice(enemyIndex, 1);
                     gameState.enemiesRemaining--; // Decrease remaining count
+                    gameState.gameStats.enemiesKilled++;
                 }
             }
         });
@@ -802,16 +850,32 @@ function updateUI() {
 // Game Over
 function gameOver() {
     gameState.gameRunning = false;
-    alert(`Game Over! Reached Wave: ${gameState.wave}`);
     
-    // Reset game
-    setTimeout(() => {
-        resetGame();
-    }, 1000);
+    // Update max wave
+    gameState.gameStats.maxWave = gameState.wave;
+    
+    // Show game summary popup
+    if (typeof HOME_MANAGER !== 'undefined') {
+        HOME_MANAGER.showGameSummary(gameState.gameStats);
+    } else {
+        // Fallback to alert if HOME_MANAGER not available
+        alert(`Game Over! Reached Wave: ${gameState.wave}\nGold Earned: ${gameState.gameStats.goldEarned}\nEnemies Killed: ${gameState.gameStats.enemiesKilled}`);
+    }
 }
 
 // Reset Game
 function resetGame() {
+    // Stop current game loop
+    if (typeof gameState !== 'undefined') {
+        gameState.gameRunning = false;
+        gameState.gameLoopRunning = false;
+    }
+    
+    // Clear all enemies and bullets from screen
+    if (typeof elements !== 'undefined' && elements.enemyArea) {
+        elements.enemyArea.innerHTML = '';
+    }
+    
     gameState = {
         wave: 1,
         castleHealth: 100,
@@ -843,7 +907,7 @@ function resetGame() {
         availablePowerups: [],
         gameLoopRunning: false,
         
-        // Power-up effects
+        // Power-up effects (will be overridden by applyPlayerUpgrades)
         powerupEffects: {
             damageBoost: 0,           // Additional damage per bullet
             criticalChance: 0,        // Chance for critical hit (0-1)
@@ -855,18 +919,12 @@ function resetGame() {
         }
     };
     
-    // Clear all enemies and bullets
-    elements.enemyArea.innerHTML = '';
+    // Update UI
     updateDiceSlots();
     updateUI();
     
     // Hide upgrade phase if visible
     hideUpgradePhase();
-    
-    // Start first wave
-    gameState.gameLoopRunning = true;
-    startWave(1);
-    gameLoop();
 }
 
 // Upgrade System Functions
@@ -1102,6 +1160,39 @@ function applyPowerupEffect(powerup) {
     }
 }
 
+// Get gold reward for enemy type and wave
+function getEnemyGoldReward(enemyType, wave) {
+    const baseRewards = {
+        basic: 5,
+        fast: 8,
+        tank: 12,
+        boss: 25
+    };
+    
+    const baseReward = baseRewards[enemyType] || baseRewards.basic;
+    const waveMultiplier = Math.floor(wave / 5) + 1; // Every 5 waves increase reward
+    
+    return baseReward * waveMultiplier;
+}
+
+// Award gold with animation
+function awardGold(x, y, amount) {
+    // Add to game stats
+    gameState.gameStats.goldEarned += amount;
+    
+    // Update game gold display
+    const gameGoldElement = document.getElementById('gameGold');
+    if (gameGoldElement) {
+        const currentGold = parseInt(gameGoldElement.textContent) || 0;
+        gameGoldElement.textContent = currentGold + amount;
+    }
+    
+    // Create gold particle animation
+    if (typeof HOME_MANAGER !== 'undefined') {
+        HOME_MANAGER.createGoldParticle(x, y, amount);
+    }
+}
+
 // Test function to compare speeds across resolutions
 function testSpeedScaling() {
     console.log('=== SPEED SCALING TEST ===');
@@ -1116,10 +1207,8 @@ function testSpeedScaling() {
     console.log('=== END TEST ===');
 }
 
-// Initialize when page loads
+// Initialize when page loads - only run speed test, don't start game
 document.addEventListener('DOMContentLoaded', () => {
-    initGame();
-    
     // Run speed test after a short delay to ensure everything is loaded
     setTimeout(() => {
         testSpeedScaling();
