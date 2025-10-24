@@ -9,7 +9,7 @@ const DICE_CONFIG = {
             maxValue: 2,
             possibleValues: [1, 2],
             bulletSpeed: 2,        // Tốc độ đạn chậm
-            cooldownTime: 4500,   // 3 giây cooldown
+            cooldownTime: 6000,   // 6 giây cooldown - Hardcore pressure
             color: '#95a5a6',      // Màu xám
             description: 'Basic Dice'
         },
@@ -18,7 +18,7 @@ const DICE_CONFIG = {
             maxValue: 3,
             possibleValues: [1, 2, 3],
             bulletSpeed: 2.5,     // Tốc độ đạn trung bình
-            cooldownTime: 4000,   // 2 giây cooldown
+            cooldownTime: 5500,   // 5.5 giây cooldown
             color: '#3498db',     // Màu xanh dương
             description: 'Speed Dice'
         },
@@ -27,7 +27,7 @@ const DICE_CONFIG = {
             maxValue: 4,
             possibleValues: [1, 2, 3, 4],
             bulletSpeed: 3,       // Tốc độ đạn nhanh
-            cooldownTime: 3500,   // 1 giây cooldown
+            cooldownTime: 5000,   // 5 giây cooldown
             color: '#27ae60',     // Màu xanh lá
             description: 'Power Dice'
         },
@@ -36,7 +36,7 @@ const DICE_CONFIG = {
             maxValue: 5,
             possibleValues: [1, 2, 3, 4, 5],
             bulletSpeed: 3.5,     // Tốc độ đạn rất nhanh
-            cooldownTime: 3000,   // 0.5 giây cooldown
+            cooldownTime: 4500,   // 4.5 giây cooldown
             color: '#9b59b6',     // Màu tím
             description: 'Elite Dice'
         },
@@ -45,7 +45,7 @@ const DICE_CONFIG = {
             maxValue: 6,
             possibleValues: [1, 2, 3, 4, 5, 6],
             bulletSpeed: 4,      // Tốc độ đạn cực nhanh
-            cooldownTime: 2500,   // 0.5 giây cooldown
+            cooldownTime: 4000,   // 4 giây cooldown
             color: '#f1c40f',     // Màu vàng
             description: 'Legendary Dice'
         }

@@ -861,6 +861,10 @@ function checkWaveCompletion() {
         
         gameState.waveInProgress = false;
         
+        // Award wave completion bonus
+        const waveBonus = calculateWaveBonus(gameState.wave);
+        awardGold(400, 200, waveBonus); // Award bonus gold
+        
         // Show upgrade phase instead of immediately starting next wave
         setTimeout(() => {
             showUpgradePhase();
@@ -1250,6 +1254,19 @@ function getEnemyGoldReward(enemyType, wave) {
     const waveMultiplier = 1;
     
     return baseReward * waveMultiplier;
+}
+
+// Calculate wave completion bonus
+function calculateWaveBonus(waveNumber) {
+    if (waveNumber <= 5) {
+        return 5; // Tutorial waves
+    } else if (waveNumber <= 10) {
+        return 10; // Intermediate waves
+    } else if (waveNumber <= 15) {
+        return 20; // Advanced waves
+    } else {
+        return 30; // Nightmare waves
+    }
 }
 
 // Award gold with animation

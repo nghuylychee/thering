@@ -6,12 +6,12 @@ const HOME_MANAGER = {
     playerData: {
         totalGold: 0,
         upgrades: {
-            castleHP: { level: 0, cost: 100 },
-            damage: { level: 0, cost: 50 },
-            speed: { level: 0, cost: 75 },
-            critChance: { level: 0, cost: 200 },
-            critMultiplier: { level: 0, cost: 300 },
-            defense: { level: 0, cost: 150 }
+            castleHP: { level: 0, cost: 50 },
+            damage: { level: 0, cost: 25 },
+            speed: { level: 0, cost: 30 },
+            critChance: { level: 0, cost: 100 },
+            critMultiplier: { level: 0, cost: 150 },
+            defense: { level: 0, cost: 75 }
         },
         stats: {
             maxWave: 0,
@@ -20,14 +20,14 @@ const HOME_MANAGER = {
         }
     },
 
-    // Upgrade costs scaling
+    // Upgrade costs scaling - More aggressive scaling for hardcore feel
     upgradeCostScaling: {
-        castleHP: 1.5,
-        damage: 1.3,
-        speed: 1.4,
-        critChance: 1.6,
-        critMultiplier: 1.7,
-        defense: 1.4
+        castleHP: 1.4,
+        damage: 1.25,
+        speed: 1.3,
+        critChance: 1.5,
+        critMultiplier: 1.6,
+        defense: 1.35
     },
 
     // Initialize home manager

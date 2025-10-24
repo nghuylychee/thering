@@ -76,13 +76,78 @@ const WAVE_CONFIG = [
         description: 'Intermediate - Many tank enemies'
     },
     
-    // Wave 11+: Advanced waves - Boss enemies
+    // Wave 11-15: Advanced waves - Boss enemies
     { 
         enemies: 35, 
         lanes: [0, 1, 2, 3, 4, 5], 
         spawnInterval: 200, 
         enemyType: 'boss',
         description: 'Advanced - Boss wave!'
+    },
+    { 
+        enemies: 40, 
+        lanes: [0, 1, 2, 3, 4, 5], 
+        spawnInterval: 180, 
+        enemyType: 'boss',
+        description: 'Advanced - More bosses!'
+    },
+    { 
+        enemies: 45, 
+        lanes: [0, 1, 2, 3, 4, 5], 
+        spawnInterval: 180, 
+        enemyType: 'boss',
+        description: 'Advanced - Boss swarm!'
+    },
+    { 
+        enemies: 50, 
+        lanes: [0, 1, 2, 3, 4, 5], 
+        spawnInterval: 160, 
+        enemyType: 'boss',
+        description: 'Advanced - Boss army!'
+    },
+    { 
+        enemies: 60, 
+        lanes: [0, 1, 2, 3, 4, 5], 
+        spawnInterval: 160, 
+        enemyType: 'boss',
+        description: 'Advanced - Boss legion!'
+    },
+    
+    // Wave 16+: Nightmare waves - Mixed enemies với spawn rate cao
+    { 
+        enemies: 70, 
+        lanes: [0, 1, 2, 3, 4, 5], 
+        spawnInterval: 150, 
+        enemyType: 'basic',
+        description: 'Nightmare - Basic swarm!'
+    },
+    { 
+        enemies: 80, 
+        lanes: [0, 1, 2, 3, 4, 5], 
+        spawnInterval: 140, 
+        enemyType: 'fast',
+        description: 'Nightmare - Fast swarm!'
+    },
+    { 
+        enemies: 90, 
+        lanes: [0, 1, 2, 3, 4, 5], 
+        spawnInterval: 130, 
+        enemyType: 'tank',
+        description: 'Nightmare - Tank swarm!'
+    },
+    { 
+        enemies: 100, 
+        lanes: [0, 1, 2, 3, 4, 5], 
+        spawnInterval: 120, 
+        enemyType: 'boss',
+        description: 'Nightmare - Boss swarm!'
+    },
+    { 
+        enemies: 120, 
+        lanes: [0, 1, 2, 3, 4, 5], 
+        spawnInterval: 100, 
+        enemyType: 'boss',
+        description: 'Nightmare - Boss legion!'
     }
 ];
 

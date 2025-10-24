@@ -39,15 +39,20 @@ const ENEMY_CONFIG = {
         }
     },
     
-    // Get enemy stats (không thay đổi theo wave)
+    // Get enemy stats với scaling theo wave
     getEnemyStats: function(waveNumber, enemyType = 'basic') {
         const type = this.types[enemyType];
         
+        // Scaling formulas cho hardcore difficulty
+        const healthMultiplier = 1 + (waveNumber - 1) * 0.3; // 30% increase per wave
+        const damageMultiplier = 1 + (waveNumber - 1) * 0.2; // 20% increase per wave
+        const goldMultiplier = 1 + (waveNumber - 1) * 0.15; // 15% increase per wave
+        
         return {
-            health: type.health,
-            speed: type.speed,
-            damage: type.damage,
-            goldReward: type.goldReward,
+            health: Math.max(1, Math.floor(type.health * healthMultiplier)),
+            speed: type.speed, // Speed không scale để giữ gameplay balance
+            damage: Math.max(1, Math.floor(type.damage * damageMultiplier)),
+            goldReward: Math.max(1, Math.floor(type.goldReward * goldMultiplier)),
             color: type.color,
             emoji: type.emoji
         };

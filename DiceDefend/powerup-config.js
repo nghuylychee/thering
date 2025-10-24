@@ -8,14 +8,14 @@ const POWERUP_CONFIG = {
         'dice_upgrade': {
             name: 'Dice Upgrade',
             description: 'Upgrade một dice hiện có lên loại cao hơn',
-            diceRequired: 3,
+            diceRequired: 2,
             category: 'dice',
             effect: 'upgrade_dice'
         },
         'new_dice': {
             name: 'New Dice',
             description: 'Thêm một dice D2 mới vào slot trống',
-            diceRequired: 4,
+            diceRequired: 3,
             category: 'dice',
             effect: 'add_dice'
         },
@@ -24,7 +24,7 @@ const POWERUP_CONFIG = {
         'damage_boost': {
             name: 'Damage Boost',
             description: 'Tăng damage của tất cả bullets +1',
-            diceRequired: 2,
+            diceRequired: 1,
             category: 'damage',
             effect: 'increase_damage',
             value: 1
@@ -42,7 +42,7 @@ const POWERUP_CONFIG = {
         'bullet_speed': {
             name: 'Bullet Speed',
             description: 'Tăng tốc độ bullets +0.5',
-            diceRequired: 2,
+            diceRequired: 1,
             category: 'speed',
             effect: 'increase_bullet_speed',
             value: 0.5
@@ -50,7 +50,7 @@ const POWERUP_CONFIG = {
         'cooldown_reduction': {
             name: 'Cooldown Reduction',
             description: 'Giảm cooldown của tất cả dice -10%',
-            diceRequired: 3,
+            diceRequired: 2,
             category: 'speed',
             effect: 'reduce_cooldown',
             value: 0.1
@@ -60,7 +60,7 @@ const POWERUP_CONFIG = {
         'castle_heal': {
             name: 'Castle Heal',
             description: 'Hồi phục 50 HP cho castle',
-            diceRequired: 2,
+            diceRequired: 1,
             category: 'defense',
             effect: 'heal_castle',
             value: 50
@@ -68,7 +68,7 @@ const POWERUP_CONFIG = {
         'castle_shield': {
             name: 'Castle Shield',
             description: 'Tăng defense points +5',
-            diceRequired: 4,
+            diceRequired: 3,
             category: 'defense',
             effect: 'defense_points',
             value: 5
@@ -78,7 +78,7 @@ const POWERUP_CONFIG = {
         'multi_shot': {
             name: 'Multi Shot',
             description: 'Mỗi dice bắn thêm 1 bullet',
-            diceRequired: 5,
+            diceRequired: 4,
             category: 'special',
             effect: 'multi_shot',
             value: 1
@@ -86,7 +86,7 @@ const POWERUP_CONFIG = {
         'piercing': {
             name: 'Piercing',
             description: 'Bullets có thể xuyên qua enemy',
-            diceRequired: 6,
+            diceRequired: 5,
             category: 'special',
             effect: 'piercing'
         }
