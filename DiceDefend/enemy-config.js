@@ -16,28 +16,28 @@ const ENEMY_CONFIG = {
     types: {
         basic: {
             health: 1,
-            speed: 0.5,
+            speed: 1,
             damage: 10,
             color: '#e74c3c',
             emoji: '👹'
         },
         fast: {
             health: 1,
-            speed: 1.0,
+            speed: 2,
             damage: 8,
             color: '#f39c12',
             emoji: '👻'
         },
         tank: {
-            health: 3,
-            speed: 0.3,
+            health: 10,
+            speed: 1,
             damage: 15,
             color: '#8e44ad',
             emoji: '👾'
         },
         boss: {
-            health: 5,
-            speed: 0.4,
+            health: 20,
+            speed: 1,
             damage: 25,
             color: '#c0392b',
             emoji: '🐉'
@@ -49,9 +49,18 @@ const ENEMY_CONFIG = {
         const type = this.types[enemyType];
         const waveMultiplier = Math.floor(waveNumber / 5); // Mỗi 5 wave tăng difficulty
         
+        // Calculate base speed with scaling
+        const baseSpeed = Math.min(2.0, type.speed + (waveMultiplier * this.speedScaling));
+        
+        // Apply game scale factor to ensure consistent speed across resolutions
+        let scaledSpeed = baseSpeed;
+        if (typeof GAME_SCALE !== 'undefined') {
+            scaledSpeed = GAME_SCALE.scaleSpeed(baseSpeed);
+        }
+        
         return {
             health: Math.max(1, Math.floor(type.health + (waveMultiplier * this.healthScaling))),
-            speed: Math.min(2.0, type.speed + (waveMultiplier * this.speedScaling)),
+            speed: scaledSpeed,
             damage: type.damage + (waveMultiplier * this.damageScaling),
             color: type.color,
             emoji: type.emoji

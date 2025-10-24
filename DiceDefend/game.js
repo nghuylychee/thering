@@ -581,7 +581,8 @@ function spawnEnemy() {
 // Update Enemies
 function updateEnemies() {
     gameState.enemies.forEach((enemy, enemyIndex) => {
-        enemy.y += GAME_SCALE.scaleSpeed(enemy.speed);
+        // Enemy speed is already in pixels per frame, no need to scale again
+        enemy.y += enemy.speed;
         enemy.element.style.top = enemy.y + 'px';
         
         // Check if enemy reached castle - castle starts at 80% of game field height
