@@ -212,7 +212,7 @@ body {
 }
 
 .dice.cooldown-active::after {
-    animation: cooldownEffect 1s linear forwards;
+    animation: cooldownEffect var(--cooldown-duration, 3s) linear forwards;
 }
 
 @keyframes cooldownEffect {

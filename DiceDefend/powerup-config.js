@@ -67,11 +67,11 @@ const POWERUP_CONFIG = {
         },
         'castle_shield': {
             name: 'Castle Shield',
-            description: 'Giảm damage nhận vào -25%',
+            description: 'Tăng defense points +2',
             diceRequired: 4,
             category: 'defense',
-            effect: 'damage_reduction',
-            value: 0.25
+            effect: 'defense_points',
+            value: 2
         },
         
         // Special Upgrades

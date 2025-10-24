@@ -1,6 +1,53 @@
+// Game Scaling System
+const GAME_SCALE = {
+    // Base dimensions for scaling calculations (mobile portrait reference)
+    baseWidth: 400,
+    baseHeight: 600,
+    
+    // Get current scale factor
+    getScaleFactor: function() {
+        const gameContainer = document.querySelector('.game-container');
+        if (!gameContainer) return 1;
+        
+        const currentWidth = gameContainer.offsetWidth;
+        const currentHeight = gameContainer.offsetHeight;
+        
+        // Use the smaller scale factor to maintain aspect ratio
+        const scaleX = currentWidth / this.baseWidth;
+        const scaleY = currentHeight / this.baseHeight;
+        const scaleFactor = Math.min(scaleX, scaleY);
+        
+        // Debug logging for different resolutions
+        console.log(`Screen: ${window.screen.width}x${window.screen.height}, Container: ${currentWidth}x${currentHeight}, Scale: ${scaleFactor.toFixed(3)}`);
+        
+        return scaleFactor;
+    },
+    
+    // Scale speed values based on screen size
+    // This ensures consistent game speed across all resolutions
+    scaleSpeed: function(speed) {
+        const scaleFactor = this.getScaleFactor();
+        const scaledSpeed = speed * scaleFactor;
+        
+        // Debug logging for speed scaling
+        console.log(`Speed scaling: ${speed} -> ${scaledSpeed.toFixed(3)} (factor: ${scaleFactor.toFixed(3)})`);
+        
+        return scaledSpeed;
+    },
+    
+    // Get resolution info for debugging
+    getResolutionInfo: function() {
+        return {
+            screen: `${window.screen.width}x${window.screen.height}`,
+            viewport: `${window.innerWidth}x${window.innerHeight}`,
+            container: `${document.querySelector('.game-container')?.offsetWidth}x${document.querySelector('.game-container')?.offsetHeight}`,
+            scaleFactor: this.getScaleFactor()
+        };
+    }
+};
+
 // Game State
 let gameState = {
-    score: 0,
     wave: 1,
     castleHealth: 100,
     maxCastleHealth: 100,
@@ -37,7 +84,7 @@ let gameState = {
         criticalChance: 0,        // Chance for critical hit (0-1)
         bulletSpeedMultiplier: 1, // Multiplier for bullet speed
         cooldownReduction: 0,     // Cooldown reduction percentage (0-1)
-        damageReduction: 0,       // Damage reduction percentage (0-1)
+        defensePoints: 0,         // Defense points (reduces damage by 1 per point)
         multiShot: 0,             // Additional bullets per dice
         piercing: false           // Bullets pierce through enemies
     }
@@ -45,7 +92,6 @@ let gameState = {
 
 // DOM Elements
 const elements = {
-    score: document.getElementById('score'),
     wave: document.getElementById('wave'),
     castleHealth: document.getElementById('castleHealth'),
     healthFill: document.getElementById('healthFill'),
@@ -55,7 +101,7 @@ const elements = {
     bulletSpeed: document.getElementById('bulletSpeed'),
     bulletDamage: document.getElementById('bulletDamage'),
     criticalChance: document.getElementById('criticalChance'),
-    damageReduction: document.getElementById('damageReduction'),
+    defensePoints: document.getElementById('defensePoints'),
     enemyArea: document.getElementById('enemyArea'),
     diceSlots: document.querySelectorAll('.dice-slot'),
     // Upgrade phase elements
@@ -68,6 +114,9 @@ const elements = {
 
 // Initialize Game
 function initGame() {
+    // Log resolution info for debugging
+    console.log('Game initialized with resolution info:', GAME_SCALE.getResolutionInfo());
+    
     updateUI();
     setupEventListeners();
     updateDiceSlots(); // Ensure dice colors are set correctly from start
@@ -361,6 +410,15 @@ function rollDice() {
             const cooldownReduction = gameState.powerupEffects.cooldownReduction;
             diceData.cooldownTimer = Math.max(1, baseCooldown * (1 - cooldownReduction)); // Minimum 1 frame
             
+            // Start cooldown animation immediately with correct duration
+            const diceElement = elements.diceSlots[slotIndex].querySelector('.dice');
+            if (diceElement) {
+                diceElement.classList.add('cooldown-active');
+                // Set animation duration based on actual cooldown time
+                const animationDuration = diceConfig.cooldownTime / 1000; // Convert ms to seconds
+                diceElement.style.setProperty('--cooldown-duration', `${animationDuration}s`);
+            }
+            
             // Shoot bullets based on dice value
             shootBullets(slotIndex, newValue, diceData.type);
             
@@ -429,7 +487,7 @@ function createBullet(x, bulletSpeed = 3) {
         element: bullet,
         x: x,
         y: diceSlotsY,
-        speed: bulletSpeed * gameState.powerupEffects.bulletSpeedMultiplier,
+        speed: GAME_SCALE.scaleSpeed(bulletSpeed * gameState.powerupEffects.bulletSpeedMultiplier),
         targetEnemy: null, // Will be set when bullet finds a target
         direction: null // Will be set if no target
     });
@@ -480,7 +538,7 @@ function spawnEnemy() {
 // Update Enemies
 function updateEnemies() {
     gameState.enemies.forEach((enemy, enemyIndex) => {
-        enemy.y += enemy.speed;
+        enemy.y += GAME_SCALE.scaleSpeed(enemy.speed);
         enemy.element.style.top = enemy.y + 'px';
         
         // Check if enemy reached castle - castle starts at 80% of game field height
@@ -488,9 +546,9 @@ function updateEnemies() {
         const castleStartY = gameFieldHeight * 0.8; // Castle starts at 80% of game field height
         
         if (enemy.y >= castleStartY) {
-            // Enemy reached castle border - apply damage reduction
-            const damageReduction = gameState.powerupEffects.damageReduction;
-            const actualDamage = enemy.damage * (1 - damageReduction);
+        // Enemy reached castle border - apply defense points
+        const defensePoints = gameState.powerupEffects.defensePoints;
+        const actualDamage = Math.max(1, enemy.damage - defensePoints);
             gameState.castleHealth -= actualDamage;
             gameState.enemiesRemaining--; // Decrease remaining count
             enemy.element.remove();
@@ -580,8 +638,8 @@ function updateBullets() {
         }
         
         // Move bullet in fixed direction (no more target tracking)
-        bullet.x += bullet.direction.x;
-        bullet.y += bullet.direction.y;
+        bullet.x += GAME_SCALE.scaleSpeed(bullet.direction.x);
+        bullet.y += GAME_SCALE.scaleSpeed(bullet.direction.y);
         
         bullet.element.style.left = bullet.x + 'px';
         bullet.element.style.top = bullet.y + 'px';
@@ -617,7 +675,6 @@ function updateBullets() {
                     enemy.element.remove();
                     gameState.enemies.splice(enemyIndex, 1);
                     gameState.enemiesRemaining--; // Decrease remaining count
-                    gameState.score += 10;
                 }
             }
         });
@@ -676,6 +733,10 @@ function updateDiceCooldowns() {
                     diceElement.classList.remove('unrollable', 'cooldown-active');
                     diceElement.classList.add('rollable');
                     diceElement.draggable = true;
+                    
+                    // Ensure correct color is restored
+                    const diceConfig = DICE_CONFIG.getDiceConfig(diceData.type);
+                    diceElement.style.backgroundColor = diceConfig.color;
                 }
             }
         }
@@ -711,17 +772,15 @@ function updateStatsDisplay() {
     const critPercent = Math.round(gameState.powerupEffects.criticalChance * 100);
     elements.criticalChance.textContent = critPercent + '%';
     
-    // Update damage reduction percentage
-    const defPercent = Math.round(gameState.powerupEffects.damageReduction * 100);
-    elements.damageReduction.textContent = defPercent + '%';
+    // Update defense points
+    elements.defensePoints.textContent = gameState.powerupEffects.defensePoints;
 }
 
 // Update UI
 function updateUI() {
-    elements.score.textContent = gameState.score;
     elements.wave.textContent = gameState.wave;
     elements.castleHealth.textContent = `${gameState.castleHealth}/${gameState.maxCastleHealth}`;
-    elements.enemyCount.textContent = gameState.enemies.length;
+    elements.enemyCount.textContent = `${gameState.enemiesRemaining}/${gameState.enemiesToSpawn}`;
     
     // Update stats display
     updateStatsDisplay();
@@ -743,7 +802,7 @@ function updateUI() {
 // Game Over
 function gameOver() {
     gameState.gameRunning = false;
-    alert(`Game Over! Final Score: ${gameState.score}`);
+    alert(`Game Over! Reached Wave: ${gameState.wave}`);
     
     // Reset game
     setTimeout(() => {
@@ -754,7 +813,6 @@ function gameOver() {
 // Reset Game
 function resetGame() {
     gameState = {
-        score: 0,
         wave: 1,
         castleHealth: 100,
         maxCastleHealth: 100,
@@ -791,7 +849,7 @@ function resetGame() {
             criticalChance: 0,        // Chance for critical hit (0-1)
             bulletSpeedMultiplier: 1, // Multiplier for bullet speed
             cooldownReduction: 0,     // Cooldown reduction percentage (0-1)
-            damageReduction: 0,       // Damage reduction percentage (0-1)
+            defensePoints: 0,         // Defense points (reduces damage by 1 per point)
             multiShot: 0,             // Additional bullets per dice
             piercing: false           // Bullets pierce through enemies
         }
@@ -1027,8 +1085,8 @@ function applyPowerupEffect(powerup) {
             gameState.powerupEffects.cooldownReduction += powerup.value;
             break;
             
-        case 'damage_reduction':
-            gameState.powerupEffects.damageReduction += powerup.value;
+        case 'defense_points':
+            gameState.powerupEffects.defensePoints += powerup.value;
             break;
             
         case 'multi_shot':
@@ -1044,5 +1102,26 @@ function applyPowerupEffect(powerup) {
     }
 }
 
+// Test function to compare speeds across resolutions
+function testSpeedScaling() {
+    console.log('=== SPEED SCALING TEST ===');
+    console.log('Resolution Info:', GAME_SCALE.getResolutionInfo());
+    
+    const testSpeeds = [0.5, 1.0, 2.0, 3.0];
+    testSpeeds.forEach(speed => {
+        const scaledSpeed = GAME_SCALE.scaleSpeed(speed);
+        console.log(`Base speed: ${speed} -> Scaled speed: ${scaledSpeed.toFixed(3)}`);
+    });
+    
+    console.log('=== END TEST ===');
+}
+
 // Initialize when page loads
-document.addEventListener('DOMContentLoaded', initGame);
+document.addEventListener('DOMContentLoaded', () => {
+    initGame();
+    
+    // Run speed test after a short delay to ensure everything is loaded
+    setTimeout(() => {
+        testSpeedScaling();
+    }, 1000);
+});
