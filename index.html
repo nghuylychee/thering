@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DiceDefend</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Home Screen -->
+    <div id="homeScreen" class="home-screen">
+        <div class="home-container">
+            <!-- Header -->
+            <div class="home-header">
+                <h1 class="game-title">🎲 DiceDefend</h1>
+                <div class="gold-display">
+                    <span class="gold-icon">💰</span>
+                    <span id="totalGold">0</span>
+                </div>
+            </div>
+
+            <!-- Main Menu -->
+            <div class="main-menu">
+                <button id="startGameBtn" class="menu-button primary">
+                    <span class="button-icon">▶️</span>
+                    <span class="button-text">Start Game</span>
+                </button>
+                
+                <button id="upgradesBtn" class="menu-button secondary">
+                    <span class="button-icon">⚡</span>
+                    <span class="button-text">Upgrades</span>
+                </button>
+                
+                <button id="resetProgressBtn" class="menu-button reset-button">
+                    <span class="button-icon">🔄</span>
+                    <span class="button-text">Reset Progress</span>
+                </button>
+            </div>
+
+            <!-- Quick Stats -->
+            <div class="quick-stats">
+                <div class="stat-card">
+                    <div class="stat-icon">🏰</div>
+                    <div class="stat-info">
+                        <div class="stat-label">Castle HP</div>
+                        <div class="stat-value" id="homeCastleHP">100</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">⚔️</div>
+                    <div class="stat-info">
+                        <div class="stat-label">Damage</div>
+                        <div class="stat-value" id="homeDamage">1</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">💨</div>
+                    <div class="stat-info">
+                        <div class="stat-label">Speed</div>
+                        <div class="stat-value" id="homeSpeed">1.0x</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Extended Stats -->
+            <div class="extended-stats">
+                <div class="stat-row">
+                    <div class="stat-item">
+                        <div class="stat-icon">🎯</div>
+                        <div class="stat-info">
+                            <div class="stat-label">Crit Chance</div>
+                            <div class="stat-value" id="homeCritChance">0%</div>
+                        </div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-icon">💥</div>
+                        <div class="stat-info">
+                            <div class="stat-label">Crit Multiplier</div>
+                            <div class="stat-value" id="homeCritMultiplier">2.0x</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="stat-row">
+                    <div class="stat-item">
+                        <div class="stat-icon">🛡️</div>
+                        <div class="stat-info">
+                            <div class="stat-label">Defense</div>
+                            <div class="stat-value" id="homeDefense">0</div>
+                        </div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-icon">🌊</div>
+                        <div class="stat-info">
+                            <div class="stat-label">Max Wave</div>
+                            <div class="stat-value" id="homeMaxWave">0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upgrades Screen -->
+    <div id="upgradesScreen" class="upgrades-screen" style="display: none;">
+        <div class="upgrades-container">
+            <!-- Header -->
+            <div class="upgrades-header">
+                <button id="backToHomeBtn" class="back-button-small">←</button>
+                <h2>⚡ Upgrades</h2>
+                <div class="gold-display">
+                    <span class="gold-icon">💰</span>
+                    <span id="upgradeGold">0</span>
+                </div>
+            </div>
+
+            <div class="upgrades-grid">
+                <!-- Castle HP Upgrade -->
+                <div class="upgrade-card">
+                    <div class="upgrade-left">
+                        <div class="upgrade-icon">🏰</div>
+                        <div class="upgrade-info">
+                            <div class="upgrade-name">Castle HP</div>
+                            <div class="upgrade-description">Increase castle maximum health</div>
+                            <div class="upgrade-level">Level: <span id="castleHPLevel">0</span></div>
+                        </div>
+                    </div>
+                    <div class="upgrade-right">
+                        <div class="upgrade-cost">
+                            <span class="cost-icon">💰</span>
+                            <span id="castleHPCost">100</span>
+                        </div>
+                        <button class="upgrade-btn" data-upgrade="castleHP">Upgrade</button>
+                    </div>
+                </div>
+
+                <!-- Damage Upgrade -->
+                <div class="upgrade-card">
+                    <div class="upgrade-left">
+                        <div class="upgrade-icon">⚔️</div>
+                        <div class="upgrade-info">
+                            <div class="upgrade-name">Damage</div>
+                            <div class="upgrade-description">Increase bullet damage</div>
+                            <div class="upgrade-level">Level: <span id="damageLevel">0</span></div>
+                        </div>
+                    </div>
+                    <div class="upgrade-right">
+                        <div class="upgrade-cost">
+                            <span class="cost-icon">💰</span>
+                            <span id="damageCost">50</span>
+                        </div>
+                        <button class="upgrade-btn" data-upgrade="damage">Upgrade</button>
+                    </div>
+                </div>
+
+                <!-- Speed Upgrade -->
+                <div class="upgrade-card">
+                    <div class="upgrade-left">
+                        <div class="upgrade-icon">💨</div>
+                        <div class="upgrade-info">
+                            <div class="upgrade-name">Bullet Speed</div>
+                            <div class="upgrade-description">Increase bullet speed</div>
+                            <div class="upgrade-level">Level: <span id="speedLevel">0</span></div>
+                        </div>
+                    </div>
+                    <div class="upgrade-right">
+                        <div class="upgrade-cost">
+                            <span class="cost-icon">💰</span>
+                            <span id="speedCost">75</span>
+                        </div>
+                        <button class="upgrade-btn" data-upgrade="speed">Upgrade</button>
+                    </div>
+                </div>
+
+                <!-- Crit Chance Upgrade -->
+                <div class="upgrade-card">
+                    <div class="upgrade-left">
+                        <div class="upgrade-icon">🎯</div>
+                        <div class="upgrade-info">
+                            <div class="upgrade-name">Crit Chance</div>
+                            <div class="upgrade-description">Increase critical hit chance</div>
+                            <div class="upgrade-level">Level: <span id="critChanceLevel">0</span></div>
+                        </div>
+                    </div>
+                    <div class="upgrade-right">
+                        <div class="upgrade-cost">
+                            <span class="cost-icon">💰</span>
+                            <span id="critChanceCost">200</span>
+                        </div>
+                        <button class="upgrade-btn" data-upgrade="critChance">Upgrade</button>
+                    </div>
+                </div>
+
+                <!-- Crit Multiplier Upgrade -->
+                <div class="upgrade-card">
+                    <div class="upgrade-left">
+                        <div class="upgrade-icon">💥</div>
+                        <div class="upgrade-info">
+                            <div class="upgrade-name">Crit Multiplier</div>
+                            <div class="upgrade-description">Increase critical damage multiplier</div>
+                            <div class="upgrade-level">Level: <span id="critMultiplierLevel">0</span></div>
+                        </div>
+                    </div>
+                    <div class="upgrade-right">
+                        <div class="upgrade-cost">
+                            <span class="cost-icon">💰</span>
+                            <span id="critMultiplierCost">300</span>
+                        </div>
+                        <button class="upgrade-btn" data-upgrade="critMultiplier">Upgrade</button>
+                    </div>
+                </div>
+
+                <!-- Defense Points Upgrade -->
+                <div class="upgrade-card">
+                    <div class="upgrade-left">
+                        <div class="upgrade-icon">🛡️</div>
+                        <div class="upgrade-info">
+                            <div class="upgrade-name">Defense</div>
+                            <div class="upgrade-description">Reduce incoming damage</div>
+                            <div class="upgrade-level">Level: <span id="defenseLevel">0</span></div>
+                        </div>
+                    </div>
+                    <div class="upgrade-right">
+                        <div class="upgrade-cost">
+                            <span class="cost-icon">💰</span>
+                            <span id="defenseCost">150</span>
+                        </div>
+                        <button class="upgrade-btn" data-upgrade="defense">Upgrade</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="gameScreen" class="game-screen" style="display: none;">
+        <div class="game-container">
+            <!-- Game Header -->
+            <div class="game-header">
+                <div class="game-stats">
+                    <button id="backToHomeFromGameBtn" class="back-button-small">←</button>
+                    <div class="wave-info">
+                        <div>Wave: <span id="wave">1</span></div>
+                        <div>Enemies: <span id="enemyCount">0/0</span></div>
+                    </div>
+                    <div class="gold-display">
+                        <span class="gold-icon">💰</span>
+                        <span id="gameGold">0</span>
+                    </div>
+                </div>
+            </div>
+
+        <!-- Game Field -->
+        <div class="game-field">
+            <!-- Enemy Area -->
+            <div class="enemy-area" id="enemyArea">
+                <!-- Enemies will spawn here -->
+            </div>
+            <!-- Castle/Base -->
+            <div class="castle">
+                <div class="castle-header">
+                    <div class="castle-health">
+                        <div class="health-bar">
+                            <div class="health-fill" id="healthFill"></div>
+                            <div class="health-text" id="castleHealth">20/20</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Dice Slots -->
+                <div class="dice-slots">
+                    <div class="dice-slot" data-lane="0">
+                        <div class="dice" id="dice-0" data-dice-type="D2" draggable="true">1</div>
+                    </div>
+                    <div class="dice-slot" data-lane="1">
+                        <div class="dice" id="dice-1" data-dice-type="D3" draggable="true">2</div>
+                    </div>
+                    <div class="dice-slot" data-lane="2">
+                        <div class="dice" id="dice-2" data-dice-type="D4" draggable="true">3</div>
+                    </div>
+                    <div class="dice-slot" data-lane="3"></div>
+                    <div class="dice-slot" data-lane="4"></div>
+                    <div class="dice-slot" data-lane="5"></div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Control Panel -->
+        <div class="control-panel">
+            <button id="rollButton" class="roll-button">ROLL</button>
+            <div class="stats-display">
+                <div class="stat-item">
+                    <span class="stat-label">Speed</span>
+                    <span class="stat-value" id="bulletSpeed">1.0x</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">DMG</span>
+                    <span class="stat-value" id="bulletDamage">1</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Crit</span>
+                    <span class="stat-value" id="criticalChance">0%</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Crit×</span>
+                    <span class="stat-value" id="critMultiplier">2.0x</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Def</span>
+                    <span class="stat-value" id="defensePoints">0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upgrade Phase Overlay -->
+    <div id="upgradePhase" class="upgrade-phase" style="display: none;">
+        <div class="upgrade-container">
+            <div class="upgrade-header">
+                <h2>Wave Complete!</h2>
+                <p>Choose your upgrades</p>
+            </div>
+            
+            <div class="powerup-cards" id="powerupCards">
+                <!-- Power-up cards will be generated here -->
+            </div>
+            
+            <div class="upgrade-actions">
+                <div class="resource-dice">
+                    <div class="dice" id="resourceDice">?</div>
+                </div>
+                <button id="rollResourceDice" class="roll-resource-btn">Roll</button>
+                <button id="skipUpgrade" class="skip-btn">SKIP</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Summary Popup -->
+    <div id="gameSummaryPopup" class="game-summary-popup" style="display: none;">
+        <div class="summary-container">
+            <div class="summary-header">
+                <h2>🎮 Game Over!</h2>
+            </div>
+            
+            <div class="summary-content">
+                <div class="summary-stats">
+                    <div class="summary-stat">
+                        <div class="stat-icon">🌊</div>
+                        <div class="stat-info">
+                            <div class="stat-label">Max Wave</div>
+                            <div class="stat-value" id="summaryMaxWave">1</div>
+                        </div>
+                    </div>
+                    
+                    <div class="summary-stat">
+                        <div class="stat-icon">💰</div>
+                        <div class="stat-info">
+                            <div class="stat-label">Gold Earned</div>
+                            <div class="stat-value" id="summaryGoldEarned">0</div>
+                        </div>
+                    </div>
+                    
+                    <div class="summary-stat">
+                        <div class="stat-icon">👹</div>
+                        <div class="stat-info">
+                            <div class="stat-label">Enemies Killed</div>
+                            <div class="stat-value" id="summaryEnemiesKilled">0</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="summary-reward">
+                    <div class="reward-text">Total Gold Added to Account:</div>
+                    <div class="reward-amount" id="summaryTotalGold">0</div>
+                </div>
+            </div>
+            
+            <div class="summary-actions">
+                <button id="returnHomeBtn" class="summary-button primary">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="home-manager.js"></script>
+    <script src="enemy-config.js"></script>
+    <script src="wave-config.js"></script>
+    <script src="dice-config.js"></script>
+    <script src="powerup-config.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
