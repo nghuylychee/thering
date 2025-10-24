@@ -90,6 +90,7 @@ let gameState = {
     powerupEffects: {
         damageBoost: 0,           // Additional damage per bullet
         criticalChance: 0,        // Chance for critical hit (0-1)
+        critMultiplier: 2,        // Critical damage multiplier
         bulletSpeedMultiplier: 1, // Multiplier for bullet speed
         cooldownReduction: 0,     // Cooldown reduction percentage (0-1)
         defensePoints: 0,         // Defense points (reduces damage by 1 per point)
@@ -109,6 +110,7 @@ const elements = {
     bulletSpeed: document.getElementById('bulletSpeed'),
     bulletDamage: document.getElementById('bulletDamage'),
     criticalChance: document.getElementById('criticalChance'),
+    critMultiplier: document.getElementById('critMultiplier'),
     defensePoints: document.getElementById('defensePoints'),
     enemyArea: document.getElementById('enemyArea'),
     diceSlots: document.querySelectorAll('.dice-slot'),
@@ -753,7 +755,8 @@ function updateBullets() {
                 
                 // Check for critical hit
                 if (Math.random() < gameState.powerupEffects.criticalChance) {
-                    damage *= 2; // Double damage on critical hit
+                    const critMultiplier = gameState.powerupEffects.critMultiplier || 2; // Default 2x if not set
+                    damage *= critMultiplier; // Apply critical damage multiplier
                 }
                 
                 enemy.health -= damage;
@@ -880,6 +883,10 @@ function updateStatsDisplay() {
     const critPercent = Math.round(gameState.powerupEffects.criticalChance * 100);
     elements.criticalChance.textContent = critPercent + '%';
     
+    // Update critical damage multiplier
+    const critMultiplier = gameState.powerupEffects.critMultiplier || 2; // Default 2x if not set
+    elements.critMultiplier.textContent = critMultiplier.toFixed(1) + 'x';
+    
     // Update defense points
     elements.defensePoints.textContent = gameState.powerupEffects.defensePoints;
 }
@@ -973,6 +980,7 @@ function resetGame() {
         powerupEffects: {
             damageBoost: 0,           // Additional damage per bullet
             criticalChance: 0,        // Chance for critical hit (0-1)
+            critMultiplier: 2,        // Critical damage multiplier
             bulletSpeedMultiplier: 1, // Multiplier for bullet speed
             cooldownReduction: 0,     // Cooldown reduction percentage (0-1)
             defensePoints: 0,         // Defense points (reduces damage by 1 per point)
