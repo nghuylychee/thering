@@ -1,8 +1,8 @@
 // Wave Configuration
-// Định nghĩa các wave và cách spawn enemy
+// Định nghĩa các wave và cách spawn enemy (không thay đổi stats của enemy)
 
 const WAVE_CONFIG = [
-    // Wave 1-5: Tutorial waves
+    // Wave 1-5: Tutorial waves - Tăng số lượng enemy và lanes
     { 
         enemies: 3, 
         lanes: [0, 1, 2], 
@@ -39,7 +39,7 @@ const WAVE_CONFIG = [
         description: 'Tutorial - More enemies'
     },
     
-    // Wave 6-10: Intermediate waves
+    // Wave 6-10: Intermediate waves - Thay đổi loại enemy
     { 
         enemies: 15, 
         lanes: [0, 1, 2, 3, 4, 5], 
@@ -76,7 +76,7 @@ const WAVE_CONFIG = [
         description: 'Intermediate - Many tank enemies'
     },
     
-    // Wave 11+: Advanced waves (boss waves every 5 waves)
+    // Wave 11+: Advanced waves - Boss enemies
     { 
         enemies: 35, 
         lanes: [0, 1, 2, 3, 4, 5], 
@@ -94,7 +94,7 @@ const WAVE_MANAGER = {
         return WAVE_CONFIG[configIndex];
     },
     
-    // Get enemy stats for current wave
+    // Get enemy stats for current wave (stats không thay đổi theo wave)
     getEnemyStats: function(waveNumber) {
         const waveConfig = this.getWaveConfig(waveNumber);
         return ENEMY_CONFIG.getEnemyStats(waveNumber, waveConfig.enemyType);
