@@ -90,7 +90,6 @@ let gameState = {
     powerupEffects: {
         damageBoost: 0,           // Additional damage per bullet
         criticalChance: 0,        // Chance for critical hit (0-1)
-        critMultiplier: 2,        // Critical damage multiplier
         bulletSpeedMultiplier: 1, // Multiplier for bullet speed
         cooldownReduction: 0,     // Cooldown reduction percentage (0-1)
         defensePoints: 0,         // Defense points (reduces damage by 1 per point)
@@ -755,8 +754,7 @@ function updateBullets() {
                 
                 // Check for critical hit
                 if (Math.random() < gameState.powerupEffects.criticalChance) {
-                    const critMultiplier = gameState.powerupEffects.critMultiplier || 2; // Default 2x if not set
-                    damage *= critMultiplier; // Apply critical damage multiplier
+                    damage *= 2; // Double damage on critical hit
                 }
                 
                 enemy.health -= damage;
@@ -883,9 +881,9 @@ function updateStatsDisplay() {
     const critPercent = Math.round(gameState.powerupEffects.criticalChance * 100);
     elements.criticalChance.textContent = critPercent + '%';
     
-    // Update critical damage multiplier
-    const critMultiplier = gameState.powerupEffects.critMultiplier || 2; // Default 2x if not set
-    elements.critMultiplier.textContent = critMultiplier.toFixed(1) + 'x';
+    // Update critical multiplier
+    const critMult = gameState.powerupEffects.critMultiplier || 2; // Default 2x if not set
+    elements.critMultiplier.textContent = critMult.toFixed(1) + 'x';
     
     // Update defense points
     elements.defensePoints.textContent = gameState.powerupEffects.defensePoints;
@@ -980,7 +978,6 @@ function resetGame() {
         powerupEffects: {
             damageBoost: 0,           // Additional damage per bullet
             criticalChance: 0,        // Chance for critical hit (0-1)
-            critMultiplier: 2,        // Critical damage multiplier
             bulletSpeedMultiplier: 1, // Multiplier for bullet speed
             cooldownReduction: 0,     // Cooldown reduction percentage (0-1)
             defensePoints: 0,         // Defense points (reduces damage by 1 per point)
