@@ -8,14 +8,14 @@ const POWERUP_CONFIG = {
         'dice_upgrade': {
             name: 'Dice Upgrade',
             description: 'Upgrade một dice hiện có lên loại cao hơn',
-            diceRequired: 2,
+            diceRequired: 3,
             category: 'dice',
             effect: 'upgrade_dice'
         },
         'new_dice': {
             name: 'New Dice',
             description: 'Thêm một dice D2 mới vào slot trống',
-            diceRequired: 3,
+            diceRequired: 4,
             category: 'dice',
             effect: 'add_dice'
         },
@@ -32,10 +32,10 @@ const POWERUP_CONFIG = {
         'critical_hit': {
             name: 'Critical Hit',
             description: '10% chance bullets gây double damage',
-            diceRequired: 4,
+            diceRequired: 2,
             category: 'damage',
             effect: 'critical_chance',
-            value: 0.1
+            value: 0.05
         },
         
         // Speed Upgrades
@@ -49,11 +49,11 @@ const POWERUP_CONFIG = {
         },
         'cooldown_reduction': {
             name: 'Cooldown Reduction',
-            description: 'Giảm cooldown của tất cả dice -20%',
+            description: 'Giảm cooldown của tất cả dice -10%',
             diceRequired: 3,
             category: 'speed',
             effect: 'reduce_cooldown',
-            value: 0.2
+            value: 0.1
         },
         
         // Defense Upgrades
@@ -67,11 +67,11 @@ const POWERUP_CONFIG = {
         },
         'castle_shield': {
             name: 'Castle Shield',
-            description: 'Tăng defense points +2',
+            description: 'Tăng defense points +5',
             diceRequired: 4,
             category: 'defense',
             effect: 'defense_points',
-            value: 2
+            value: 5
         },
         
         // Special Upgrades

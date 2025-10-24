@@ -62,6 +62,10 @@ const HOME_MANAGER = {
             this.showUpgradesScreen();
         });
 
+        document.getElementById('resetProgressBtn').addEventListener('click', () => {
+            this.resetProgress();
+        });
+
         // Upgrades screen buttons
         document.getElementById('backToHomeBtn').addEventListener('click', () => {
             this.showHomeScreen();
@@ -135,15 +139,18 @@ const HOME_MANAGER = {
         document.getElementById('upgradeGold').textContent = this.playerData.totalGold;
         document.getElementById('gameGold').textContent = '0'; // Reset game gold
 
+        // Get current player upgrades
+        const upgrades = this.getPlayerUpgrades();
+
         // Update quick stats
-        document.getElementById('homeCastleHP').textContent = 100 + (this.playerData.upgrades.castleHP.level * 20);
-        document.getElementById('homeDamage').textContent = 1 + this.playerData.upgrades.damage.level;
-        document.getElementById('homeSpeed').textContent = (1 + (this.playerData.upgrades.speed.level * 0.1)).toFixed(1) + 'x';
+        document.getElementById('homeCastleHP').textContent = upgrades.castleHP;
+        document.getElementById('homeDamage').textContent = upgrades.damage;
+        document.getElementById('homeSpeed').textContent = upgrades.speed.toFixed(1) + 'x';
         
         // Update extended stats
-        document.getElementById('homeCritChance').textContent = (this.playerData.upgrades.critChance.level * 5) + '%';
-        document.getElementById('homeCritMultiplier').textContent = (2 + (this.playerData.upgrades.critMultiplier.level * 0.5)).toFixed(1) + 'x';
-        document.getElementById('homeDefense').textContent = this.playerData.upgrades.defense.level;
+        document.getElementById('homeCritChance').textContent = (upgrades.critChance * 100).toFixed(0) + '%';
+        document.getElementById('homeCritMultiplier').textContent = upgrades.critMultiplier.toFixed(1) + 'x';
+        document.getElementById('homeDefense').textContent = upgrades.defense;
         document.getElementById('homeMaxWave').textContent = this.playerData.stats.maxWave;
     },
 
@@ -239,6 +246,9 @@ const HOME_MANAGER = {
         
         this.savePlayerData();
 
+        // Update UI to reflect new stats
+        this.updateUI();
+
         // Show popup
         document.getElementById('gameSummaryPopup').style.display = 'flex';
     },
@@ -332,16 +342,16 @@ const HOME_MANAGER = {
 
 
     // Get player upgrades for game
-    getPlayerUpgrades: function() {
-        return {
-            castleHP: 100 + (this.playerData.upgrades.castleHP.level * 20),
-            damage: 1 + this.playerData.upgrades.damage.level,
-            speed: 1 + (this.playerData.upgrades.speed.level * 0.1),
-            critChance: this.playerData.upgrades.critChance.level * 0.05, // 5% per level
-            critMultiplier: 2 + (this.playerData.upgrades.critMultiplier.level * 0.5), // +0.5x per level
-            defense: this.playerData.upgrades.defense.level
-        };
-    },
+        getPlayerUpgrades: function() {
+            return {
+                castleHP: 20 + (this.playerData.upgrades.castleHP.level * 20), // Base 20 + 20 per level
+                damage: 1 + this.playerData.upgrades.damage.level,
+                speed: 1 + (this.playerData.upgrades.speed.level * 0.1),
+                critChance: this.playerData.upgrades.critChance.level * 0.05, // 5% per level
+                critMultiplier: 1.2 + (this.playerData.upgrades.critMultiplier.level * 0.5), // +0.5x per level
+                defense: this.playerData.upgrades.defense.level
+            };
+        },
 
     // Create gold particle animation
     createGoldParticle: function(x, y, amount) {
@@ -416,6 +426,16 @@ const HOME_MANAGER = {
                 }
             }
         }, 1300);
+    },
+    
+    // Reset all progress
+    resetProgress: function() {
+        if (confirm('Are you sure you want to reset all progress? This cannot be undone!')) {
+            localStorage.clear();
+            this.loadPlayerData(); // Reload default data
+            this.updateUI();
+            alert('Progress reset! Please refresh the page.');
+        }
     }
 };
 

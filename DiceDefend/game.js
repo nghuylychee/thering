@@ -73,6 +73,7 @@ let gameState = {
     draggedDice: null,
     // Upgrade system
     upgradePhase: false,
+    upgradePhaseSkipped: false,
     currentResources: 0,
     resourceDiceRolled: false,
     availablePowerups: [],
@@ -121,6 +122,7 @@ const elements = {
 
 // Initialize Game
 function initGame() {
+    console.log('initGame called, current wave:', gameState.wave, 'gameLoopRunning:', gameState.gameLoopRunning);
     // Log resolution info for debugging
     console.log('Game initialized with resolution info:', GAME_SCALE.getResolutionInfo());
     
@@ -139,13 +141,15 @@ function initGame() {
     updateDiceSlots(); // Ensure dice colors are set correctly from start
     gameState.gameLoopRunning = true;
     startWave(1);
-    gameLoop();
+    // gameLoop() will be called by startWave() after popup
 }
 
 // Apply player upgrades from home screen
 function applyPlayerUpgrades() {
     if (typeof HOME_MANAGER !== 'undefined') {
         const upgrades = HOME_MANAGER.getPlayerUpgrades();
+        
+        console.log('Applying player upgrades:', upgrades);
         
         // Apply castle HP
         gameState.maxCastleHealth = upgrades.castleHP;
@@ -165,12 +169,14 @@ function applyPlayerUpgrades() {
         
         // Apply defense points
         gameState.powerupEffects.defensePoints = upgrades.defense;
+        
+        console.log('Powerup effects after applying upgrades:', gameState.powerupEffects);
     }
 }
 
 // Start Wave
 function startWave(waveNumber) {
-    console.log('startWave called with wave:', waveNumber);
+    console.log('startWave called with wave:', waveNumber, 'current wave:', gameState.wave, 'gameLoopRunning:', gameState.gameLoopRunning);
     gameState.wave = waveNumber;
     gameState.waveInProgress = true;
     gameState.enemiesSpawned = 0;
@@ -181,13 +187,17 @@ function startWave(waveNumber) {
     gameState.enemiesRemaining = gameState.currentWaveConfig.enemies; // Initialize remaining count
     gameState.enemySpawnInterval = gameState.currentWaveConfig.spawnInterval;
     
+    console.log('Wave config:', gameState.currentWaveConfig);
+    
     // Show wave popup
     showWavePopup(waveNumber, gameState.currentWaveConfig);
     
-    // Start spawning enemies after popup
-    setTimeout(() => {
-        gameState.enemySpawnTimer = 0;
-    }, 2000);
+    // Start spawning enemies immediately
+    gameState.enemySpawnTimer = 0;
+    // Force restart game loop for new wave
+    console.log('Restarting game loop for wave:', waveNumber);
+    gameState.gameLoopRunning = true;
+    gameLoop();
 }
 
 // Show Wave Popup
@@ -225,11 +235,16 @@ function setupEventListeners() {
     // Upgrade Phase Events
     elements.rollResourceDice.addEventListener('click', rollResourceDice);
     elements.skipUpgrade.addEventListener('click', () => {
+        console.log('Skip upgrade clicked, current wave:', gameState.wave);
+        const nextWave = gameState.wave + 1;
+        // Set flag to prevent auto-transition from selectPowerup
+        gameState.upgradePhaseSkipped = true;
         hideUpgradePhase();
         
         // Start next wave after a short delay to ensure UI is updated
         setTimeout(() => {
-            startWave(gameState.wave + 1);
+            console.log('Starting next wave after skip:', nextWave);
+            startWave(nextWave);
         }, 100);
     });
 }
@@ -557,6 +572,9 @@ function spawnEnemy() {
     // Get enemy stats using ENEMY_CONFIG
     const enemyStats = WAVE_MANAGER.getEnemyStats(gameState.wave);
     
+    // Debug log for enemy speed
+    console.log(`Wave ${gameState.wave} - Enemy type: ${gameState.currentWaveConfig.enemyType}, Speed: ${enemyStats.speed}`);
+    
     const enemy = document.createElement('div');
     enemy.className = 'enemy';
     enemy.style.left = enemyX + 'px';
@@ -581,7 +599,7 @@ function spawnEnemy() {
 // Update Enemies
 function updateEnemies() {
     gameState.enemies.forEach((enemy, enemyIndex) => {
-        enemy.y += GAME_SCALE.scaleSpeed(enemy.speed);
+        enemy.y += enemy.speed;
         enemy.element.style.top = enemy.y + 'px';
         
         // Check if enemy reached castle - castle starts at 80% of game field height
@@ -681,8 +699,8 @@ function updateBullets() {
         }
         
         // Move bullet in fixed direction (no more target tracking)
-        bullet.x += GAME_SCALE.scaleSpeed(bullet.direction.x);
-        bullet.y += GAME_SCALE.scaleSpeed(bullet.direction.y);
+        bullet.x += bullet.direction.x;
+        bullet.y += bullet.direction.y;
         
         bullet.element.style.left = bullet.x + 'px';
         bullet.element.style.top = bullet.y + 'px';
@@ -737,6 +755,8 @@ function updateBullets() {
 
 // Game Loop
 function gameLoop() {
+    console.log('Game loop iteration - gameRunning:', gameState.gameRunning, 'gameLoopRunning:', gameState.gameLoopRunning, 'wave:', gameState.wave);
+    
     if (!gameState.gameRunning) {
         console.log('Game loop paused - gameRunning:', gameState.gameRunning);
         // Don't continue the loop when game is paused
@@ -761,7 +781,12 @@ function gameLoop() {
     updateBullets();
     updateUI();
     
-    requestAnimationFrame(gameLoop);
+    // Continue game loop
+    if (gameState.gameLoopRunning) {
+        requestAnimationFrame(gameLoop);
+    } else {
+        console.log('Game loop stopped - gameLoopRunning:', gameState.gameLoopRunning);
+    }
 }
 
 // Update Dice Cooldowns
@@ -865,6 +890,7 @@ function gameOver() {
 
 // Reset Game
 function resetGame() {
+    console.log('resetGame called, current wave:', gameState.wave, 'gameLoopRunning:', gameState.gameLoopRunning);
     // Stop current game loop
     if (typeof gameState !== 'undefined') {
         gameState.gameRunning = false;
@@ -878,8 +904,8 @@ function resetGame() {
     
     gameState = {
         wave: 1,
-        castleHealth: 100,
-        maxCastleHealth: 100,
+        castleHealth: 20,
+        maxCastleHealth: 20,
         enemies: [],
         bullets: [],
         diceSlots: [
@@ -902,6 +928,7 @@ function resetGame() {
         draggedDice: null,
         // Upgrade system
         upgradePhase: false,
+        upgradePhaseSkipped: false,
         currentResources: 0,
         resourceDiceRolled: false,
         availablePowerups: [],
@@ -930,6 +957,7 @@ function resetGame() {
 // Upgrade System Functions
 function showUpgradePhase() {
     gameState.upgradePhase = true;
+    gameState.upgradePhaseSkipped = false; // Reset skip flag
     gameState.gameRunning = false;
     
     // Generate random power-ups
@@ -948,7 +976,7 @@ function showUpgradePhase() {
 }
 
 function hideUpgradePhase() {
-    console.log('hideUpgradePhase called');
+    console.log('hideUpgradePhase called, current wave:', gameState.wave);
     gameState.upgradePhase = false;
     gameState.gameRunning = true;
     elements.upgradePhase.style.display = 'none';
@@ -960,13 +988,13 @@ function hideUpgradePhase() {
     console.log('Game state after hideUpgradePhase:', {
         upgradePhase: gameState.upgradePhase,
         gameRunning: gameState.gameRunning,
-        gameLoopRunning: gameState.gameLoopRunning
+        gameLoopRunning: gameState.gameLoopRunning,
+        wave: gameState.wave,
+        upgradePhaseSkipped: gameState.upgradePhaseSkipped
     });
     
-    // Always restart game loop when exiting upgrade phase
-    console.log('Restarting game loop');
-    gameState.gameLoopRunning = true;
-    gameLoop();
+    // Don't restart game loop here - let the caller handle it
+    // This prevents conflicts when startWave() is called after hideUpgradePhase()
 }
 
 function generatePowerupCards() {
@@ -1085,10 +1113,20 @@ function selectPowerup(powerupId) {
     
     if (!canAffordAny) {
         // No more affordable power-ups, proceed to next wave
+        const nextWave = gameState.wave + 1;
+        console.log('No more affordable powerups, scheduling wave transition to:', nextWave);
         setTimeout(() => {
-            hideUpgradePhase();
-            startWave(gameState.wave + 1);
+            // Check if upgrade phase is still active (not skipped)
+            if (gameState.upgradePhase && !gameState.upgradePhaseSkipped) {
+                console.log('Auto-transitioning to wave:', nextWave, 'current wave:', gameState.wave);
+                hideUpgradePhase();
+                startWave(nextWave);
+            } else {
+                console.log('Upgrade phase already ended or skipped, skipping auto-transition');
+            }
         }, 1000);
+    } else {
+        console.log('Still can afford powerups, staying in upgrade phase');
     }
 }
 
@@ -1162,15 +1200,12 @@ function applyPowerupEffect(powerup) {
 
 // Get gold reward for enemy type and wave
 function getEnemyGoldReward(enemyType, wave) {
-    const baseRewards = {
-        basic: 5,
-        fast: 8,
-        tank: 12,
-        boss: 25
-    };
+    // Get base gold reward from enemy config
+    const enemyStats = ENEMY_CONFIG.getEnemyStats(wave, enemyType);
+    const baseReward = enemyStats.goldReward;
     
-    const baseReward = baseRewards[enemyType] || baseRewards.basic;
-    const waveMultiplier = Math.floor(wave / 5) + 1; // Every 5 waves increase reward
+    // Apply wave multiplier (every 5 waves increase reward)
+    const waveMultiplier = 1;
     
     return baseReward * waveMultiplier;
 }
