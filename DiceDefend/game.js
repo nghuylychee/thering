@@ -126,6 +126,9 @@ function initGame() {
     // Log resolution info for debugging
     console.log('Game initialized with resolution info:', GAME_SCALE.getResolutionInfo());
     
+    // Ensure no game loop is running before starting
+    gameState.gameLoopRunning = false;
+    
     // Apply player upgrades
     applyPlayerUpgrades();
     
@@ -139,7 +142,6 @@ function initGame() {
     updateUI();
     setupEventListeners();
     updateDiceSlots(); // Ensure dice colors are set correctly from start
-    gameState.gameLoopRunning = true;
     startWave(1);
     // gameLoop() will be called by startWave() after popup
 }
@@ -177,6 +179,10 @@ function applyPlayerUpgrades() {
 // Start Wave
 function startWave(waveNumber) {
     console.log('startWave called with wave:', waveNumber, 'current wave:', gameState.wave, 'gameLoopRunning:', gameState.gameLoopRunning);
+    
+    // Ensure previous game loop is completely stopped
+    gameState.gameLoopRunning = false;
+    
     gameState.wave = waveNumber;
     gameState.waveInProgress = true;
     gameState.enemiesSpawned = 0;
@@ -374,13 +380,29 @@ function updateDiceSlots() {
                 if (diceData.isRollable) {
                     diceElement.classList.remove('unrollable', 'cooldown-active');
                     diceElement.classList.add('rollable');
+                    // Clear any cooldown animation properties
+                    diceElement.style.removeProperty('--cooldown-duration');
+                    diceElement.style.removeProperty('--cooldown-delay');
                 } else {
                     diceElement.classList.remove('rollable');
                     diceElement.classList.add('unrollable');
                     
-                    // Start cooldown animation immediately if dice just became unrollable
+                    // Start cooldown animation with correct progress if dice is unrollable
                     if (diceData.cooldownTimer > 0) {
                         diceElement.classList.add('cooldown-active');
+                        
+                        // Calculate remaining cooldown progress
+                        const diceConfig = DICE_CONFIG.getDiceConfig(diceData.type);
+                        const totalCooldownFrames = diceConfig.cooldownTime / 16; // Convert ms to frames
+                        const remainingFrames = diceData.cooldownTimer;
+                        const progressRatio = remainingFrames / totalCooldownFrames;
+                        
+                        // Set animation duration and delay to preserve progress
+                        const animationDuration = diceConfig.cooldownTime / 1000; // Convert ms to seconds
+                        const animationDelay = -(animationDuration * (1 - progressRatio)); // Negative delay to start from current progress
+                        
+                        diceElement.style.setProperty('--cooldown-duration', `${animationDuration}s`);
+                        diceElement.style.setProperty('--cooldown-delay', `${animationDelay}s`);
                     }
                 }
                 
@@ -407,9 +429,22 @@ function updateDiceSlots() {
                 } else {
                     newDice.classList.add('unrollable');
                     
-                    // Start cooldown animation immediately if dice is unrollable
+                    // Start cooldown animation with correct progress if dice is unrollable
                     if (diceData.cooldownTimer > 0) {
                         newDice.classList.add('cooldown-active');
+                        
+                        // Calculate remaining cooldown progress
+                        const diceConfig = DICE_CONFIG.getDiceConfig(diceData.type);
+                        const totalCooldownFrames = diceConfig.cooldownTime / 16; // Convert ms to frames
+                        const remainingFrames = diceData.cooldownTimer;
+                        const progressRatio = remainingFrames / totalCooldownFrames;
+                        
+                        // Set animation duration and delay to preserve progress
+                        const animationDuration = diceConfig.cooldownTime / 1000; // Convert ms to seconds
+                        const animationDelay = -(animationDuration * (1 - progressRatio)); // Negative delay to start from current progress
+                        
+                        newDice.style.setProperty('--cooldown-duration', `${animationDuration}s`);
+                        newDice.style.setProperty('--cooldown-delay', `${animationDelay}s`);
                     }
                 }
                 
@@ -513,7 +548,7 @@ function shootBullets(laneIndex, bulletCount, diceType) {
     for (let i = 0; i < totalBullets; i++) {
         setTimeout(() => {
             createBullet(diceX, diceConfig.bulletSpeed);
-        }, i * 100); // Stagger bullet creation
+        }, i * 500); // Stagger bullet creation
     }
 }
 
@@ -757,9 +792,9 @@ function updateBullets() {
 function gameLoop() {
     console.log('Game loop iteration - gameRunning:', gameState.gameRunning, 'gameLoopRunning:', gameState.gameLoopRunning, 'wave:', gameState.wave);
     
-    if (!gameState.gameRunning) {
-        console.log('Game loop paused - gameRunning:', gameState.gameRunning);
-        // Don't continue the loop when game is paused
+    // Check if game loop should continue
+    if (!gameState.gameRunning || !gameState.gameLoopRunning) {
+        console.log('Game loop stopped - gameRunning:', gameState.gameRunning, 'gameLoopRunning:', gameState.gameLoopRunning);
         return;
     }
     
@@ -782,10 +817,10 @@ function gameLoop() {
     updateUI();
     
     // Continue game loop
-    if (gameState.gameLoopRunning) {
+    if (gameState.gameLoopRunning && gameState.gameRunning) {
         requestAnimationFrame(gameLoop);
     } else {
-        console.log('Game loop stopped - gameLoopRunning:', gameState.gameLoopRunning);
+        console.log('Game loop stopped - gameLoopRunning:', gameState.gameLoopRunning, 'gameRunning:', gameState.gameRunning);
     }
 }
 
@@ -959,6 +994,7 @@ function showUpgradePhase() {
     gameState.upgradePhase = true;
     gameState.upgradePhaseSkipped = false; // Reset skip flag
     gameState.gameRunning = false;
+    gameState.gameLoopRunning = false; // Stop game loop during upgrade phase
     
     // Generate random power-ups
     gameState.availablePowerups = POWERUP_CONFIG.getRandomPowerups(3);
@@ -979,6 +1015,7 @@ function hideUpgradePhase() {
     console.log('hideUpgradePhase called, current wave:', gameState.wave);
     gameState.upgradePhase = false;
     gameState.gameRunning = true;
+    gameState.gameLoopRunning = false; // Stop current game loop
     elements.upgradePhase.style.display = 'none';
     
     // Reset resources for next upgrade phase
