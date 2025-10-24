@@ -8,14 +8,14 @@ const POWERUP_CONFIG = {
         'dice_upgrade': {
             name: 'Dice Upgrade',
             description: 'Upgrade một dice hiện có lên loại cao hơn',
-            diceRequired: 2,
+            diceRequired: 3,
             category: 'dice',
             effect: 'upgrade_dice'
         },
         'new_dice': {
             name: 'New Dice',
             description: 'Thêm một dice D2 mới vào slot trống',
-            diceRequired: 3,
+            diceRequired: 4,
             category: 'dice',
             effect: 'add_dice'
         },
@@ -60,10 +60,10 @@ const POWERUP_CONFIG = {
         'castle_heal': {
             name: 'Castle Heal',
             description: 'Hồi phục 50 HP cho castle',
-            diceRequired: 1,
+            diceRequired: 2,
             category: 'defense',
             effect: 'heal_castle',
-            value: 50
+            value: 10
         },
         'castle_shield': {
             name: 'Castle Shield',

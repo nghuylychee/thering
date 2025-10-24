@@ -6,12 +6,12 @@ const HOME_MANAGER = {
     playerData: {
         totalGold: 0,
         upgrades: {
-            castleHP: { level: 0, cost: 50 },
-            damage: { level: 0, cost: 25 },
-            speed: { level: 0, cost: 30 },
-            critChance: { level: 0, cost: 100 },
-            critMultiplier: { level: 0, cost: 150 },
-            defense: { level: 0, cost: 75 }
+            castleHP: { level: 0, cost: 100 }, // Tăng từ 50 lên 100
+            damage: { level: 0, cost: 50 }, // Tăng từ 25 lên 50
+            speed: { level: 0, cost: 60 }, // Tăng từ 30 lên 60
+            critChance: { level: 0, cost: 200 }, // Tăng từ 100 lên 200
+            critMultiplier: { level: 0, cost: 300 }, // Tăng từ 150 lên 300
+            defense: { level: 0, cost: 150 } // Tăng từ 75 lên 150
         },
         stats: {
             maxWave: 0,

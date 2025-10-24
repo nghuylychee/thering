@@ -1256,16 +1256,16 @@ function getEnemyGoldReward(enemyType, wave) {
     return baseReward * waveMultiplier;
 }
 
-// Calculate wave completion bonus
+// Calculate wave completion bonus - HARDCORE: Giảm bonus
 function calculateWaveBonus(waveNumber) {
     if (waveNumber <= 5) {
-        return 5; // Tutorial waves
+        return 2; // Giảm từ 5 xuống 2
     } else if (waveNumber <= 10) {
-        return 10; // Intermediate waves
+        return 3; // Giảm từ 10 xuống 3
     } else if (waveNumber <= 15) {
-        return 20; // Advanced waves
+        return 5; // Giảm từ 20 xuống 5
     } else {
-        return 30; // Nightmare waves
+        return 8; // Giảm từ 30 xuống 8
     }
 }
 

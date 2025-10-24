@@ -9,7 +9,7 @@ const ENEMY_CONFIG = {
             health: 1,
             speed: 0.5,
             damage: 10,
-            goldReward: 1,
+            goldReward: 1, // Giữ nguyên
             color: '#e74c3c',
             emoji: '👹'
         },
@@ -17,7 +17,7 @@ const ENEMY_CONFIG = {
             health: 1,
             speed: 1,
             damage: 10,
-            goldReward: 2,
+            goldReward: 1, // Giảm từ 2 xuống 1
             color: '#f39c12',
             emoji: '👻'
         },
@@ -25,7 +25,7 @@ const ENEMY_CONFIG = {
             health: 5,
             speed: 0.5,
             damage: 15,
-            goldReward: 5,
+            goldReward: 2, // Giảm từ 5 xuống 2
             color: '#8e44ad',
             emoji: '👾'
         },
@@ -33,7 +33,7 @@ const ENEMY_CONFIG = {
             health: 20,
             speed: 1,
             damage: 25,
-            goldReward: 20,
+            goldReward: 5, // Giảm từ 20 xuống 5
             color: '#c0392b',
             emoji: '🐉'
         }
@@ -43,10 +43,10 @@ const ENEMY_CONFIG = {
     getEnemyStats: function(waveNumber, enemyType = 'basic') {
         const type = this.types[enemyType];
         
-        // Scaling formulas cho hardcore difficulty
-        const healthMultiplier = 1 + (waveNumber - 1) * 0.3; // 30% increase per wave
-        const damageMultiplier = 1 + (waveNumber - 1) * 0.2; // 20% increase per wave
-        const goldMultiplier = 1 + (waveNumber - 1) * 0.15; // 15% increase per wave
+        // Scaling formulas cho HARDCORE difficulty - Tăng mạnh hơn
+        const healthMultiplier = 1 + (waveNumber - 1) * 0.5; // 50% increase per wave
+        const damageMultiplier = 1 + (waveNumber - 1) * 0.4; // 40% increase per wave
+        const goldMultiplier = 1 + (waveNumber - 1) * 0.1; // 10% increase per wave (ít gold hơn)
         
         return {
             health: Math.max(1, Math.floor(type.health * healthMultiplier)),
