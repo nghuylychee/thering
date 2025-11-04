@@ -66,6 +66,10 @@ const HOME_MANAGER = {
             this.resetProgress();
         });
 
+        document.getElementById('backToHubBtn').addEventListener('click', () => {
+            this.backToHub();
+        });
+
         // Upgrades screen buttons
         document.getElementById('backToHomeBtn').addEventListener('click', () => {
             this.showHomeScreen();
@@ -436,6 +440,11 @@ const HOME_MANAGER = {
             this.updateUI();
             alert('Progress reset! Please refresh the page.');
         }
+    },
+
+    // Back to main hub
+    backToHub: function() {
+        window.location.href = '../index.html';
     }
 };
 

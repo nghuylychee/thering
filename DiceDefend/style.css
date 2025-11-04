@@ -105,6 +105,11 @@ body {
     color: white;
 }
 
+.menu-button.hub-button {
+    background: linear-gradient(45deg, #9b59b6, #8e44ad);
+    color: white;
+}
+
 .menu-button:hover {
     transform: translateY(-3px);
     box-shadow: 0 6px 12px rgba(0,0,0,0.4);
