@@ -1,16 +1,33 @@
 // DiceBound Game Logic
 
+// Objective Types Configuration
+const OBJECTIVE_TYPES = {
+    'defeat_all': {
+        icon: '🎯',
+        text: 'Defeat all enemies'
+    },
+    // Future objective types can be added here
+    // 'collect_items': { icon: '💎', text: 'Collect all items' },
+    // 'reach_value': { icon: '📈', text: 'Reach value X' },
+    // 'survive_turns': { icon: '⏱️', text: 'Survive N turns' }
+};
+
 // Game State
 let gameState = {
     grid: [],
     gridWidth: CONFIG.GRID_W,
     gridHeight: CONFIG.GRID_H,
-        player: {
-            x: 0,
-            y: 0,
-            value: CONFIG.PLAYER_START_VALUE,
-            lastValue: CONFIG.PLAYER_START_VALUE
-        },
+    level: 1,
+    objective: {
+        type: 'defeat_all', // 'defeat_all' | 'collect_items' | 'reach_value' | etc.
+        target: null // Optional target value for specific objectives
+    },
+    player: {
+        x: 0,
+        y: 0,
+        value: CONFIG.PLAYER_START_VALUE,
+        lastValue: CONFIG.PLAYER_START_VALUE
+    },
     enemies: [],
     items: [],
     currentTurn: 'player', // 'player' or 'enemy'
@@ -28,9 +45,9 @@ const elements = {
     diceVisual: document.getElementById('diceVisual'),
     diceFace: document.getElementById('diceFace'),
     diceLabel: document.getElementById('diceLabel'),
-    playerValue: document.getElementById('playerValue'),
-    enemyCount: document.getElementById('enemyCount'),
-    itemCount: document.getElementById('itemCount'),
+    levelValue: document.getElementById('levelValue'),
+    objectiveIcon: document.getElementById('objectiveIcon'),
+    objectiveText: document.getElementById('objectiveText'),
     gridContainer: document.querySelector('.grid-container')
 };
 
@@ -43,6 +60,11 @@ function initGame() {
         grid: [],
         gridWidth: CONFIG.GRID_W,
         gridHeight: CONFIG.GRID_H,
+        level: 1,
+        objective: {
+            type: 'defeat_all',
+            target: null
+        },
         player: {
             x: 0,
             y: 0,
@@ -190,7 +212,8 @@ function renderGrid() {
             let direction = null;
             
             // Check if this cell should show direction button
-            if (showDirections && cellData.player === false && cellData.enemy === null) {
+            // Allow direction buttons even if there's an enemy (player can attack)
+            if (showDirections && cellData.player === false) {
                 // Check if this cell is adjacent to player
                 const dx = x - gameState.player.x;
                 const dy = y - gameState.player.y;
@@ -234,9 +257,14 @@ function renderGrid() {
             
             // Add enemy
             if (cellData.enemy !== null) {
-                cell.classList.add('enemy');
-                const enemy = gameState.enemies[cellData.enemy];
-                content += enemy.emoji || '👹';
+                const enemy = gameState.enemies.find(e => e.id === cellData.enemy);
+                if (enemy) {
+                    cell.classList.add('enemy');
+                    content += enemy.emoji || '👹';
+                } else {
+                    // Enemy was removed but grid still has reference - clean it up
+                    gameState.grid[y][x].enemy = null;
+                }
             }
             
             // Add item (only if not a direction cell to avoid overlap)
@@ -273,11 +301,14 @@ function renderGrid() {
             }
             
             if (cellData.enemy !== null) {
-                const enemy = gameState.enemies[cellData.enemy];
-                const valueBadge = document.createElement('div');
-                valueBadge.className = 'value-badge enemy-value';
-                valueBadge.textContent = enemy.value;
-                cell.appendChild(valueBadge);
+                const enemy = gameState.enemies.find(e => e.id === cellData.enemy);
+                if (enemy) {
+                    const valueBadge = document.createElement('div');
+                    valueBadge.className = 'value-badge enemy-value';
+                    valueBadge.textContent = enemy.value;
+                    cell.appendChild(valueBadge);
+                }
+                // If enemy not found, grid cell will be cleaned up above
             }
             
             if (cellData.item !== null && !isDirectionCell) {
@@ -295,11 +326,34 @@ function renderGrid() {
     // Event listeners are already attached when cells are created
 }
 
+// Get Objective Display Info
+function getObjectiveDisplay() {
+    const objType = gameState.objective.type;
+    const objConfig = OBJECTIVE_TYPES[objType];
+    
+    if (objConfig) {
+        return {
+            icon: objConfig.icon,
+            text: objConfig.text
+        };
+    }
+    
+    // Fallback
+    return {
+        icon: '🎯',
+        text: 'Complete objective'
+    };
+}
+
 // Update UI
 function updateUI() {
-    elements.playerValue.textContent = gameState.player.value;
-    elements.enemyCount.textContent = gameState.enemies.length;
-    elements.itemCount.textContent = gameState.items.length;
+    // Update Level
+    elements.levelValue.textContent = gameState.level;
+    
+    // Update Objective
+    const objectiveDisplay = getObjectiveDisplay();
+    elements.objectiveIcon.textContent = objectiveDisplay.icon;
+    elements.objectiveText.textContent = objectiveDisplay.text;
 }
 
 // Roll Dice
@@ -476,7 +530,13 @@ async function performCombat(x, y) {
     // Stop movement
     gameState.isMoving = false;
     
-    // Ensure grid is rendered first
+    // Move player to enemy position first (both icons in same cell)
+    gameState.grid[gameState.player.y][gameState.player.x].player = false;
+    gameState.player.x = x;
+    gameState.player.y = y;
+    gameState.grid[gameState.player.y][gameState.player.x].player = true;
+    
+    // Render grid to show both player and enemy in same cell
     renderGrid();
     await sleep(100);
     
@@ -487,10 +547,10 @@ async function performCombat(x, y) {
         return;
     }
     
-    // Add combat class for animation
+    // Add combat class for animation (both icons visible in same cell)
     cell.classList.add('combat');
     
-    // Wait for animation
+    // Wait for animation - both icons visible together
     await sleep(600);
     
     // Remove combat class before proceeding
@@ -499,6 +559,7 @@ async function performCombat(x, y) {
     // Compare values - Player wins only if value > enemy (not >=)
     if (gameState.player.value > enemy.value) {
         const oldValue = gameState.player.value;
+        const enemyValue = enemy.value;
         
         // Player wins - absorb enemy value
         gameState.player.value += enemy.value;
@@ -507,26 +568,22 @@ async function performCombat(x, y) {
         gameState.grid[y][x].enemy = null;
         gameState.enemies = gameState.enemies.filter(e => e.id !== enemyId);
         
-        // Move player to enemy position
-        gameState.grid[gameState.player.y][gameState.player.x].player = false;
-        gameState.player.x = x;
-        gameState.player.y = y;
-        gameState.grid[gameState.player.y][gameState.player.x].player = true;
+        // Player stays in the position (already moved there)
         
-        // Re-render grid
+        // Re-render grid to show updated state
         renderGrid();
         await sleep(100);
         
         // Show value gain animation (after re-render)
         const updatedCell = elements.gameGrid.querySelector(`[data-x="${x}"][data-y="${y}"]`);
         if (updatedCell) {
-            showValueGainAnimation(x, y, enemy.value);
+            showValueGainAnimation(x, y, enemyValue);
         }
         
         updateUI();
         await sleep(300);
         
-        console.log(`Player won! Absorbed ${enemy.value}. Value: ${oldValue} → ${gameState.player.value}`);
+        console.log(`Player won! Absorbed ${enemyValue}. Value: ${oldValue} → ${gameState.player.value}`);
         
         // Check win condition
         if (gameState.enemies.length === 0) {
@@ -541,6 +598,235 @@ async function performCombat(x, y) {
     }
 }
 
+// ========== AI HELPER FUNCTIONS ==========
+
+// Calculate Manhattan distance between two points
+function calculateManhattanDistance(x1, y1, x2, y2) {
+    return Math.abs(x2 - x1) + Math.abs(y2 - y1);
+}
+
+// Calculate final position after moving in a direction for maxSteps
+function calculateFinalPosition(startX, startY, direction, maxSteps) {
+    let x = startX;
+    let y = startY;
+    let steps = 0;
+    
+    while (steps < maxSteps) {
+        const newPos = getNewPosition(x, y, direction);
+        
+        // Check boundaries
+        if (newPos.x < 0 || newPos.x >= gameState.gridWidth ||
+            newPos.y < 0 || newPos.y >= gameState.gridHeight) {
+            break; // Hit wall
+        }
+        
+        // Check for other enemies (but allow player position)
+        if (gameState.grid[newPos.y][newPos.x].enemy !== null &&
+            !gameState.grid[newPos.y][newPos.x].player) {
+            break; // Hit another enemy
+        }
+        
+        x = newPos.x;
+        y = newPos.y;
+        steps++;
+        
+        // Stop if hit player (combat will happen)
+        if (gameState.grid[y][x].player) {
+            break;
+        }
+    }
+    
+    return { x, y, steps };
+}
+
+// Find path to player - check if we can reach player in this turn
+function findPathToPlayer(enemy, direction, maxSteps) {
+    // Simulate movement step by step to see if we can reach player
+    let x = enemy.x;
+    let y = enemy.y;
+    let steps = 0;
+    
+    while (steps < maxSteps) {
+        const newPos = getNewPosition(x, y, direction);
+        
+        // Check boundaries
+        if (newPos.x < 0 || newPos.x >= gameState.gridWidth ||
+            newPos.y < 0 || newPos.y >= gameState.gridHeight) {
+            break; // Hit wall
+        }
+        
+        // Check for other enemies (but allow player position)
+        if (gameState.grid[newPos.y][newPos.x].enemy !== null &&
+            !gameState.grid[newPos.y][newPos.x].player) {
+            break; // Hit another enemy
+        }
+        
+        x = newPos.x;
+        y = newPos.y;
+        steps++;
+        
+        // Check if we reached player
+        if (x === gameState.player.x && y === gameState.player.y) {
+            return { reachable: true, distance: 0, finalPos: { x, y, steps } };
+        }
+    }
+    
+    // Calculate distance from final position to player
+    const distance = calculateManhattanDistance(x, y, gameState.player.x, gameState.player.y);
+    return { reachable: false, distance, finalPos: { x, y, steps } };
+}
+
+// Find nearest item in a direction
+function findNearestItemInDirection(enemy, direction, maxSteps) {
+    const finalPos = calculateFinalPosition(enemy.x, enemy.y, direction, maxSteps);
+    
+    let nearestItem = null;
+    let minDistance = Infinity;
+    
+    for (const item of gameState.items) {
+        const distance = calculateManhattanDistance(
+            finalPos.x, finalPos.y,
+            item.x, item.y
+        );
+        
+        if (distance < minDistance) {
+            minDistance = distance;
+            nearestItem = {
+                item: item,
+                distance: distance,
+                reachable: distance <= maxSteps
+            };
+        }
+    }
+    
+    return nearestItem;
+}
+
+// Evaluate position quality (avoid corners, avoid other enemies)
+function evaluatePosition(enemy, direction, maxSteps) {
+    const finalPos = calculateFinalPosition(enemy.x, enemy.y, direction, maxSteps);
+    let score = 0;
+    
+    // Avoid corners (bad positions)
+    const isCorner = (finalPos.x === 0 && finalPos.y === 0) ||
+                     (finalPos.x === 0 && finalPos.y === gameState.gridHeight - 1) ||
+                     (finalPos.x === gameState.gridWidth - 1 && finalPos.y === 0) ||
+                     (finalPos.x === gameState.gridWidth - 1 && finalPos.y === gameState.gridHeight - 1);
+    
+    if (isCorner) {
+        score -= 20;
+    }
+    
+    // Prefer center positions
+    const centerX = gameState.gridWidth / 2;
+    const centerY = gameState.gridHeight / 2;
+    const distanceFromCenter = calculateManhattanDistance(
+        finalPos.x, finalPos.y, centerX, centerY
+    );
+    score += 10 - distanceFromCenter * 0.5;
+    
+    // Check if position is blocked by other enemies
+    if (gameState.grid[finalPos.y][finalPos.x].enemy !== null &&
+        gameState.grid[finalPos.y][finalPos.x].player === false) {
+        score -= 50;
+    }
+    
+    return score;
+}
+
+// Choose best direction for enemy using AI
+function chooseBestDirection(enemy, roll) {
+    const validDirs = getValidDirections(enemy.x, enemy.y);
+    
+    // Filter out directions with other enemies
+    const availableDirs = validDirs.filter(dir => {
+        const newPos = getNewPosition(enemy.x, enemy.y, dir);
+        return gameState.grid[newPos.y][newPos.x].enemy === null;
+    });
+    
+    if (availableDirs.length === 0) {
+        return null; // No valid moves
+    }
+    
+    const scores = [];
+    
+    for (const dir of availableDirs) {
+        let score = 0;
+        
+        // Priority 1: Attack Score (if enemy can win)
+        if (enemy.value >= gameState.player.value) {
+            const pathToPlayer = findPathToPlayer(enemy, dir, roll);
+            
+            // If we can reach player this turn
+            if (pathToPlayer.reachable && pathToPlayer.distance === 0) {
+                score += 1000; // Very high priority to attack
+            } else if (pathToPlayer.reachable) {
+                // Can reach but need more steps
+                score += 500 - pathToPlayer.distance;
+            } else {
+                // Can't reach this turn, but getting closer is good
+                const currentDistance = calculateManhattanDistance(
+                    enemy.x, enemy.y,
+                    gameState.player.x, gameState.player.y
+                );
+                if (pathToPlayer.distance < currentDistance) {
+                    score += 200 - pathToPlayer.distance;
+                }
+            }
+        } else {
+            // Priority 2: Escape Score (if enemy will lose)
+            const finalPos = calculateFinalPosition(enemy.x, enemy.y, dir, roll);
+            const newDistance = calculateManhattanDistance(
+                finalPos.x, finalPos.y,
+                gameState.player.x, gameState.player.y
+            );
+            const currentDistance = calculateManhattanDistance(
+                enemy.x, enemy.y,
+                gameState.player.x, gameState.player.y
+            );
+            
+            // Higher score for moving further away
+            score += newDistance - currentDistance;
+            
+            // Extra bonus for significant distance increase
+            if (newDistance > currentDistance + 2) {
+                score += 100;
+            }
+        }
+        
+        // Priority 3: Item Score
+        const nearestItem = findNearestItemInDirection(enemy, dir, roll);
+        if (nearestItem) {
+            if (nearestItem.reachable) {
+                // Can reach item this turn
+                score += nearestItem.item.value * 100 - nearestItem.distance;
+            } else {
+                // Can't reach this turn, but getting closer is good
+                score += nearestItem.item.value * 20 - nearestItem.distance;
+            }
+        }
+        
+        // Priority 4: Position Score
+        score += evaluatePosition(enemy, dir, roll);
+        
+        scores.push({ direction: dir, score: score });
+    }
+    
+    // Sort by score (highest first)
+    scores.sort((a, b) => b.score - a.score);
+    
+    // Log AI decision for debugging
+    console.log(`Enemy ${enemy.id} AI decision:`, {
+        value: enemy.value,
+        playerValue: gameState.player.value,
+        roll: roll,
+        choices: scores.map(s => `${s.direction}: ${Math.round(s.score)}`),
+        chosen: scores[0].direction
+    });
+    
+    return scores[0].direction;
+}
+
 // End Player Turn
 function endPlayerTurn() {
     gameState.currentTurn = 'enemy';
@@ -553,13 +839,41 @@ function endPlayerTurn() {
     }, 500);
 }
 
-// Enemy Turn
+// Show Enemy Dice Roll
+async function showEnemyDiceRoll(enemy, roll) {
+    // Get enemy cell
+    const cell = elements.gameGrid.querySelector(`[data-x="${enemy.x}"][data-y="${enemy.y}"]`);
+    if (!cell) return;
+    
+    // Create dice display element
+    const diceDisplay = document.createElement('div');
+    diceDisplay.className = 'enemy-dice-display rolling';
+    diceDisplay.textContent = '?';
+    cell.appendChild(diceDisplay);
+    
+    // Wait for rolling animation
+    await sleep(500);
+    
+    // Update to show roll result
+    diceDisplay.textContent = roll;
+    diceDisplay.classList.remove('rolling');
+    
+    // Wait a bit to show result
+    await sleep(400);
+    
+    // Remove dice display
+    if (diceDisplay.parentNode) {
+        diceDisplay.parentNode.removeChild(diceDisplay);
+    }
+}
+
+// Enemy Turn - Process enemies one by one
 async function enemyTurn() {
     if (!gameState.gameRunning) return;
     
     console.log('Enemy turn started');
     
-    // Process each enemy
+    // Process each enemy one by one (sequentially)
     for (const enemy of [...gameState.enemies]) {
         if (!gameState.gameRunning) break;
         
@@ -570,22 +884,21 @@ async function enemyTurn() {
         const roll = rollDice();
         console.log(`Enemy ${enemy.id} rolled: ${roll}`);
         
-        // Get valid directions
-        const validDirs = getValidDirections(enemy.x, enemy.y);
+        // Show dice roll animation on enemy cell
+        await showEnemyDiceRoll(enemy, roll);
         
-        // Filter out directions with other enemies
-        const availableDirs = validDirs.filter(dir => {
-            const newPos = getNewPosition(enemy.x, enemy.y, dir);
-            return gameState.grid[newPos.y][newPos.x].enemy === null;
-        });
+        // Render grid to ensure enemy is visible
+        renderGrid();
+        await sleep(100);
         
-        if (availableDirs.length === 0) {
+        // Use AI to choose best direction
+        const direction = chooseBestDirection(enemy, roll);
+        
+        if (!direction) {
             // No valid moves
+            console.log(`Enemy ${enemy.id} has no valid moves`);
             continue;
         }
-        
-        // Choose ONE direction for the entire movement
-        const direction = availableDirs[Math.floor(Math.random() * availableDirs.length)];
         
         // Move enemy step by step in the chosen direction
         for (let step = 0; step < roll; step++) {

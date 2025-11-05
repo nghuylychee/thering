@@ -8,8 +8,8 @@
 body {
     font-family: 'Arial', sans-serif;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    min-height: 100vh;
-    overflow-x: hidden;
+    height: 100vh;
+    overflow: hidden;
     user-select: none;
 }
 
@@ -102,61 +102,91 @@ body {
 /* Game Screen */
 .game-screen {
     width: 100vw;
-    min-height: 100vh;
+    height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 20px;
+    padding: 15px;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    overflow: hidden;
+    box-sizing: border-box;
 }
 
 .game-container {
     width: 100%;
     max-width: 600px;
+    height: 100%;
+    max-height: 100vh;
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 12px;
+    box-sizing: border-box;
 }
 
 .game-header {
     background: rgba(0, 0, 0, 0.3);
-    padding: 15px;
+    padding: 12px 20px;
     border-radius: 15px;
     backdrop-filter: blur(10px);
+    flex-shrink: 0;
 }
 
-.game-stats {
+.level-info {
     display: flex;
-    justify-content: space-around;
-    gap: 20px;
-}
-
-.stat-item {
-    display: flex;
-    flex-direction: column;
+    justify-content: space-between;
     align-items: center;
-    gap: 5px;
+    gap: 15px;
 }
 
-.stat-label {
-    font-size: 12px;
+.level-display {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.level-label {
+    font-size: 14px;
     color: rgba(255, 255, 255, 0.8);
+    font-weight: normal;
 }
 
-.stat-value {
-    font-size: 20px;
+.level-value {
+    font-size: 24px;
     font-weight: bold;
     color: white;
     text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
 }
 
+.objective-display {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    justify-content: flex-end;
+}
+
+.objective-icon {
+    font-size: 20px;
+}
+
+.objective-text {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.9);
+    font-weight: 500;
+}
+
 /* Grid Container */
 .grid-container {
     background: rgba(0, 0, 0, 0.3);
-    padding: 20px;
+    padding: 15px;
     border-radius: 15px;
     backdrop-filter: blur(10px);
     position: relative;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .game-grid {
@@ -164,7 +194,10 @@ body {
     grid-template-columns: repeat(8, 1fr);
     gap: 4px;
     aspect-ratio: 8/10;
+    width: 100%;
     max-width: 100%;
+    height: auto;
+    max-height: 100%;
     margin: 0 auto;
     transform: none !important;
     will-change: auto;
@@ -281,6 +314,49 @@ body {
     border-color: rgba(231, 76, 60, 1);
 }
 
+/* Enemy Dice Display */
+.enemy-dice-display {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+    border: 2px solid #fff;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: bold;
+    color: white;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    z-index: 20;
+    pointer-events: none;
+    animation: enemyDiceRoll 0.5s ease-in-out;
+}
+
+.enemy-dice-display.rolling {
+    animation: enemyDiceRoll 0.5s ease-in-out;
+}
+
+@keyframes enemyDiceRoll {
+    0%, 100% { 
+        transform: translate(-50%, -50%) rotate(0deg) scale(1);
+    }
+    25% { 
+        transform: translate(-50%, -50%) rotate(90deg) scale(1.1);
+    }
+    50% { 
+        transform: translate(-50%, -50%) rotate(180deg) scale(1.2);
+    }
+    75% { 
+        transform: translate(-50%, -50%) rotate(270deg) scale(1.1);
+    }
+}
+
 .value-badge.item-value {
     background: rgba(241, 196, 15, 0.8);
     border-color: rgba(241, 196, 15, 1);
@@ -320,13 +396,14 @@ body {
 /* Control Panel */
 .control-panel {
     background: rgba(0, 0, 0, 0.3);
-    padding: 12px 20px;
+    padding: 10px 20px;
     border-radius: 15px;
     backdrop-filter: blur(10px);
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
+    flex-shrink: 0;
 }
 
 .dice-container {
@@ -456,22 +533,54 @@ body {
 
 /* Mobile Responsive */
 @media (max-width: 768px) {
+    .game-screen {
+        padding: 10px;
+    }
+    
+    .game-container {
+        gap: 8px;
+    }
+    
+    .game-header {
+        padding: 10px 15px;
+    }
+    
+    .level-value {
+        font-size: 20px;
+    }
+    
+    .objective-text {
+        font-size: 12px;
+    }
+    
+    .grid-container {
+        padding: 10px;
+    }
+    
     .game-grid {
         gap: 2px;
     }
     
     .grid-cell {
-        font-size: 20px;
+        font-size: 18px;
     }
     
-    .dice-result {
-        font-size: 36px;
+    .control-panel {
+        padding: 8px 15px;
     }
     
-    .dir-btn {
-        width: 45px;
-        height: 45px;
-        font-size: 20px;
+    .dice-visual {
+        width: 50px;
+        height: 50px;
+    }
+    
+    .dice-face {
+        font-size: 28px;
+    }
+    
+    .roll-button {
+        padding: 8px 20px;
+        font-size: 14px;
     }
 }
 
