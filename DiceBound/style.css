@@ -232,6 +232,44 @@ body {
     border-color: #e74c3c;
 }
 
+.grid-cell.enemy-planned-move {
+    border-color: rgba(231, 76, 60, 0.8);
+    box-shadow: 0 0 8px rgba(231, 76, 60, 0.6);
+}
+
+/* Enemy Direction Indicator */
+.enemy-direction-indicator {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 24px;
+    height: 24px;
+    background: rgba(231, 76, 60, 0.9);
+    border: 2px solid white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: bold;
+    color: white;
+    z-index: 15;
+    pointer-events: none;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    animation: enemyDirectionPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes enemyDirectionPulse {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.1);
+        opacity: 0.8;
+    }
+}
+
 .grid-cell.item {
     background: rgba(241, 196, 15, 0.3);
     border-color: #f1c40f;

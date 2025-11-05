@@ -63,6 +63,41 @@ const HOME_MANAGER = {
         document.getElementById('gameOverMessage').textContent = message;
         document.getElementById('gameOverStats').textContent = stats;
         document.getElementById('gameOverScreen').style.display = 'flex';
+        
+        // Hide next level button if game over (not level complete)
+        const nextLevelBtn = document.getElementById('nextLevelBtn');
+        if (nextLevelBtn) {
+            nextLevelBtn.style.display = 'none';
+        }
+    },
+
+    // Show level complete screen
+    showLevelComplete: function(title, message, stats, nextLevel) {
+        document.getElementById('gameOverTitle').textContent = title;
+        document.getElementById('gameOverMessage').textContent = message;
+        document.getElementById('gameOverStats').textContent = stats;
+        document.getElementById('gameOverScreen').style.display = 'flex';
+        
+        // Show next level button
+        const nextLevelBtn = document.getElementById('nextLevelBtn');
+        if (nextLevelBtn) {
+            nextLevelBtn.style.display = 'block';
+            nextLevelBtn.onclick = () => {
+                this.startNextLevel(nextLevel);
+            };
+        }
+    },
+
+    // Start next level
+    startNextLevel: function(levelNumber) {
+        document.getElementById('homeScreen').style.display = 'none';
+        document.getElementById('gameScreen').style.display = 'flex';
+        document.getElementById('gameOverScreen').style.display = 'none';
+        
+        // Initialize game with next level
+        if (typeof initGame === 'function') {
+            initGame(levelNumber);
+        }
     },
 
     // Back to main hub

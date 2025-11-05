@@ -52,15 +52,19 @@ const elements = {
 };
 
 // Initialize Game
-function initGame() {
-    console.log('Initializing DiceBound...');
+function initGame(levelNumber = 1) {
+    console.log(`Initializing DiceBound - Level ${levelNumber}...`);
+    
+    // Get level config
+    const levelConfig = getLevelConfig(levelNumber);
     
     // Reset game state
     gameState = {
         grid: [],
         gridWidth: CONFIG.GRID_W,
         gridHeight: CONFIG.GRID_H,
-        level: 1,
+        level: levelNumber,
+        levelConfig: levelConfig,
         objective: {
             type: 'defeat_all',
             target: null
@@ -68,8 +72,8 @@ function initGame() {
         player: {
             x: 0,
             y: 0,
-            value: CONFIG.PLAYER_START_VALUE,
-            lastValue: CONFIG.PLAYER_START_VALUE
+            value: levelConfig.playerStartValue,
+            lastValue: levelConfig.playerStartValue
         },
         enemies: [],
         items: [],
@@ -95,10 +99,15 @@ function initGame() {
     // Update UI
     updateUI();
     
+    // Calculate and display enemy movements before player's first turn
+    calculateEnemyMovements();
+    
     // Enable roll button
     elements.rollButton.disabled = false;
     elements.diceLabel.textContent = 'Roll to start';
     elements.diceFace.textContent = '?';
+    
+    console.log(`Level ${levelNumber} - ${levelConfig.name}: ${levelConfig.description}`);
 }
 
 // Reset Game
@@ -130,12 +139,29 @@ function spawnPlayer() {
     gameState.grid[0][0].player = true;
 }
 
+// Select Enemy Type based on distribution
+function selectEnemyTypeByDistribution(distribution) {
+    const rand = Math.random() * 100;
+    let cumulative = 0;
+    
+    for (const [typeName, percentage] of Object.entries(distribution)) {
+        cumulative += percentage;
+        if (rand <= cumulative) {
+            return CONFIG.ENEMY_TYPES.find(et => et.name === typeName);
+        }
+    }
+    
+    // Fallback to Weak
+    return CONFIG.ENEMY_TYPES[0];
+}
+
 // Spawn Enemies
 function spawnEnemies() {
     gameState.enemies = [];
+    const levelConfig = gameState.levelConfig;
     let attempts = 0;
     
-    while (gameState.enemies.length < CONFIG.ENEMY_COUNT && attempts < 100) {
+    while (gameState.enemies.length < levelConfig.enemyCount && attempts < 100) {
         const x = Math.floor(Math.random() * gameState.gridWidth);
         const y = Math.floor(Math.random() * gameState.gridHeight);
         
@@ -143,8 +169,8 @@ function spawnEnemies() {
         if (x === 0 && y === 0) continue;
         if (gameState.grid[y][x].enemy !== null) continue;
         
-        // Randomly select enemy type
-        const enemyType = CONFIG.ENEMY_TYPES[Math.floor(Math.random() * CONFIG.ENEMY_TYPES.length)];
+        // Select enemy type based on level distribution
+        const enemyType = selectEnemyTypeByDistribution(levelConfig.enemyDistribution);
         const enemy = {
             id: gameState.enemies.length,
             x: x,
@@ -163,9 +189,10 @@ function spawnEnemies() {
 // Spawn Items
 function spawnItems() {
     gameState.items = [];
+    const levelConfig = gameState.levelConfig;
     let attempts = 0;
     
-    while (gameState.items.length < CONFIG.ITEM_COUNT && attempts < 100) {
+    while (gameState.items.length < levelConfig.itemCount && attempts < 100) {
         const x = Math.floor(Math.random() * gameState.gridWidth);
         const y = Math.floor(Math.random() * gameState.gridHeight);
         
@@ -261,6 +288,21 @@ function renderGrid() {
                 if (enemy) {
                     cell.classList.add('enemy');
                     content += enemy.emoji || '👹';
+                    
+                    // Show planned direction if available (calculated before enemy turn)
+                    if (enemy.plannedDirection) {
+                        const dirSymbol = enemy.plannedDirection === 'up' ? '↑' : 
+                                         enemy.plannedDirection === 'down' ? '↓' : 
+                                         enemy.plannedDirection === 'left' ? '←' : '→';
+                        cell.classList.add('enemy-planned-move');
+                        cell.dataset.plannedDirection = enemy.plannedDirection;
+                        
+                        // Add direction indicator overlay
+                        const directionIndicator = document.createElement('div');
+                        directionIndicator.className = 'enemy-direction-indicator';
+                        directionIndicator.textContent = dirSymbol;
+                        cell.appendChild(directionIndicator);
+                    }
                 } else {
                     // Enemy was removed but grid still has reference - clean it up
                     gameState.grid[y][x].enemy = null;
@@ -527,8 +569,10 @@ async function performCombat(x, y) {
     
     console.log(`Combat: Player (${gameState.player.value}) vs Enemy (${enemy.value})`);
     
-    // Stop movement
+    // Stop movement and clear remaining steps (hide direction buttons)
     gameState.isMoving = false;
+    gameState.playerRemainingSteps = 0;
+    gameState.playerDirection = null;
     
     // Move player to enemy position first (both icons in same cell)
     gameState.grid[gameState.player.y][gameState.player.x].player = false;
@@ -587,7 +631,7 @@ async function performCombat(x, y) {
         
         // Check win condition
         if (gameState.enemies.length === 0) {
-            gameOver(true);
+            checkLevelComplete();
             return;
         }
     } else {
@@ -827,13 +871,34 @@ function chooseBestDirection(enemy, roll) {
     return scores[0].direction;
 }
 
+// Calculate all enemy movements before their turn
+function calculateEnemyMovements() {
+    // Pre-calculate roll and direction for all enemies
+    for (const enemy of gameState.enemies) {
+        // Roll dice for enemy (pre-roll)
+        const roll = rollDice();
+        
+        // Use AI to choose best direction
+        const direction = chooseBestDirection(enemy, roll);
+        
+        // Store planned movement
+        enemy.plannedRoll = roll;
+        enemy.plannedDirection = direction;
+        
+        console.log(`Enemy ${enemy.id} planned: roll ${roll}, direction ${direction || 'none'}`);
+    }
+    
+    // Re-render grid to show planned directions
+    renderGrid();
+}
+
 // End Player Turn
 function endPlayerTurn() {
     gameState.currentTurn = 'enemy';
     elements.diceLabel.textContent = 'Enemy turn...';
     elements.diceFace.textContent = '...';
     
-    // Enemy turn
+    // Enemy turn (movements already calculated and displayed)
     setTimeout(() => {
         enemyTurn();
     }, 500);
@@ -880,9 +945,17 @@ async function enemyTurn() {
         // Skip if enemy was removed
         if (!gameState.enemies.find(e => e.id === enemy.id)) continue;
         
-        // Roll dice for enemy
-        const roll = rollDice();
-        console.log(`Enemy ${enemy.id} rolled: ${roll}`);
+        // Use pre-calculated roll and direction
+        const roll = enemy.plannedRoll;
+        const direction = enemy.plannedDirection;
+        
+        if (!direction || !roll) {
+            // No valid moves (shouldn't happen if calculation worked)
+            console.log(`Enemy ${enemy.id} has no planned movement`);
+            continue;
+        }
+        
+        console.log(`Enemy ${enemy.id} executing: roll ${roll}, direction ${direction}`);
         
         // Show dice roll animation on enemy cell
         await showEnemyDiceRoll(enemy, roll);
@@ -891,14 +964,9 @@ async function enemyTurn() {
         renderGrid();
         await sleep(100);
         
-        // Use AI to choose best direction
-        const direction = chooseBestDirection(enemy, roll);
-        
-        if (!direction) {
-            // No valid moves
-            console.log(`Enemy ${enemy.id} has no valid moves`);
-            continue;
-        }
+        // Clear planned movement (no longer needed after execution starts)
+        enemy.plannedDirection = null;
+        enemy.plannedRoll = null;
         
         // Move enemy step by step in the chosen direction
         for (let step = 0; step < roll; step++) {
@@ -952,7 +1020,9 @@ async function enemyTurn() {
         elements.diceLabel.textContent = 'Your turn';
         elements.diceFace.textContent = '?';
         elements.rollButton.disabled = false;
-        renderGrid();
+        
+        // Calculate enemy movements for NEXT turn (so player sees them before rolling)
+        calculateEnemyMovements();
     }
 }
 
@@ -1033,7 +1103,7 @@ async function performEnemyCombat(enemy, x, y) {
         
         // Check win condition
         if (gameState.enemies.length === 0) {
-            gameOver(true);
+            checkLevelComplete();
             return;
         }
     } else {
@@ -1080,15 +1150,54 @@ function showValueGainAnimation(x, y, amount) {
     }, 100);
 }
 
-// Game Over
-function gameOver(won) {
+// Check Level Complete
+function checkLevelComplete() {
     gameState.gameRunning = false;
     
-    const title = won ? 'Victory!' : 'Game Over!';
-    const message = won 
-        ? `You defeated all enemies! Final value: ${gameState.player.value}`
-        : `You were defeated! Your value: ${gameState.player.value}`;
-    const stats = `Enemies defeated: ${CONFIG.ENEMY_COUNT - gameState.enemies.length}/${CONFIG.ENEMY_COUNT}`;
+    const levelConfig = gameState.levelConfig;
+    const nextLevel = gameState.level + 1;
+    const isLastLevel = nextLevel > CONFIG.LEVELS.length;
+    
+    if (isLastLevel) {
+        // Game completed!
+        gameOver(true, true);
+    } else {
+        // Level complete - show next level screen
+        showLevelComplete(nextLevel);
+    }
+}
+
+// Show Level Complete Screen
+function showLevelComplete(nextLevel) {
+    const levelConfig = gameState.levelConfig;
+    const nextLevelConfig = getLevelConfig(nextLevel);
+    
+    const title = `Level ${gameState.level} Complete!`;
+    const message = `You defeated all enemies!`;
+    const stats = `Final value: ${gameState.player.value}\nNext: Level ${nextLevel} - ${nextLevelConfig.name}`;
+    
+    if (typeof HOME_MANAGER !== 'undefined' && HOME_MANAGER.showLevelComplete) {
+        HOME_MANAGER.showLevelComplete(title, message, stats, nextLevel);
+    } else {
+        // Fallback: use gameOver screen
+        setTimeout(() => {
+            initGame(nextLevel);
+        }, 2000);
+    }
+}
+
+// Game Over
+function gameOver(won, gameCompleted = false) {
+    gameState.gameRunning = false;
+    
+    const levelConfig = gameState.levelConfig;
+    const title = gameCompleted ? '🎉 Game Completed! 🎉' : (won ? 'Victory!' : 'Game Over!');
+    const message = gameCompleted
+        ? `Congratulations! You completed all ${CONFIG.LEVELS.length} levels!\nFinal value: ${gameState.player.value}`
+        : won 
+            ? `You defeated all enemies in Level ${gameState.level}!\nFinal value: ${gameState.player.value}`
+            : `You were defeated in Level ${gameState.level}!\nYour value: ${gameState.player.value}`;
+    const stats = `Level ${gameState.level}: ${levelConfig.name}\nEnemies defeated: ${levelConfig.enemyCount - gameState.enemies.length}/${levelConfig.enemyCount}`;
     
     if (typeof HOME_MANAGER !== 'undefined' && HOME_MANAGER.showGameOver) {
         HOME_MANAGER.showGameOver(title, message, stats);

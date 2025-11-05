@@ -5,10 +5,6 @@ const CONFIG = {
     GRID_W: 8,
     GRID_H: 10,
 
-    // Entity counts
-    ENEMY_COUNT: 3,
-    ITEM_COUNT: 5,
-
     // Player
     PLAYER_START_VALUE: 2,
 
@@ -30,5 +26,105 @@ const CONFIG = {
 
     // Dice
     DICE_SIDES: 6, // 1D6
+
+    // Level Configurations (10 levels with increasing difficulty)
+    LEVELS: [
+        {
+            level: 1,
+            name: 'Tutorial',
+            enemyCount: 2,
+            enemyDistribution: { 'Weak': 100 }, // 100% Weak
+            itemCount: 6,
+            playerStartValue: 2,
+            description: 'Learn the basics'
+        },
+        {
+            level: 2,
+            name: 'Easy Start',
+            enemyCount: 3,
+            enemyDistribution: { 'Weak': 80, 'Normal': 20 },
+            itemCount: 5,
+            playerStartValue: 2,
+            description: 'Simple enemies'
+        },
+        {
+            level: 3,
+            name: 'Getting Serious',
+            enemyCount: 3,
+            enemyDistribution: { 'Weak': 50, 'Normal': 50 },
+            itemCount: 5,
+            playerStartValue: 2,
+            description: 'More balanced'
+        },
+        {
+            level: 4,
+            name: 'Rising Challenge',
+            enemyCount: 4,
+            enemyDistribution: { 'Weak': 30, 'Normal': 70 },
+            itemCount: 4,
+            playerStartValue: 2,
+            description: 'Stronger foes'
+        },
+        {
+            level: 5,
+            name: 'Mid Boss',
+            enemyCount: 4,
+            enemyDistribution: { 'Normal': 60, 'Strong': 40 },
+            itemCount: 4,
+            playerStartValue: 2,
+            description: 'First challenge'
+        },
+        {
+            level: 6,
+            name: 'Hard Mode',
+            enemyCount: 5,
+            enemyDistribution: { 'Normal': 50, 'Strong': 50 },
+            itemCount: 3,
+            playerStartValue: 2,
+            description: 'Difficulty spike'
+        },
+        {
+            level: 7,
+            name: 'Elite',
+            enemyCount: 5,
+            enemyDistribution: { 'Normal': 30, 'Strong': 70 },
+            itemCount: 3,
+            playerStartValue: 2,
+            description: 'Elite enemies'
+        },
+        {
+            level: 8,
+            name: 'Boss Rush',
+            enemyCount: 4,
+            enemyDistribution: { 'Strong': 60, 'Boss': 40 },
+            itemCount: 2,
+            playerStartValue: 2,
+            description: 'Bosses appear'
+        },
+        {
+            level: 9,
+            name: 'Nightmare',
+            enemyCount: 6,
+            enemyDistribution: { 'Strong': 50, 'Boss': 50 },
+            itemCount: 2,
+            playerStartValue: 2,
+            description: 'Extreme challenge'
+        },
+        {
+            level: 10,
+            name: 'Final Boss',
+            enemyCount: 5,
+            enemyDistribution: { 'Boss': 100 },
+            itemCount: 1,
+            playerStartValue: 2,
+            description: 'The ultimate test'
+        }
+    ]
 };
+
+// Get Level Config
+function getLevelConfig(levelNumber) {
+    const level = CONFIG.LEVELS.find(l => l.level === levelNumber);
+    return level || CONFIG.LEVELS[CONFIG.LEVELS.length - 1]; // Return last level if not found
+}
 
