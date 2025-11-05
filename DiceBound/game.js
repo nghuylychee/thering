@@ -42,6 +42,7 @@ let gameState = {
 const elements = {
     gameGrid: document.getElementById('gameGrid'),
     rollButton: document.getElementById('rollButton'),
+    endTurnButton: document.getElementById('endTurnButton'),
     diceVisual: document.getElementById('diceVisual'),
     diceFace: document.getElementById('diceFace'),
     diceLabel: document.getElementById('diceLabel'),
@@ -92,15 +93,13 @@ function initGame(levelNumber = 1) {
     spawnPlayer();
     spawnEnemies();
     spawnItems();
+    spawnSpecialGrids();
     
     // Render grid
     renderGrid();
     
     // Update UI
     updateUI();
-    
-    // Calculate and display enemy movements before player's first turn
-    calculateEnemyMovements();
     
     // Enable roll button
     elements.rollButton.disabled = false;
@@ -125,7 +124,8 @@ function initializeGrid() {
             gameState.grid[y][x] = {
                 player: false,
                 enemy: null,
-                item: null
+                item: null,
+                specialGrid: null // 'box' | 'lava' | 'swamp' | 'canon' | null
             };
         }
     }
@@ -171,6 +171,10 @@ function spawnEnemies() {
         
         // Select enemy type based on level distribution
         const enemyType = selectEnemyTypeByDistribution(levelConfig.enemyDistribution);
+        if (!enemyType) {
+            console.error('Enemy type not found!');
+            continue;
+        }
         const enemy = {
             id: gameState.enemies.length,
             x: x,
@@ -202,7 +206,12 @@ function spawnItems() {
         if (gameState.grid[y][x].item !== null) continue;
         
         // Randomly select item type
-        const itemType = CONFIG.ITEM_TYPES[Math.floor(Math.random() * CONFIG.ITEM_TYPES.length)];
+        const randomIndex = Math.floor(Math.random() * CONFIG.ITEM_TYPES.length);
+        const itemType = CONFIG.ITEM_TYPES[randomIndex];
+        if (!itemType) {
+            console.error('Item type not found! Random index:', randomIndex, 'ITEM_TYPES length:', CONFIG.ITEM_TYPES.length);
+            continue;
+        }
         const item = {
             id: gameState.items.length,
             x: x,
@@ -211,20 +220,56 @@ function spawnItems() {
             type: itemType.name,
             emoji: itemType.emoji
         };
-        
         gameState.items.push(item);
         gameState.grid[y][x].item = item.id;
         attempts++;
     }
 }
 
+// Spawn Special Grids
+function spawnSpecialGrids() {
+    const levelConfig = gameState.levelConfig;
+    const specialGridCount = levelConfig.specialGridCount || 0;
+    const specialGridTypes = levelConfig.specialGridTypes || [];
+    
+    if (specialGridCount === 0 || specialGridTypes.length === 0) {
+        return; // No special grids for this level
+    }
+    
+    let attempts = 0;
+    let spawned = 0;
+    
+    while (spawned < specialGridCount && attempts < 200) {
+        const x = Math.floor(Math.random() * gameState.gridWidth);
+        const y = Math.floor(Math.random() * gameState.gridHeight);
+        
+        // Don't spawn on player, enemies, items, or existing special grids
+        if (x === 0 && y === 0) { attempts++; continue; }
+        if (gameState.grid[y][x].enemy !== null) { attempts++; continue; }
+        if (gameState.grid[y][x].item !== null) { attempts++; continue; }
+        if (gameState.grid[y][x].specialGrid !== null) { attempts++; continue; }
+        
+        // Randomly select special grid type from allowed types
+        const gridType = specialGridTypes[Math.floor(Math.random() * specialGridTypes.length)];
+        
+        if (CONFIG.SPECIAL_GRID_TYPES[gridType]) {
+            gameState.grid[y][x].specialGrid = gridType;
+            spawned++;
+        }
+        
+        attempts++;
+    }
+    
+    console.log(`Spawned ${spawned} special grids`);
+}
+
 // Render Grid
 function renderGrid() {
     elements.gameGrid.innerHTML = '';
     
-    // Check if we should show direction buttons
-    const showDirections = gameState.playerRemainingSteps > 0 && !gameState.isMoving && gameState.currentTurn === 'player';
-    const validDirs = showDirections ? getValidDirections(gameState.player.x, gameState.player.y) : [];
+    // Calculate reachable cells if player has remaining steps
+    const showReachableCells = gameState.playerRemainingSteps > 0 && !gameState.isMoving && gameState.currentTurn === 'player';
+    const reachableCells = showReachableCells ? calculateReachableCells(gameState.player.x, gameState.player.y, gameState.playerRemainingSteps) : new Set();
     
     for (let y = 0; y < gameState.gridHeight; y++) {
         for (let x = 0; x < gameState.gridWidth; x++) {
@@ -235,37 +280,37 @@ function renderGrid() {
             
             const cellData = gameState.grid[y][x];
             let content = '';
-            let isDirectionCell = false;
-            let direction = null;
+            let isReachableCell = false;
+            let hasReachableEnemy = false;
+            let hasReachableItem = false;
             
-            // Check if this cell should show direction button
-            // Allow direction buttons even if there's an enemy (player can attack)
-            if (showDirections && cellData.player === false) {
-                // Check if this cell is adjacent to player
-                const dx = x - gameState.player.x;
-                const dy = y - gameState.player.y;
-                
-                if ((dx === 0 && dy === -1 && validDirs.includes('up')) ||
-                    (dx === 0 && dy === 1 && validDirs.includes('down')) ||
-                    (dx === -1 && dy === 0 && validDirs.includes('left')) ||
-                    (dx === 1 && dy === 0 && validDirs.includes('right'))) {
-                    isDirectionCell = true;
-                    if (dx === 0 && dy === -1) direction = 'up';
-                    else if (dx === 0 && dy === 1) direction = 'down';
-                    else if (dx === -1 && dy === 0) direction = 'left';
-                    else if (dx === 1 && dy === 0) direction = 'right';
+            // Check if this cell is reachable
+            if (showReachableCells && !cellData.player) {
+                const cellKey = `${x},${y}`;
+                if (reachableCells.has(cellKey)) {
+                    isReachableCell = true;
+                    cell.classList.add('reachable-cell');
+                    cell.style.cursor = 'pointer';
                     
-                    cell.classList.add('direction-cell');
-                    cell.dataset.direction = direction;
+                    // Check if this reachable cell has enemy (combat)
+                    if (cellData.enemy !== null) {
+                        hasReachableEnemy = true;
+                        cell.classList.add('reachable-combat');
+                    }
                     
-                    // Add click listener directly when creating the cell
+                    // Check if this reachable cell has item (collect)
+                    if (cellData.item !== null) {
+                        hasReachableItem = true;
+                        cell.classList.add('reachable-item');
+                    }
+                    
+                    // Add click listener to move to this cell
                     cell.addEventListener('click', (e) => {
                         e.stopPropagation();
                         e.preventDefault();
                         
-                        const dir = e.currentTarget.dataset.direction;
-                        if (dir && !gameState.isMoving && gameState.playerRemainingSteps > 0) {
-                            movePlayer(dir);
+                        if (!gameState.isMoving && gameState.playerRemainingSteps > 0) {
+                            movePlayerToCell(x, y);
                         }
                     });
                 }
@@ -282,44 +327,48 @@ function renderGrid() {
                 content += '🧙';
             }
             
-            // Add enemy
+            // Add enemy (always show, even if reachable)
             if (cellData.enemy !== null) {
                 const enemy = gameState.enemies.find(e => e.id === cellData.enemy);
                 if (enemy) {
                     cell.classList.add('enemy');
                     content += enemy.emoji || '👹';
-                    
-                    // Show planned direction if available (calculated before enemy turn)
-                    if (enemy.plannedDirection) {
-                        const dirSymbol = enemy.plannedDirection === 'up' ? '↑' : 
-                                         enemy.plannedDirection === 'down' ? '↓' : 
-                                         enemy.plannedDirection === 'left' ? '←' : '→';
-                        cell.classList.add('enemy-planned-move');
-                        cell.dataset.plannedDirection = enemy.plannedDirection;
-                        
-                        // Add direction indicator overlay
-                        const directionIndicator = document.createElement('div');
-                        directionIndicator.className = 'enemy-direction-indicator';
-                        directionIndicator.textContent = dirSymbol;
-                        cell.appendChild(directionIndicator);
-                    }
                 } else {
                     // Enemy was removed but grid still has reference - clean it up
                     gameState.grid[y][x].enemy = null;
                 }
             }
             
-            // Add item (only if not a direction cell to avoid overlap)
-            if (cellData.item !== null && !isDirectionCell) {
+            // Add item (always show, even if reachable)
+            if (cellData.item !== null) {
                 cell.classList.add('item');
                 const item = gameState.items.find(i => i.id === cellData.item);
                 content += item?.emoji || '💎';
             }
             
-            // Add direction indicator
-            if (isDirectionCell) {
-                const dirSymbol = direction === 'up' ? '↑' : direction === 'down' ? '↓' : direction === 'left' ? '←' : '→';
-                content = dirSymbol;
+            // Add special grid (always show)
+            if (cellData.specialGrid !== null) {
+                const specialGridType = CONFIG.SPECIAL_GRID_TYPES[cellData.specialGrid];
+                if (specialGridType) {
+                    cell.classList.add('special-grid');
+                    cell.classList.add(`special-grid-${cellData.specialGrid}`);
+                    // Add special grid icon as overlay - centered and larger
+                    // Always show icon, even if there's player/enemy/item on the cell
+                    const specialGridIcon = document.createElement('div');
+                    specialGridIcon.className = 'special-grid-icon';
+                    specialGridIcon.textContent = specialGridType.emoji;
+                    specialGridIcon.style.cssText = `
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                        font-size: 32px;
+                        z-index: 1;
+                        pointer-events: none;
+                        line-height: 1;
+                    `;
+                    cell.appendChild(specialGridIcon);
+                }
             }
             
             // Set content first
@@ -327,6 +376,10 @@ function renderGrid() {
                 const contentSpan = document.createElement('span');
                 contentSpan.textContent = content;
                 contentSpan.style.lineHeight = '1';
+                // Ensure content doesn't block pointer events for reachable cells
+                if (isReachableCell) {
+                    contentSpan.style.pointerEvents = 'none';
+                }
                 cell.appendChild(contentSpan);
             }
             
@@ -348,17 +401,40 @@ function renderGrid() {
                     const valueBadge = document.createElement('div');
                     valueBadge.className = 'value-badge enemy-value';
                     valueBadge.textContent = enemy.value;
+                    // Ensure value badge doesn't block pointer events for reachable cells
+                    if (isReachableCell) {
+                        valueBadge.style.pointerEvents = 'none';
+                    }
                     cell.appendChild(valueBadge);
                 }
                 // If enemy not found, grid cell will be cleaned up above
             }
             
-            if (cellData.item !== null && !isDirectionCell) {
+            if (cellData.item !== null) {
                 const item = gameState.items.find(i => i.id === cellData.item);
                 const valueBadge = document.createElement('div');
                 valueBadge.className = 'value-badge item-value';
                 valueBadge.textContent = item?.value || '?';
+                // Ensure value badge doesn't block pointer events for reachable cells
+                if (isReachableCell) {
+                    valueBadge.style.pointerEvents = 'none';
+                }
                 cell.appendChild(valueBadge);
+            }
+            
+            // Add value badge for special grids (if they have value)
+            if (cellData.specialGrid !== null) {
+                const specialGridType = CONFIG.SPECIAL_GRID_TYPES[cellData.specialGrid];
+                if (specialGridType && specialGridType.value !== undefined) {
+                    const valueBadge = document.createElement('div');
+                    valueBadge.className = 'value-badge special-grid-value';
+                    valueBadge.textContent = specialGridType.value;
+                    // Ensure value badge doesn't block pointer events for reachable cells
+                    if (isReachableCell) {
+                        valueBadge.style.pointerEvents = 'none';
+                    }
+                    cell.appendChild(valueBadge);
+                }
             }
             
             elements.gameGrid.appendChild(cell);
@@ -420,15 +496,26 @@ function playerRoll() {
         
         // Update UI
         elements.diceVisual.classList.remove('rolling');
-        elements.diceFace.textContent = roll;
-        elements.diceLabel.textContent = `Move ${roll} steps`;
+        updateDiceDisplay();
         elements.rollButton.disabled = true;
+        elements.endTurnButton.style.display = 'inline-block';
         
-        // Show direction buttons at player position (will be rendered in renderGrid)
+        // Show reachable cells (will be rendered in renderGrid)
         renderGrid();
         
         console.log(`Player rolled: ${roll}`);
     }, 500);
+}
+
+// End Player Turn
+function endPlayerTurnManually() {
+    if (!gameState.gameRunning || gameState.isMoving || gameState.currentTurn !== 'player') {
+        return;
+    }
+    
+    gameState.playerRemainingSteps = 0;
+    updateDiceDisplay();
+    endPlayerTurn();
 }
 
 // Show Direction Buttons at Player Position
@@ -455,18 +542,150 @@ function getValidDirections(x, y) {
     return directions;
 }
 
-// Move Player
-async function movePlayer(direction) {
+// Calculate all reachable cells with remaining steps (BFS)
+function calculateReachableCells(startX, startY, maxSteps) {
+    const reachable = new Set();
+    const queue = [{ x: startX, y: startY, steps: 0 }];
+    const visited = new Set();
+    visited.add(`${startX},${startY}`);
+    
+    while (queue.length > 0) {
+        const current = queue.shift();
+        
+        // Add current cell to reachable if it's not the start position
+        if (current.steps > 0) {
+            const cellData = gameState.grid[current.y][current.x];
+            // Only add empty cells or cells with items here (not enemies)
+            // Enemies will be added separately below
+            if (cellData.enemy === null) {
+                reachable.add(`${current.x},${current.y}`);
+            }
+        }
+        
+        if (current.steps >= maxSteps) {
+            continue;
+        }
+        
+        const directions = getValidDirections(current.x, current.y);
+        for (const dir of directions) {
+            const newPos = getNewPosition(current.x, current.y, dir);
+            const key = `${newPos.x},${newPos.y}`;
+            
+            // Skip if already visited
+            if (!visited.has(key)) {
+                const cellData = gameState.grid[newPos.y][newPos.x];
+                // Check if cell has box (obstacle) - cannot walk through
+                if (cellData.specialGrid === 'box') {
+                    continue; // Skip box cells
+                }
+                // Allow moving through cells with enemies (we can reach them for combat)
+                // But we don't add enemy cells to reachable in the main loop
+                // Enemy cells will be checked separately below
+                if (cellData.enemy === null || cellData.player) {
+                    visited.add(key);
+                    queue.push({ x: newPos.x, y: newPos.y, steps: current.steps + 1 });
+                } else if (cellData.enemy !== null) {
+                    // This cell has an enemy - we can still pass through it in BFS
+                    // but we'll check if we can reach it separately
+                    // Still check for box
+                    if (cellData.specialGrid !== 'box') {
+                        visited.add(key);
+                        queue.push({ x: newPos.x, y: newPos.y, steps: current.steps + 1 });
+                    }
+                }
+            }
+        }
+    }
+    
+    // Also check and add cells with enemies that are reachable (for combat)
+    // We need to verify we can actually reach these enemy positions
+    for (let y = 0; y < gameState.gridHeight; y++) {
+        for (let x = 0; x < gameState.gridWidth; x++) {
+            if (x === startX && y === startY) continue;
+            
+            const cellData = gameState.grid[y][x];
+            if (cellData.enemy !== null) {
+                // Check if this enemy cell is reachable by finding a path
+                const path = findPath(startX, startY, x, y, maxSteps);
+                if (path && path.length > 0 && path.length <= maxSteps) {
+                    reachable.add(`${x},${y}`);
+                }
+            }
+        }
+    }
+    
+    return reachable;
+}
+
+// Find path from start to target using BFS
+function findPath(startX, startY, targetX, targetY, maxSteps) {
+    const queue = [{ x: startX, y: startY, steps: 0, path: [] }];
+    const visited = new Set();
+    visited.add(`${startX},${startY}`);
+    
+    while (queue.length > 0) {
+        const current = queue.shift();
+        
+        if (current.x === targetX && current.y === targetY) {
+            return current.path;
+        }
+        
+        if (current.steps >= maxSteps) {
+            continue;
+        }
+        
+        const directions = getValidDirections(current.x, current.y);
+        for (const dir of directions) {
+            const newPos = getNewPosition(current.x, current.y, dir);
+            const key = `${newPos.x},${newPos.y}`;
+            
+            if (!visited.has(key)) {
+                const cellData = gameState.grid[newPos.y][newPos.x];
+                // Cannot move through box (obstacle)
+                if (cellData.specialGrid === 'box') {
+                    continue;
+                }
+                // Allow moving to cells with enemies (for combat)
+                if (cellData.enemy === null || (newPos.x === targetX && newPos.y === targetY)) {
+                    visited.add(key);
+                    queue.push({
+                        x: newPos.x,
+                        y: newPos.y,
+                        steps: current.steps + 1,
+                        path: [...current.path, dir]
+                    });
+                }
+            }
+        }
+    }
+    
+    return null; // No path found
+}
+
+// Move Player to Target Cell
+async function movePlayerToCell(targetX, targetY) {
     if (!gameState.gameRunning || gameState.isMoving || gameState.playerRemainingSteps <= 0) {
         return;
     }
     
-    gameState.playerDirection = direction;
-    gameState.isMoving = true;
-    // Direction buttons will be hidden in next renderGrid()
+    // Find path to target cell
+    const path = findPath(gameState.player.x, gameState.player.y, targetX, targetY, gameState.playerRemainingSteps);
     
-    // Move step by step
-    while (gameState.playerRemainingSteps > 0 && gameState.gameRunning) {
+    if (!path || path.length === 0) {
+        console.log('No path found to target cell');
+        return;
+    }
+    
+    if (path.length > gameState.playerRemainingSteps) {
+        console.log('Path too long for remaining steps');
+        return;
+    }
+    
+    gameState.isMoving = true;
+    
+    // Move step by step following the path
+    for (let i = 0; i < path.length && gameState.gameRunning; i++) {
+        const direction = path[i];
         const newPos = getNewPosition(gameState.player.x, gameState.player.y, direction);
         
         // Check if can move
@@ -477,7 +696,19 @@ async function movePlayer(direction) {
         
         // Check for enemy (combat)
         if (gameState.grid[newPos.y][newPos.x].enemy !== null) {
-            // Stop and combat
+            // Move to enemy position first
+            gameState.grid[gameState.player.y][gameState.player.x].player = false;
+            gameState.player.x = newPos.x;
+            gameState.player.y = newPos.y;
+            gameState.grid[gameState.player.y][gameState.player.x].player = true;
+            
+            // Update remaining steps
+            gameState.playerRemainingSteps -= (i + 1);
+            updateDiceDisplay();
+            
+            // Render and combat
+            renderGrid();
+            await sleep(100);
             await performCombat(newPos.x, newPos.y);
             break; // Stop after combat
         }
@@ -488,13 +719,24 @@ async function movePlayer(direction) {
         gameState.player.y = newPos.y;
         gameState.grid[gameState.player.y][gameState.player.x].player = true;
         
+        // Update remaining steps
+        gameState.playerRemainingSteps--;
+        updateDiceDisplay();
+        
         // Check for item
         if (gameState.grid[gameState.player.y][gameState.player.x].item !== null) {
             await collectItem(gameState.player.x, gameState.player.y);
-            // Continue moving after collecting item
         }
         
-        gameState.playerRemainingSteps--;
+        // Check for special grid effects
+        const specialGrid = gameState.grid[gameState.player.y][gameState.player.x].specialGrid;
+        if (specialGrid) {
+            const handled = await handleSpecialGrid(specialGrid, gameState.player.x, gameState.player.y);
+            if (!handled) {
+                // Special grid prevented further movement (e.g., canon teleport)
+                break;
+            }
+        }
         
         // Render and wait
         renderGrid();
@@ -505,13 +747,232 @@ async function movePlayer(direction) {
     }
     
     gameState.isMoving = false;
-    gameState.playerRemainingSteps = 0;
-    gameState.playerDirection = null;
     
-    // End player turn
-    if (gameState.gameRunning) {
+    // If no more steps, end turn
+    if (gameState.playerRemainingSteps <= 0 && gameState.gameRunning) {
         endPlayerTurn();
+    } else if (gameState.gameRunning) {
+        // Re-render to update reachable cells
+        renderGrid();
     }
+}
+
+// Update Dice Display
+function updateDiceDisplay() {
+    if (gameState.playerRemainingSteps > 0) {
+        elements.diceFace.textContent = gameState.playerRemainingSteps;
+        elements.diceLabel.textContent = `${gameState.playerRemainingSteps} step${gameState.playerRemainingSteps > 1 ? 's' : ''} remaining`;
+        elements.endTurnButton.style.display = 'inline-block';
+    } else {
+        elements.diceFace.textContent = '?';
+        elements.diceLabel.textContent = 'Your turn';
+        elements.endTurnButton.style.display = 'none';
+    }
+}
+
+// Handle Special Grid Effects
+async function handleSpecialGrid(specialGridType, x, y) {
+    const gridConfig = CONFIG.SPECIAL_GRID_TYPES[specialGridType];
+    if (!gridConfig) return true;
+    
+    switch (specialGridType) {
+        case 'lava':
+            // Lava: Take 1 damage
+            if (gameState.player.value > 1) {
+                gameState.player.value -= gridConfig.damage;
+                showValueLossAnimation(x, y, gridConfig.damage);
+                updateUI();
+                renderGrid();
+                await sleep(300);
+                console.log(`Player stepped on Lava! Lost ${gridConfig.damage} value.`);
+            } else {
+                // Player dies if value reaches 0
+                console.log('Player died from Lava!');
+                gameOver(false);
+                return false;
+            }
+            return true;
+            
+        case 'swamp':
+            // Swamp: Take 2 damage (auto, no trap)
+            const swampDamage = gridConfig.damage || 2;
+            
+            if (gameState.player.value > swampDamage) {
+                gameState.player.value -= swampDamage;
+                showValueLossAnimation(x, y, swampDamage);
+                updateUI();
+                renderGrid();
+                await sleep(300);
+                console.log(`Player stepped on Swamp! Lost ${swampDamage} value.`);
+            } else {
+                // Player dies if value reaches 0
+                console.log('Player died from Swamp!');
+                gameOver(false);
+                return false;
+            }
+            return true;
+            
+        case 'canon':
+            // Canon: Teleport player to chosen cell
+            // Stop movement first
+            gameState.isMoving = false;
+            
+            // Show canon activation effect
+            const canonCell = elements.gameGrid.querySelector(`[data-x="${x}"][data-y="${y}"]`);
+            if (canonCell) {
+                canonCell.classList.add('canon-activating');
+                await sleep(500);
+            }
+            
+            // Show message to select target
+            await showCanonTargetSelection(x, y);
+            return false; // Movement handled by canon teleport
+            
+        default:
+            return true;
+    }
+}
+
+// Show Canon Target Selection
+async function showCanonTargetSelection(canonX, canonY) {
+    // Show message
+    const message = document.createElement('div');
+    message.className = 'canon-message';
+    message.textContent = '💣 Select target cell!';
+    message.style.cssText = `
+        position: fixed;
+        top: 20%;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 24px;
+        font-weight: bold;
+        color: #f1c40f;
+        text-shadow: 0 0 20px rgba(241, 196, 15, 1);
+        z-index: 10000;
+        background: rgba(0, 0, 0, 0.8);
+        padding: 15px 30px;
+        border-radius: 10px;
+        pointer-events: none;
+    `;
+    document.body.appendChild(message);
+    
+    // Make all cells clickable (except box)
+    const allCells = elements.gameGrid.querySelectorAll('.grid-cell');
+    const clickHandlers = [];
+    
+    allCells.forEach(cell => {
+        const cellX = parseInt(cell.dataset.x);
+        const cellY = parseInt(cell.dataset.y);
+        const cellData = gameState.grid[cellY][cellX];
+        
+        // Allow clicking on any cell except box
+        if (cellData.specialGrid !== 'box') {
+            cell.classList.add('canon-target');
+            cell.style.cursor = 'pointer';
+            
+            const clickHandler = (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                
+                // Remove message
+                if (message.parentNode) {
+                    message.parentNode.removeChild(message);
+                }
+                
+                // Remove all click handlers and classes
+                allCells.forEach((c, idx) => {
+                    c.classList.remove('canon-target');
+                    c.style.cursor = '';
+                    if (clickHandlers[idx]) {
+                        c.removeEventListener('click', clickHandlers[idx]);
+                    }
+                });
+                
+                // Teleport player
+                teleportPlayerToCell(cellX, cellY);
+            };
+            
+            clickHandlers.push(clickHandler);
+            cell.addEventListener('click', clickHandler);
+        } else {
+            clickHandlers.push(null);
+        }
+    });
+}
+
+// Teleport Player to Target Cell
+async function teleportPlayerToCell(targetX, targetY) {
+    const oldX = gameState.player.x;
+    const oldY = gameState.player.y;
+    
+    // Move player
+    gameState.grid[oldY][oldX].player = false;
+    gameState.player.x = targetX;
+    gameState.player.y = targetY;
+    gameState.grid[targetY][targetX].player = true;
+    
+    // Show teleport animation
+    const targetCell = elements.gameGrid.querySelector(`[data-x="${targetX}"][data-y="${targetY}"]`);
+    if (targetCell) {
+        targetCell.classList.add('canon-teleport');
+    }
+    
+    renderGrid();
+    await sleep(500);
+    
+    if (targetCell) {
+        targetCell.classList.remove('canon-teleport');
+    }
+    
+    // Check for item at new position
+    if (gameState.grid[targetY][targetX].item !== null) {
+        await collectItem(targetX, targetY);
+    }
+    
+    // Check for enemy at new position
+    if (gameState.grid[targetY][targetX].enemy !== null) {
+        await performCombat(targetX, targetY);
+    }
+    
+    // End turn after canon teleport
+    endPlayerTurn();
+}
+
+// Show Value Loss Animation
+function showValueLossAnimation(x, y, amount) {
+    const cell = elements.gameGrid.querySelector(`[data-x="${x}"][data-y="${y}"]`);
+    if (!cell) return;
+    
+    const lossText = document.createElement('div');
+    lossText.className = 'value-loss-animation';
+    lossText.textContent = `-${amount}`;
+    lossText.style.cssText = `
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        color: #e74c3c;
+        font-size: 20px;
+        font-weight: bold;
+        text-shadow: 0 0 10px rgba(231, 76, 60, 0.8);
+        pointer-events: none;
+        z-index: 1000;
+    `;
+    
+    cell.style.position = 'relative';
+    cell.appendChild(lossText);
+    
+    setTimeout(() => {
+        lossText.style.transition = 'all 0.8s ease-out';
+        lossText.style.transform = 'translate(-50%, -150%)';
+        lossText.style.opacity = '0';
+        
+        setTimeout(() => {
+            if (lossText.parentNode) {
+                lossText.parentNode.removeChild(lossText);
+            }
+        }, 800);
+    }, 100);
 }
 
 // Get New Position
@@ -557,6 +1018,11 @@ async function collectItem(x, y) {
     await sleep(300);
     
     console.log(`Collected item worth ${item.value}. Value: ${oldValue} → ${gameState.player.value}`);
+    
+    // Check instant win first, then impossible win after collecting item
+    if (!checkInstantWin()) {
+        checkImpossibleWin();
+    }
 }
 
 // Perform Combat
@@ -600,8 +1066,8 @@ async function performCombat(x, y) {
     // Remove combat class before proceeding
     cell.classList.remove('combat');
     
-    // Compare values - Player wins only if value > enemy (not >=)
-    if (gameState.player.value > enemy.value) {
+    // Compare values - Player wins if value >= enemy
+    if (gameState.player.value >= enemy.value) {
         const oldValue = gameState.player.value;
         const enemyValue = enemy.value;
         
@@ -634,9 +1100,14 @@ async function performCombat(x, y) {
             checkLevelComplete();
             return;
         }
+        
+        // Check instant win after defeating enemy
+        if (checkInstantWin()) {
+            return; // Instant win triggered
+        }
     } else {
-        // Player loses - Game Over
-        console.log(`Player lost! Game Over.`);
+        // Player loses - Game Over (enemy value > player value)
+        console.log(`Player lost! Enemy value (${enemy.value}) > Player value (${gameState.player.value}). Game Over.`);
         gameOver(false);
         return;
     }
@@ -662,6 +1133,11 @@ function calculateFinalPosition(startX, startY, direction, maxSteps) {
         if (newPos.x < 0 || newPos.x >= gameState.gridWidth ||
             newPos.y < 0 || newPos.y >= gameState.gridHeight) {
             break; // Hit wall
+        }
+        
+        // Check for box (obstacle)
+        if (gameState.grid[newPos.y][newPos.x].specialGrid === 'box') {
+            break; // Hit box
         }
         
         // Check for other enemies (but allow player position)
@@ -697,6 +1173,11 @@ function findPathToPlayer(enemy, direction, maxSteps) {
         if (newPos.x < 0 || newPos.x >= gameState.gridWidth ||
             newPos.y < 0 || newPos.y >= gameState.gridHeight) {
             break; // Hit wall
+        }
+        
+        // Check for box (obstacle)
+        if (gameState.grid[newPos.y][newPos.x].specialGrid === 'box') {
+            break; // Hit box
         }
         
         // Check for other enemies (but allow player position)
@@ -778,119 +1259,128 @@ function evaluatePosition(enemy, direction, maxSteps) {
     return score;
 }
 
-// Choose best direction for enemy using AI
-function chooseBestDirection(enemy, roll) {
-    const validDirs = getValidDirections(enemy.x, enemy.y);
+// Choose best target cell for enemy using AI (returns target cell coordinates)
+function chooseBestTargetCell(enemy, roll) {
+    // Only chase player if enemy is STRICTLY stronger (value > player value)
+    // If equal or weaker, enemy should seek items to come back
+    const isStronger = enemy.value > gameState.player.value;
     
-    // Filter out directions with other enemies
-    const availableDirs = validDirs.filter(dir => {
-        const newPos = getNewPosition(enemy.x, enemy.y, dir);
-        return gameState.grid[newPos.y][newPos.x].enemy === null;
-    });
-    
-    if (availableDirs.length === 0) {
-        return null; // No valid moves
-    }
-    
-    const scores = [];
-    
-    for (const dir of availableDirs) {
-        let score = 0;
+    if (isStronger) {
+        // Strong enemy: Chase player
+        const playerPos = { x: gameState.player.x, y: gameState.player.y };
+        const reachableCells = calculateReachableCells(enemy.x, enemy.y, roll);
         
-        // Priority 1: Attack Score (if enemy can win)
-        if (enemy.value >= gameState.player.value) {
-            const pathToPlayer = findPathToPlayer(enemy, dir, roll);
+        // Find closest reachable cell to player
+        let bestCell = null;
+        let minDistance = Infinity;
+        
+        for (const cellKey of reachableCells) {
+            const [x, y] = cellKey.split(',').map(Number);
+            const distance = calculateManhattanDistance(x, y, playerPos.x, playerPos.y);
             
-            // If we can reach player this turn
-            if (pathToPlayer.reachable && pathToPlayer.distance === 0) {
-                score += 1000; // Very high priority to attack
-            } else if (pathToPlayer.reachable) {
-                // Can reach but need more steps
-                score += 500 - pathToPlayer.distance;
-            } else {
-                // Can't reach this turn, but getting closer is good
-                const currentDistance = calculateManhattanDistance(
-                    enemy.x, enemy.y,
-                    gameState.player.x, gameState.player.y
-                );
-                if (pathToPlayer.distance < currentDistance) {
-                    score += 200 - pathToPlayer.distance;
+            if (distance < minDistance) {
+                minDistance = distance;
+                bestCell = { x, y };
+            }
+        }
+        
+        // If can reach player directly, target player
+        const playerKey = `${playerPos.x},${playerPos.y}`;
+        if (reachableCells.has(playerKey)) {
+            return playerPos;
+        }
+        
+        return bestCell || { x: enemy.x, y: enemy.y };
+    } else {
+        // Weak enemy: ALWAYS prioritize finding items to come back
+        // Find items first (prioritize highest value items), then escape if no items
+        const reachableCells = calculateReachableCells(enemy.x, enemy.y, roll);
+        
+        // Find best item in reachable cells (prioritize value, then distance)
+        let bestItem = null;
+        let bestItemScore = -1;
+        
+        for (const item of gameState.items) {
+            const itemKey = `${item.x},${item.y}`;
+            if (reachableCells.has(itemKey)) {
+                const distance = calculateManhattanDistance(enemy.x, enemy.y, item.x, item.y);
+                // Score: prioritize higher value items, then closer items
+                // Higher value = more important, closer = easier to get
+                const score = item.value * 100 - distance;
+                
+                if (score > bestItemScore) {
+                    bestItemScore = score;
+                    bestItem = { x: item.x, y: item.y };
                 }
             }
-        } else {
-            // Priority 2: Escape Score (if enemy will lose)
-            const finalPos = calculateFinalPosition(enemy.x, enemy.y, dir, roll);
-            const newDistance = calculateManhattanDistance(
-                finalPos.x, finalPos.y,
-                gameState.player.x, gameState.player.y
-            );
-            const currentDistance = calculateManhattanDistance(
-                enemy.x, enemy.y,
-                gameState.player.x, gameState.player.y
-            );
+        }
+        
+        // If found an item, always go for it (no matter what)
+        if (bestItem) {
+            return bestItem;
+        }
+        
+        // No items available in reachable cells: Try to find path to nearest item
+        // Even if not directly reachable, try to get closer to items
+        if (gameState.items.length > 0) {
+            let nearestItem = null;
+            let minItemDistance = Infinity;
             
-            // Higher score for moving further away
-            score += newDistance - currentDistance;
+            for (const item of gameState.items) {
+                const distance = calculateManhattanDistance(enemy.x, enemy.y, item.x, item.y);
+                if (distance < minItemDistance) {
+                    minItemDistance = distance;
+                    nearestItem = item;
+                }
+            }
             
-            // Extra bonus for significant distance increase
-            if (newDistance > currentDistance + 2) {
-                score += 100;
+            if (nearestItem) {
+                // Try to move closer to the nearest item
+                let bestCell = null;
+                let minDistanceToItem = Infinity;
+                
+                for (const cellKey of reachableCells) {
+                    const [x, y] = cellKey.split(',').map(Number);
+                    // Skip box cells
+                    if (gameState.grid[y][x].specialGrid === 'box') {
+                        continue;
+                    }
+                    const distanceToItem = calculateManhattanDistance(x, y, nearestItem.x, nearestItem.y);
+                    
+                    if (distanceToItem < minDistanceToItem) {
+                        minDistanceToItem = distanceToItem;
+                        bestCell = { x, y };
+                    }
+                }
+                
+                if (bestCell) {
+                    return bestCell;
+                }
             }
         }
         
-        // Priority 3: Item Score
-        const nearestItem = findNearestItemInDirection(enemy, dir, roll);
-        if (nearestItem) {
-            if (nearestItem.reachable) {
-                // Can reach item this turn
-                score += nearestItem.item.value * 100 - nearestItem.distance;
-            } else {
-                // Can't reach this turn, but getting closer is good
-                score += nearestItem.item.value * 20 - nearestItem.distance;
+        // No items available at all: Escape from player
+        let bestCell = null;
+        let maxDistance = -1;
+        
+        for (const cellKey of reachableCells) {
+            const [x, y] = cellKey.split(',').map(Number);
+            // Skip box cells
+            if (gameState.grid[y][x].specialGrid === 'box') {
+                continue;
+            }
+            const distance = calculateManhattanDistance(x, y, gameState.player.x, gameState.player.y);
+            
+            if (distance > maxDistance) {
+                maxDistance = distance;
+                bestCell = { x, y };
             }
         }
         
-        // Priority 4: Position Score
-        score += evaluatePosition(enemy, dir, roll);
-        
-        scores.push({ direction: dir, score: score });
+        return bestCell || { x: enemy.x, y: enemy.y };
     }
-    
-    // Sort by score (highest first)
-    scores.sort((a, b) => b.score - a.score);
-    
-    // Log AI decision for debugging
-    console.log(`Enemy ${enemy.id} AI decision:`, {
-        value: enemy.value,
-        playerValue: gameState.player.value,
-        roll: roll,
-        choices: scores.map(s => `${s.direction}: ${Math.round(s.score)}`),
-        chosen: scores[0].direction
-    });
-    
-    return scores[0].direction;
 }
 
-// Calculate all enemy movements before their turn
-function calculateEnemyMovements() {
-    // Pre-calculate roll and direction for all enemies
-    for (const enemy of gameState.enemies) {
-        // Roll dice for enemy (pre-roll)
-        const roll = rollDice();
-        
-        // Use AI to choose best direction
-        const direction = chooseBestDirection(enemy, roll);
-        
-        // Store planned movement
-        enemy.plannedRoll = roll;
-        enemy.plannedDirection = direction;
-        
-        console.log(`Enemy ${enemy.id} planned: roll ${roll}, direction ${direction || 'none'}`);
-    }
-    
-    // Re-render grid to show planned directions
-    renderGrid();
-}
 
 // End Player Turn
 function endPlayerTurn() {
@@ -945,17 +1435,9 @@ async function enemyTurn() {
         // Skip if enemy was removed
         if (!gameState.enemies.find(e => e.id === enemy.id)) continue;
         
-        // Use pre-calculated roll and direction
-        const roll = enemy.plannedRoll;
-        const direction = enemy.plannedDirection;
-        
-        if (!direction || !roll) {
-            // No valid moves (shouldn't happen if calculation worked)
-            console.log(`Enemy ${enemy.id} has no planned movement`);
-            continue;
-        }
-        
-        console.log(`Enemy ${enemy.id} executing: roll ${roll}, direction ${direction}`);
+        // Roll dice for enemy
+        const roll = rollDice();
+        console.log(`Enemy ${enemy.id} rolled: ${roll}`);
         
         // Show dice roll animation on enemy cell
         await showEnemyDiceRoll(enemy, roll);
@@ -964,22 +1446,35 @@ async function enemyTurn() {
         renderGrid();
         await sleep(100);
         
-        // Clear planned movement (no longer needed after execution starts)
-        enemy.plannedDirection = null;
-        enemy.plannedRoll = null;
+        // Choose best target cell using AI
+        const targetCell = chooseBestTargetCell(enemy, roll);
+        console.log(`Enemy ${enemy.id} targeting: (${targetCell.x}, ${targetCell.y})`);
         
-        // Move enemy step by step in the chosen direction
-        for (let step = 0; step < roll; step++) {
-            if (!gameState.gameRunning) break;
-            
+        // Find path to target
+        const path = findPath(enemy.x, enemy.y, targetCell.x, targetCell.y, roll);
+        
+        if (!path || path.length === 0) {
+            console.log(`Enemy ${enemy.id} has no path to target`);
+            continue;
+        }
+        
+        // Move enemy step by step following the path
+        for (let i = 0; i < path.length && i < roll && gameState.gameRunning; i++) {
+            const direction = path[i];
             const newPos = getNewPosition(enemy.x, enemy.y, direction);
             
-            // Check if can move (wall or enemy)
+            // Check if can move (wall)
             if (newPos.x < 0 || newPos.x >= gameState.gridWidth || 
                 newPos.y < 0 || newPos.y >= gameState.gridHeight) {
                 break; // Hit wall
             }
             
+            // Check for box (obstacle)
+            if (gameState.grid[newPos.y][newPos.x].specialGrid === 'box') {
+                break; // Hit box
+            }
+            
+            // Check for other enemies
             if (gameState.grid[newPos.y][newPos.x].enemy !== null) {
                 break; // Hit another enemy
             }
@@ -992,15 +1487,11 @@ async function enemyTurn() {
                 enemy.y = newPos.y;
                 gameState.grid[enemy.y][enemy.x].enemy = enemy.id;
                 
-                // Now perform combat
+                // Render and combat
+                renderGrid();
+                await sleep(100);
                 await performEnemyCombat(enemy, newPos.x, newPos.y);
                 break;
-            }
-            
-            // Check for item
-            if (gameState.grid[newPos.y][newPos.x].item !== null) {
-                // Enemy collects item
-                await enemyCollectItem(enemy, newPos.x, newPos.y);
             }
             
             // Move enemy
@@ -1009,6 +1500,41 @@ async function enemyTurn() {
             enemy.y = newPos.y;
             gameState.grid[enemy.y][enemy.x].enemy = enemy.id;
             
+            // Check for special grid effects (enemy can take damage from lava and swamp)
+            const specialGrid = gameState.grid[enemy.y][enemy.x].specialGrid;
+            if (specialGrid === 'lava') {
+                // Enemy takes damage from lava
+                const lavaDamage = CONFIG.SPECIAL_GRID_TYPES.lava.damage;
+                if (enemy.value > lavaDamage) {
+                    enemy.value -= lavaDamage;
+                    console.log(`Enemy ${enemy.id} stepped on Lava! Lost ${lavaDamage} value.`);
+                } else {
+                    // Enemy dies from lava
+                    console.log(`Enemy ${enemy.id} died from Lava!`);
+                    gameState.grid[enemy.y][enemy.x].enemy = null;
+                    gameState.enemies = gameState.enemies.filter(e => e.id !== enemy.id);
+                    continue; // Skip to next enemy
+                }
+            } else if (specialGrid === 'swamp') {
+                // Enemy takes damage from swamp
+                const swampDamage = CONFIG.SPECIAL_GRID_TYPES.swamp.damage;
+                if (enemy.value > swampDamage) {
+                    enemy.value -= swampDamage;
+                    console.log(`Enemy ${enemy.id} stepped on Swamp! Lost ${swampDamage} value.`);
+                } else {
+                    // Enemy dies from swamp
+                    console.log(`Enemy ${enemy.id} died from Swamp!`);
+                    gameState.grid[enemy.y][enemy.x].enemy = null;
+                    gameState.enemies = gameState.enemies.filter(e => e.id !== enemy.id);
+                    continue; // Skip to next enemy
+                }
+            }
+            
+            // Check for item
+            if (gameState.grid[enemy.y][enemy.x].item !== null) {
+                await enemyCollectItem(enemy, enemy.x, enemy.y);
+            }
+            
             renderGrid();
             await sleep(200);
         }
@@ -1016,13 +1542,18 @@ async function enemyTurn() {
     
     // End enemy turn
     if (gameState.gameRunning) {
-        gameState.currentTurn = 'player';
-        elements.diceLabel.textContent = 'Your turn';
-        elements.diceFace.textContent = '?';
-        elements.rollButton.disabled = false;
+        // Check instant win first, then impossible win after enemy turn
+        if (!checkInstantWin()) {
+            checkImpossibleWin();
+        }
         
-        // Calculate enemy movements for NEXT turn (so player sees them before rolling)
-        calculateEnemyMovements();
+        if (gameState.gameRunning) {
+            gameState.currentTurn = 'player';
+            elements.diceLabel.textContent = 'Your turn';
+            elements.diceFace.textContent = '?';
+            elements.rollButton.disabled = false;
+            elements.endTurnButton.style.display = 'none';
+        }
     }
 }
 
@@ -1043,6 +1574,11 @@ async function enemyCollectItem(enemy, x, y) {
     
     updateUI();
     console.log(`Enemy ${enemy.id} collected item worth ${item.value}`);
+    
+    // Check instant win first, then impossible win after enemy collects item
+    if (!checkInstantWin()) {
+        checkImpossibleWin();
+    }
 }
 
 // Perform Enemy Combat (when enemy hits player)
@@ -1072,9 +1608,9 @@ async function performEnemyCombat(enemy, x, y) {
     // Remove combat class before proceeding
     cell.classList.remove('combat');
     
-    // Compare values - Player wins if value > enemy (not >=)
-    // Enemy wins if value >= player
-    if (gameState.player.value > enemy.value) {
+    // Compare values - Player wins if value >= enemy
+    // Enemy wins if value > player
+    if (gameState.player.value >= enemy.value) {
         // Player wins - enemy thua
         const oldValue = gameState.player.value;
         const enemyValue = enemy.value;
@@ -1106,11 +1642,205 @@ async function performEnemyCombat(enemy, x, y) {
             checkLevelComplete();
             return;
         }
+        
+        // Check instant win after defeating enemy
+        if (checkInstantWin()) {
+            return; // Instant win triggered
+        }
     } else {
-        // Enemy wins - Player loses (enemy value >= player value)
-        console.log(`Player lost! Enemy ${enemy.id} value (${enemy.value}) >= Player value (${gameState.player.value}). Game Over.`);
+        // Enemy wins - Player loses (enemy value > player value)
+        console.log(`Player lost! Enemy ${enemy.id} value (${enemy.value}) > Player value (${gameState.player.value}). Game Over.`);
         gameOver(false);
         return;
+    }
+}
+
+// Check if player can instant win (player value >= all enemy values AND no items left)
+function checkInstantWin() {
+    if (!gameState.gameRunning || gameState.enemies.length === 0) {
+        return false; // Game already over or won
+    }
+    
+    // Check if there are no items left (enemies can't collect items to increase value)
+    if (gameState.items.length > 0) {
+        return false; // Still have items, enemies might collect them
+    }
+    
+    // Check if player can defeat all enemies
+    const canDefeatAll = gameState.enemies.every(enemy => gameState.player.value >= enemy.value);
+    
+    if (canDefeatAll) {
+        console.log('Instant Win triggered! Player can defeat all enemies and no items left!');
+        instantWin();
+        return true;
+    }
+    
+    return false;
+}
+
+// Instant Win - Player defeats all enemies with special animation
+async function instantWin() {
+    // Prevent further actions
+    gameState.gameRunning = false;
+    gameState.isMoving = true;
+    
+    console.log('🎉 INSTANT WIN! Player value:', gameState.player.value);
+    
+    // Delay before showing instant win message
+    await sleep(800);
+    
+    // Show instant win message
+    const instantWinMessage = document.createElement('div');
+    instantWinMessage.className = 'instant-win-message';
+    instantWinMessage.textContent = 'INSTANT WIN!';
+    instantWinMessage.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 48px;
+        font-weight: bold;
+        color: #f1c40f;
+        text-shadow: 0 0 20px rgba(241, 196, 15, 1), 0 0 40px rgba(241, 196, 15, 0.8);
+        z-index: 10000;
+        animation: instantWinPulse 1s ease-in-out infinite;
+        pointer-events: none;
+    `;
+    document.body.appendChild(instantWinMessage);
+    
+    await sleep(1200);
+    
+    // Get all enemies sorted by distance from player
+    const enemiesToDefeat = [...gameState.enemies].sort((a, b) => {
+        const distA = calculateManhattanDistance(gameState.player.x, gameState.player.y, a.x, a.y);
+        const distB = calculateManhattanDistance(gameState.player.x, gameState.player.y, b.x, b.y);
+        return distA - distB;
+    });
+    
+    // Defeat each enemy with animation
+    for (const enemy of enemiesToDefeat) {
+        if (!gameState.enemies.find(e => e.id === enemy.id)) continue; // Enemy already removed
+        
+        // Move player to enemy position (visual effect)
+        const oldPlayerX = gameState.player.x;
+        const oldPlayerY = gameState.player.y;
+        
+        // Temporarily move player to enemy position for animation
+        gameState.grid[oldPlayerY][oldPlayerX].player = false;
+        gameState.player.x = enemy.x;
+        gameState.player.y = enemy.y;
+        gameState.grid[enemy.y][enemy.x].player = true;
+        
+        renderGrid();
+        await sleep(200);
+        
+        // Show combat effect on enemy cell
+        const enemyCell = elements.gameGrid.querySelector(`[data-x="${enemy.x}"][data-y="${enemy.y}"]`);
+        if (enemyCell) {
+            enemyCell.classList.add('combat');
+            enemyCell.classList.add('instant-win-combat');
+            
+            // Create instant win effect
+            const instantWinEffect = document.createElement('div');
+            instantWinEffect.className = 'instant-win-effect';
+            instantWinEffect.textContent = '⚡';
+            instantWinEffect.style.cssText = `
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                font-size: 60px;
+                color: #f1c40f;
+                text-shadow: 0 0 20px rgba(241, 196, 15, 1);
+                z-index: 1000;
+                animation: instantWinFlash 0.5s ease-out;
+                pointer-events: none;
+            `;
+            enemyCell.style.position = 'relative';
+            enemyCell.appendChild(instantWinEffect);
+        }
+        
+        await sleep(300);
+        
+        // Absorb enemy value
+        const enemyValue = enemy.value;
+        gameState.player.value += enemyValue;
+        
+        // Remove enemy
+        gameState.grid[enemy.y][enemy.x].enemy = null;
+        gameState.enemies = gameState.enemies.filter(e => e.id !== enemy.id);
+        
+        // Show value gain animation
+        if (enemyCell) {
+            showValueGainAnimation(enemy.x, enemy.y, enemyValue);
+            enemyCell.classList.remove('combat', 'instant-win-combat');
+            
+            // Remove effect after animation
+            setTimeout(() => {
+                const effect = enemyCell.querySelector('.instant-win-effect');
+                if (effect) effect.remove();
+            }, 500);
+        }
+        
+        renderGrid();
+        updateUI();
+        await sleep(400);
+    }
+    
+    // Move player back to original position (or keep at last enemy position)
+    // Actually, let's keep player at the last enemy position
+    
+    // Remove instant win message
+    if (instantWinMessage.parentNode) {
+        instantWinMessage.parentNode.removeChild(instantWinMessage);
+    }
+    
+    await sleep(500);
+    
+    // Show level complete
+    checkLevelComplete();
+}
+
+// Check if player can still win (impossible win condition)
+function checkImpossibleWin() {
+    if (!gameState.gameRunning || gameState.enemies.length === 0) {
+        return; // Game already over or won
+    }
+    
+    // First check for instant win
+    if (checkInstantWin()) {
+        return; // Instant win triggered, don't check impossible win
+    }
+    
+    // Calculate total possible player value (current + all remaining items)
+    const totalItemValue = gameState.items.reduce((sum, item) => sum + item.value, 0);
+    
+    // Find enemies that player can currently defeat (with items)
+    const currentMaxValue = gameState.player.value + totalItemValue;
+    const defeatableEnemies = gameState.enemies.filter(enemy => currentMaxValue >= enemy.value);
+    const undefeatableEnemies = gameState.enemies.filter(enemy => currentMaxValue < enemy.value);
+    
+    // If player cannot defeat any enemy even with all items, it's impossible
+    if (defeatableEnemies.length === 0) {
+        const strongestEnemy = gameState.enemies.reduce((max, e) => e.value > max.value ? e : max, gameState.enemies[0]);
+        console.log(`Impossible win! Max possible value (${currentMaxValue}) cannot defeat any enemy. Strongest: ${strongestEnemy.value}. Game Over.`);
+        gameOver(false);
+        return;
+    }
+    
+    // Calculate max possible value if player defeats all defeatable enemies
+    const totalValueFromDefeatableEnemies = defeatableEnemies.reduce((sum, enemy) => sum + enemy.value, 0);
+    const maxPossibleValueAfterDefeatingAll = currentMaxValue + totalValueFromDefeatableEnemies;
+    
+    // Check if even after defeating all defeatable enemies, player still can't beat remaining enemies
+    if (undefeatableEnemies.length > 0) {
+        const strongestUndefeatable = undefeatableEnemies.reduce((max, e) => e.value > max.value ? e : max, undefeatableEnemies[0]);
+        
+        if (maxPossibleValueAfterDefeatingAll < strongestUndefeatable.value) {
+            console.log(`Impossible win! Even after defeating all defeatable enemies, max value (${maxPossibleValueAfterDefeatingAll}) cannot defeat strongest enemy (${strongestUndefeatable.value}). Game Over.`);
+            gameOver(false);
+            return;
+        }
     }
 }
 
@@ -1214,5 +1944,9 @@ elements.rollButton.addEventListener('click', () => {
     playerRoll();
 });
 
-// Direction buttons are handled in renderGrid() when cells are created
+elements.endTurnButton.addEventListener('click', () => {
+    endPlayerTurnManually();
+});
+
+// Reachable cells are handled in renderGrid() when cells are created
 

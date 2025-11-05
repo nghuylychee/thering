@@ -232,6 +232,12 @@ body {
     border-color: #e74c3c;
 }
 
+/* Ensure enemy content doesn't block clicks on reachable cells */
+.grid-cell.reachable-combat .enemy,
+.grid-cell.reachable-combat span {
+    pointer-events: none;
+}
+
 .grid-cell.enemy-planned-move {
     border-color: rgba(231, 76, 60, 0.8);
     box-shadow: 0 0 8px rgba(231, 76, 60, 0.6);
@@ -275,34 +281,85 @@ body {
     border-color: #f1c40f;
 }
 
-.grid-cell.direction-cell {
+.grid-cell.reachable-cell {
     background: rgba(46, 204, 113, 0.4);
-    border-color: rgba(46, 204, 113, 0.6);
+    border-color: rgba(46, 204, 113, 0.8);
     cursor: pointer;
     position: relative;
-    font-size: 32px;
-    font-weight: bold;
-    color: rgba(46, 204, 113, 0.9);
     transition: all 0.2s ease;
     z-index: 5;
     pointer-events: all;
     user-select: none;
+    box-shadow: 0 0 8px rgba(46, 204, 113, 0.6);
 }
 
-.grid-cell.direction-cell:hover {
+.grid-cell.reachable-cell:hover {
     background: rgba(46, 204, 113, 0.6);
-    border-color: rgba(46, 204, 113, 0.9);
-    box-shadow: 0 0 10px rgba(46, 204, 113, 0.8);
+    border-color: rgba(46, 204, 113, 1);
+    box-shadow: 0 0 15px rgba(46, 204, 113, 0.9);
     z-index: 10;
+    transform: scale(1.05);
 }
 
-.grid-cell.direction-cell:active {
+.grid-cell.reachable-cell:active {
     background: rgba(46, 204, 113, 0.7);
     box-shadow: 0 0 5px rgba(46, 204, 113, 0.6);
+    transform: scale(1);
 }
 
-.grid-cell.direction-cell * {
-    pointer-events: none;
+/* Reachable cell with enemy (combat) */
+.grid-cell.reachable-combat {
+    background: rgba(231, 76, 60, 0.5) !important;
+    border-color: rgba(231, 76, 60, 1) !important;
+    box-shadow: 0 0 12px rgba(231, 76, 60, 0.8), inset 0 0 15px rgba(231, 76, 60, 0.3);
+    animation: combatReachablePulse 1.5s ease-in-out infinite;
+}
+
+.grid-cell.reachable-combat:hover {
+    background: rgba(231, 76, 60, 0.7) !important;
+    border-color: rgba(231, 76, 60, 1) !important;
+    box-shadow: 0 0 20px rgba(231, 76, 60, 1), inset 0 0 20px rgba(231, 76, 60, 0.4);
+    transform: scale(1.08);
+}
+
+@keyframes combatReachablePulse {
+    0%, 100% {
+        box-shadow: 0 0 12px rgba(231, 76, 60, 0.8), inset 0 0 15px rgba(231, 76, 60, 0.3);
+    }
+    50% {
+        box-shadow: 0 0 18px rgba(231, 76, 60, 1), inset 0 0 20px rgba(231, 76, 60, 0.5);
+    }
+}
+
+/* Reachable cell with item (collect) */
+.grid-cell.reachable-item {
+    background: rgba(241, 196, 15, 0.5) !important;
+    border-color: rgba(241, 196, 15, 1) !important;
+    box-shadow: 0 0 12px rgba(241, 196, 15, 0.8), inset 0 0 15px rgba(241, 196, 15, 0.3);
+    animation: itemReachablePulse 1.5s ease-in-out infinite;
+}
+
+.grid-cell.reachable-item:hover {
+    background: rgba(241, 196, 15, 0.7) !important;
+    border-color: rgba(241, 196, 15, 1) !important;
+    box-shadow: 0 0 20px rgba(241, 196, 15, 1), inset 0 0 20px rgba(241, 196, 15, 0.4);
+    transform: scale(1.08);
+}
+
+@keyframes itemReachablePulse {
+    0%, 100% {
+        box-shadow: 0 0 12px rgba(241, 196, 15, 0.8), inset 0 0 15px rgba(241, 196, 15, 0.3);
+    }
+    50% {
+        box-shadow: 0 0 18px rgba(241, 196, 15, 1), inset 0 0 20px rgba(241, 196, 15, 0.5);
+    }
+}
+
+/* Combined: reachable cell with both enemy and item */
+.grid-cell.reachable-combat.reachable-item {
+    background: linear-gradient(135deg, rgba(231, 76, 60, 0.5) 0%, rgba(241, 196, 15, 0.5) 100%) !important;
+    border-color: rgba(231, 76, 60, 1) !important;
+    box-shadow: 0 0 12px rgba(231, 76, 60, 0.8), 0 0 12px rgba(241, 196, 15, 0.8), inset 0 0 15px rgba(231, 76, 60, 0.3);
 }
 
 .grid-cell.combat {
@@ -398,6 +455,11 @@ body {
 .value-badge.item-value {
     background: rgba(241, 196, 15, 0.8);
     border-color: rgba(241, 196, 15, 1);
+}
+
+.value-badge.special-grid-value {
+    background: rgba(142, 68, 173, 0.8);
+    border-color: rgba(142, 68, 173, 1);
 }
 
 .value-badge.value-updated {
@@ -641,5 +703,155 @@ body {
 
 .collecting {
     animation: collectAnimation 0.5s ease;
+}
+
+/* Instant Win Animations */
+@keyframes instantWinPulse {
+    0%, 100% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: translate(-50%, -50%) scale(1.2);
+        opacity: 0.9;
+    }
+}
+
+@keyframes instantWinFlash {
+    0% {
+        transform: translate(-50%, -50%) scale(0);
+        opacity: 0;
+    }
+    50% {
+        transform: translate(-50%, -50%) scale(1.5);
+        opacity: 1;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 0;
+    }
+}
+
+.grid-cell.instant-win-combat {
+    background: rgba(241, 196, 15, 0.8) !important;
+    border-color: #f1c40f !important;
+    box-shadow: 0 0 25px rgba(241, 196, 15, 1) !important;
+    animation: instantWinCombatFlash 0.5s ease-out;
+}
+
+@keyframes instantWinCombatFlash {
+    0%, 100% {
+        box-shadow: 0 0 25px rgba(241, 196, 15, 1);
+    }
+    50% {
+        box-shadow: 0 0 40px rgba(241, 196, 15, 1), 0 0 60px rgba(241, 196, 15, 0.8);
+    }
+}
+
+/* Special Grid Styles */
+.grid-cell.special-grid {
+    position: relative;
+}
+
+.grid-cell.special-grid-box {
+    background: rgba(139, 69, 19, 0.6) !important;
+    border-color: #8b4513 !important;
+    cursor: not-allowed;
+}
+
+.grid-cell.special-grid-lava {
+    background: rgba(231, 76, 60, 0.5) !important;
+    border-color: #e74c3c !important;
+    animation: lavaGlow 2s ease-in-out infinite;
+}
+
+@keyframes lavaGlow {
+    0%, 100% {
+        box-shadow: 0 0 10px rgba(231, 76, 60, 0.6);
+    }
+    50% {
+        box-shadow: 0 0 20px rgba(231, 76, 60, 1);
+    }
+}
+
+.grid-cell.special-grid-swamp {
+    background: rgba(46, 125, 50, 0.5) !important;
+    border-color: #2e7d32 !important;
+    animation: swampPulse 2s ease-in-out infinite;
+}
+
+@keyframes swampPulse {
+    0%, 100% {
+        opacity: 0.8;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
+.grid-cell.special-grid-canon {
+    background: rgba(241, 196, 15, 0.5) !important;
+    border-color: #f1c40f !important;
+    animation: canonCharge 1.5s ease-in-out infinite;
+}
+
+@keyframes canonCharge {
+    0%, 100% {
+        box-shadow: 0 0 10px rgba(241, 196, 15, 0.6);
+    }
+    50% {
+        box-shadow: 0 0 20px rgba(241, 196, 15, 1);
+    }
+}
+
+.grid-cell.canon-activating {
+    background: rgba(241, 196, 15, 0.9) !important;
+    box-shadow: 0 0 30px rgba(241, 196, 15, 1) !important;
+    animation: canonActivate 0.5s ease-out;
+}
+
+@keyframes canonActivate {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+.grid-cell.canon-target {
+    background: rgba(241, 196, 15, 0.3) !important;
+    border-color: rgba(241, 196, 15, 0.8) !important;
+    box-shadow: 0 0 15px rgba(241, 196, 15, 0.8) !important;
+    cursor: pointer !important;
+}
+
+.grid-cell.canon-target:hover {
+    background: rgba(241, 196, 15, 0.5) !important;
+    border-color: rgba(241, 196, 15, 1) !important;
+    box-shadow: 0 0 25px rgba(241, 196, 15, 1) !important;
+    transform: scale(1.05);
+}
+
+.grid-cell.canon-teleport {
+    animation: canonTeleport 0.5s ease-out;
+}
+
+@keyframes canonTeleport {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 rgba(241, 196, 15, 0);
+    }
+    50% {
+        transform: scale(1.2);
+        box-shadow: 0 0 40px rgba(241, 196, 15, 1);
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 rgba(241, 196, 15, 0);
+    }
 }
 
