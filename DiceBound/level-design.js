@@ -7,6 +7,7 @@
 // - 'L' = Lava
 // - 'S' = Swamp
 // - 'C' = Canon
+// - 'G' = Gold bag
 // - '.' or ' ' or 0 = Empty cell
 
 const LEVEL_DESIGN = {
@@ -46,10 +47,10 @@ const LEVEL_DESIGN = {
                 [0, 0, 0, 0, 'B', 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 1, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, -1, 0, 0, 0, 0, -3, 0],  // Enemies left and right
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, -1, -3, 0, -3, -3, 0, 0]  // Enemies scattered bottom
+                [0, 0, 0, 0, 0, 0, 0, 0],
+                [0, -1, -3, 'G', -3, -3, 0, 0]  // Enemies scattered bottom + gold
             ]
         },
         {
@@ -69,7 +70,7 @@ const LEVEL_DESIGN = {
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, -3, 0, 0, 0, 0, 0, 0],  // Enemy left side
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, -3, 0, -5, 0, 0, 0]  // Enemies scattered bottom
+                [0, 0, -3, 'G', -5, 0, 0, 0]  // Enemies scattered bottom + gold
             ]
         },
         {
@@ -86,10 +87,10 @@ const LEVEL_DESIGN = {
                 [0, 0, 0, 'B', 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, -3, 0, 0, 0, 0, -3, 0],  // Enemies left and right
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, -3, -5, -5, -5, 0, 0]  // Enemies scattered bottom
+                [0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, -3, -5, 'G', -5, -5, 0]  // Enemies scattered bottom + gold
             ]
         },
         {
@@ -106,10 +107,10 @@ const LEVEL_DESIGN = {
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 'L', 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, -3, 0, 0, 0, 0, -3, 0],  // Enemies left and right
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, -5, -5, -5, -8, 0, 0]  // Enemies scattered bottom
+                [0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, -5, -5, 'G', -5, -8, 0]  // Enemies scattered bottom + gold
             ]
         },
         
@@ -131,7 +132,7 @@ const LEVEL_DESIGN = {
                 [0, -1, 0, 0, 0, 0, -3, 0],  // Enemies left and right
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [-3, 0, -5, -5, -5, -8, 0, 0]  // Enemies scattered bottom
+                [-3, 0, -5, -5, 'G', -5, -8, 0]  // Enemies scattered bottom + gold
             ]
         },
         {
@@ -151,7 +152,7 @@ const LEVEL_DESIGN = {
                 [0, -3, 0, 0, 0, 0, -3, 0],  // Enemies left and right
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [-5, 0, -5, -5, -5, -8, 0, 0]  // Enemies scattered bottom
+                [-5, 0, -5, -5, 'G', -5, -8, 0]  // Enemies scattered bottom + gold
             ]
         },
         {
@@ -171,7 +172,7 @@ const LEVEL_DESIGN = {
                 [0, -3, 0, 0, 0, 0, -5, 0],  // Enemies left and right
                 [0, 0, 0, 0, 0, 0, 'C', 0],  // Canon
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [-5, 0, -5, -8, -8, 0, 0, 0]  // Enemies scattered bottom
+                [-5, 0, -5, 'G', -8, -8, 0, 0]  // Enemies scattered bottom + gold
             ]
         },
         {
@@ -191,7 +192,7 @@ const LEVEL_DESIGN = {
                 [0, 'B', 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [-3, 0, 0, 0, 0, 0, -3, 0],  // Enemies left and right
-                [0, 0, -5, -5, -8, -8, -8, 0]  // Enemies scattered bottom
+                [0, 0, -5, -5, 'G', -8, -8, -8]  // Enemies scattered bottom + gold
             ]
         },
         {
@@ -211,7 +212,7 @@ const LEVEL_DESIGN = {
                 [0, -5, 0, 0, 0, 0, -5, 0],  // Enemies left and right
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [-5, 0, -8, -8, -8, -8, 0, 0]  // Enemies scattered bottom
+                [-5, 0, -8, -8, 'G', -8, -8, 0]  // Enemies scattered bottom + gold
             ]
         },
         
@@ -233,7 +234,7 @@ const LEVEL_DESIGN = {
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [-3, 0, 0, 0, 0, 0, -5, 0],  // Enemies left and right
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [-5, 0, -5, -5, -8, -8, 0, 0]  // Enemies scattered bottom
+                [-5, 0, -5, -5, 'G', -8, -8, 0]  // Enemies scattered bottom + gold
             ]
         },
         {
@@ -253,7 +254,7 @@ const LEVEL_DESIGN = {
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [-5, 0, 0, 0, 0, 0, -5, 0],  // Enemies left and right
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [-5, 0, -8, -8, -8, 0, 0, 0]  // Enemies scattered bottom
+                [-5, 0, -8, -8, 'G', -8, 0, 0]  // Enemies scattered bottom + gold
             ]
         },
         {
@@ -273,7 +274,7 @@ const LEVEL_DESIGN = {
                 [-5, 0, 0, 0, 0, 0, -5, 0],  // Enemies left and right
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [-8, 0, -8, -8, -8, 0, 0, 0]  // Enemies scattered bottom
+                [-8, 0, -8, -8, 'G', -8, 0, 0]  // Enemies scattered bottom + gold
             ]
         },
         {
@@ -293,7 +294,7 @@ const LEVEL_DESIGN = {
                 [0, 'B', 0, 0, 0, 0, 0, 0],
                 [-5, 0, 0, 0, 0, 0, -5, 0],  // Enemies left and right
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [-8, 0, -8, -8, -8, 0, 0, 0]  // Enemies scattered bottom
+                [-8, 0, -8, -8, 'G', -8, 0, 0]  // Enemies scattered bottom + gold
             ]
         },
         {
@@ -313,7 +314,7 @@ const LEVEL_DESIGN = {
                 [-5, 0, 0, 0, 0, 0, -8, 0],  // Enemies left and right
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [-8, 0, -8, -8, -8, -8, 0, 0]  // Enemies scattered bottom
+                [-8, 0, -8, -8, 'G', -8, -8, 0]  // Enemies scattered bottom + gold
             ]
         },
         
@@ -335,7 +336,7 @@ const LEVEL_DESIGN = {
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [-5, 0, 0, 0, 0, 0, -5, 0],  // Enemies left and right
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [-5, 0, -8, -8, -8, -8, 0, 0]  // Enemies scattered bottom
+                [-5, 0, -8, -8, 'G', -8, -8, 0]  // Enemies scattered bottom + gold
             ]
         },
         {
@@ -355,7 +356,7 @@ const LEVEL_DESIGN = {
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [-5, 0, 0, 0, 0, 0, 'C', 0],  // Canon right, enemy left
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [-8, 0, -8, -8, -8, -8, 0, 0]  // Enemies scattered bottom
+                [-8, 0, -8, -8, 'G', -8, -8, 0]  // Enemies scattered bottom + gold
             ]
         },
         {
@@ -375,7 +376,7 @@ const LEVEL_DESIGN = {
                 [-5, 0, 0, 0, 0, 0, -5, 0],  // Enemies left and right
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [-8, 0, -8, -8, -8, 0, 0, 0]  // Enemies scattered bottom
+                [-8, 0, -8, -8, 'G', -8, 0, 0]  // Enemies scattered bottom + gold
             ]
         },
         {
@@ -395,7 +396,7 @@ const LEVEL_DESIGN = {
                 [0, 'B', 0, 0, 0, 0, 0, 0],
                 [-5, 0, 0, 0, 0, 0, 'C', 0],  // Canon right, enemy left
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [-8, 0, -8, -8, -8, -8, -8, 0]  // Enemies scattered bottom
+                [-8, 0, -8, -8, 'G', -8, -8, -8]  // Enemies scattered bottom + gold
             ]
         },
         {
@@ -415,7 +416,7 @@ const LEVEL_DESIGN = {
                 [0, 'B', 0, 0, 0, 0, 0, 0],
                 [-8, 0, 0, 0, 0, 0, 'C', 0],  // Canon right, boss left
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [-8, 0, -8, -8, -8, -8, -8, 0]  // Enemies scattered bottom
+                [-8, 0, -8, -8, 'G', -8, -8, -8]  // Enemies scattered bottom + gold
             ]
         }
     ]
