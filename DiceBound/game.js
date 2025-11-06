@@ -35,7 +35,22 @@ let gameState = {
     playerRemainingSteps: 0,
     playerDirection: null,
     gameRunning: false,
-    isMoving: false
+    isMoving: false,
+    // Run stats (persist across levels)
+    runStats: {
+        minRoll: 1,        // Minimum dice roll
+        maxRoll: 2,        // Maximum dice roll (default 1-2)
+        startValueBoost: 0 // Bonus to starting value
+    },
+    initialEnemyCount: 0,
+    // Power-up system
+    availablePowerups: [],
+    currentResources: 0,
+    resourceDiceRolled: false,
+    nextLevel: null,
+    // Gold system
+    currentGold: 0,        // Gold collected in current run
+    goldBags: []           // Array of gold bag positions that have been collected
 };
 
 // DOM Elements
@@ -49,7 +64,15 @@ const elements = {
     levelValue: document.getElementById('levelValue'),
     objectiveIcon: document.getElementById('objectiveIcon'),
     objectiveText: document.getElementById('objectiveText'),
-    gridContainer: document.querySelector('.grid-container')
+    gridContainer: document.querySelector('.grid-container'),
+    runStatsDisplay: document.getElementById('runStatsDisplay'),
+    goldDisplay: document.getElementById('goldDisplay'),
+    goldValue: document.getElementById('goldValue'),
+    powerupScreen: document.getElementById('powerupScreen'),
+    powerupCards: document.getElementById('powerupCards'),
+    resourceDice: document.getElementById('resourceDice'),
+    rollResourceDice: document.getElementById('rollResourceDice'),
+    skipPowerup: document.getElementById('skipPowerup')
 };
 
 // Initialize Game
@@ -59,11 +82,49 @@ function initGame(levelNumber = 1) {
     // Get level config
     const levelConfig = getLevelConfig(levelNumber);
     
-    // Reset game state
+    // Get grid dimensions from layout if available, otherwise use default
+    const gridWidth = levelConfig.layout ? levelConfig.layout[0].length : CONFIG.GRID_W;
+    const gridHeight = levelConfig.layout ? levelConfig.layout.length : CONFIG.GRID_H;
+    
+    // Reset runStats if starting a new run (level 1)
+    let currentRunStats;
+    if (levelNumber === 1) {
+        // New run - get base stats from upgrades
+        let baseMinRoll = 1;
+        let baseMaxRoll = 2;
+        let baseStartValueBoost = 0;
+        
+        // Apply base upgrades from home screen
+        if (typeof HOME_MANAGER !== 'undefined') {
+            const baseUpgrades = HOME_MANAGER.getBaseUpgrades();
+            baseMinRoll = 1 + baseUpgrades.minRoll;
+            baseMaxRoll = 2 + baseUpgrades.maxRoll;
+            baseStartValueBoost = baseUpgrades.startValueBoost;
+        }
+        
+        currentRunStats = {
+            minRoll: baseMinRoll,
+            maxRoll: baseMaxRoll,
+            startValueBoost: baseStartValueBoost
+        };
+        console.log(`Starting new run - base stats: min=${currentRunStats.minRoll}, max=${currentRunStats.maxRoll}, startBoost=${currentRunStats.startValueBoost}`);
+    } else {
+        // Continue run - preserve stats
+        currentRunStats = gameState.runStats || {
+            minRoll: 1,
+            maxRoll: 2,
+            startValueBoost: 0
+        };
+        console.log(`Continuing run - stats: min=${currentRunStats.minRoll}, max=${currentRunStats.maxRoll}, startBoost=${currentRunStats.startValueBoost}`);
+    }
+    
+    // Calculate starting value with boost
+    const startingValue = levelConfig.playerStartValue + currentRunStats.startValueBoost;
+    
     gameState = {
         grid: [],
-        gridWidth: CONFIG.GRID_W,
-        gridHeight: CONFIG.GRID_H,
+        gridWidth: gridWidth,
+        gridHeight: gridHeight,
         level: levelNumber,
         levelConfig: levelConfig,
         objective: {
@@ -73,27 +134,37 @@ function initGame(levelNumber = 1) {
         player: {
             x: 0,
             y: 0,
-            value: levelConfig.playerStartValue,
-            lastValue: levelConfig.playerStartValue
+            value: startingValue,
+            lastValue: startingValue
         },
         enemies: [],
         items: [],
+        initialEnemyCount: 0, // Track initial enemy count for stats
         currentTurn: 'player',
         playerRoll: null,
         playerRemainingSteps: 0,
         playerDirection: null,
         gameRunning: true,
-        isMoving: false
+        isMoving: false,
+        runStats: currentRunStats, // Preserve run stats across levels
+        // Preserve gold across levels in run
+        currentGold: (levelNumber === 1) ? 0 : (gameState.currentGold || 0),
+        goldBags: [] // Reset gold bags per level
     };
 
     // Initialize grid
     initializeGrid();
     
-    // Spawn entities
-    spawnPlayer();
-    spawnEnemies();
-    spawnItems();
-    spawnSpecialGrids();
+    // Load level from layout if available, otherwise use old random spawn
+    if (levelConfig.layout) {
+        loadLevelFromLayout(levelConfig);
+    } else {
+        // Fallback to old random spawn system
+        spawnPlayer();
+        spawnEnemies();
+        spawnItems();
+        spawnSpecialGrids();
+    }
     
     // Render grid
     renderGrid();
@@ -103,10 +174,12 @@ function initGame(levelNumber = 1) {
     
     // Enable roll button
     elements.rollButton.disabled = false;
-    elements.diceLabel.textContent = 'Roll to start';
+    const rollRange = `${gameState.runStats.minRoll}-${gameState.runStats.maxRoll}`;
+    elements.diceLabel.textContent = `Roll to start (Dice: ${rollRange})`;
     elements.diceFace.textContent = '?';
     
     console.log(`Level ${levelNumber} - ${levelConfig.name}: ${levelConfig.description}`);
+    console.log(`Run Stats - Min Roll: ${gameState.runStats.minRoll}, Max Roll: ${gameState.runStats.maxRoll}, Start Value Boost: +${gameState.runStats.startValueBoost}`);
 }
 
 // Reset Game
@@ -125,13 +198,161 @@ function initializeGrid() {
                 player: false,
                 enemy: null,
                 item: null,
-                specialGrid: null // 'box' | 'lava' | 'swamp' | 'canon' | null
+                specialGrid: null, // 'box' | 'lava' | 'swamp' | 'canon' | null
+                gold: false,       // Gold bag present
+                goldAmount: 0,     // Gold amount in bag
+                goldCollected: false // Whether gold has been collected
             };
         }
     }
 }
 
-// Spawn Player
+// Find Enemy Type by Value
+function findEnemyTypeByValue(value) {
+    // Find exact match first
+    let enemyType = CONFIG.ENEMY_TYPES.find(et => et.value === value);
+    
+    // If no exact match, find closest (lower or equal)
+    if (!enemyType) {
+        // Sort by value descending and find first that is <= value
+        const sortedTypes = [...CONFIG.ENEMY_TYPES].sort((a, b) => b.value - a.value);
+        enemyType = sortedTypes.find(et => et.value <= value);
+    }
+    
+    // Fallback to first type if still not found
+    return enemyType || CONFIG.ENEMY_TYPES[0];
+}
+
+// Find Item Type by Value
+function findItemTypeByValue(value) {
+    // Find exact match first
+    let itemType = CONFIG.ITEM_TYPES.find(it => it.value === value);
+    
+    // If no exact match, find closest (lower or equal)
+    if (!itemType) {
+        // Sort by value descending and find first that is <= value
+        const sortedTypes = [...CONFIG.ITEM_TYPES].sort((a, b) => b.value - a.value);
+        itemType = sortedTypes.find(it => it.value <= value);
+    }
+    
+    // Fallback to first type if still not found
+    return itemType || CONFIG.ITEM_TYPES[0];
+}
+
+// Load Level from Layout Matrix
+function loadLevelFromLayout(levelConfig) {
+    const layout = levelConfig.layout;
+    
+    // Validate layout dimensions
+    if (layout.length !== gameState.gridHeight) {
+        console.warn(`Layout height (${layout.length}) doesn't match grid height (${gameState.gridHeight})`);
+    }
+    
+    // Parse layout matrix
+    for (let y = 0; y < layout.length && y < gameState.gridHeight; y++) {
+        const row = layout[y];
+        for (let x = 0; x < row.length && x < gameState.gridWidth; x++) {
+            const cell = row[x];
+            
+            // Check if cell is a number (enemy or item)
+            const cellNumber = typeof cell === 'number' ? cell : (typeof cell === 'string' && !isNaN(parseInt(cell)) ? parseInt(cell) : null);
+            
+            if (cellNumber !== null) {
+                // Number cell: negative = enemy, positive = item
+                if (cellNumber < 0) {
+                    // Enemy: value = abs(negative number)
+                    const enemyValue = Math.abs(cellNumber);
+                    const enemyType = findEnemyTypeByValue(enemyValue);
+                    
+                    const enemy = {
+                        id: gameState.enemies.length,
+                        x: x,
+                        y: y,
+                        value: enemyValue,
+                        type: enemyType.name,
+                        emoji: enemyType.emoji
+                    };
+                    gameState.enemies.push(enemy);
+                    gameState.grid[y][x].enemy = enemy.id;
+                } else if (cellNumber > 0) {
+                    // Item: value = positive number
+                    const itemValue = cellNumber;
+                    const itemType = findItemTypeByValue(itemValue);
+                    
+                    const item = {
+                        id: gameState.items.length,
+                        x: x,
+                        y: y,
+                        value: itemValue,
+                        type: itemType.name,
+                        emoji: itemType.emoji
+                    };
+                    gameState.items.push(item);
+                    gameState.grid[y][x].item = item.id;
+                }
+                // cellNumber === 0 is treated as empty, continue to default case
+            } else {
+                // String cell: special markers
+                switch (cell) {
+                    case 'P':
+                        // Player starting position
+                        gameState.player.x = x;
+                        gameState.player.y = y;
+                        gameState.grid[y][x].player = true;
+                        break;
+                        
+                    case 'B':
+                        // Box (obstacle)
+                        gameState.grid[y][x].specialGrid = 'box';
+                        break;
+                        
+                    case 'L':
+                        // Lava
+                        gameState.grid[y][x].specialGrid = 'lava';
+                        break;
+                        
+                    case 'S':
+                        // Swamp
+                        gameState.grid[y][x].specialGrid = 'swamp';
+                        break;
+                        
+                    case 'C':
+                        // Canon
+                        gameState.grid[y][x].specialGrid = 'canon';
+                        break;
+                        
+                    case 'G':
+                        // Gold bag
+                        gameState.grid[y][x].gold = true;
+                        gameState.grid[y][x].goldAmount = levelConfig.goldPerBag || 5;
+                        break;
+                        
+                    case '.':
+                    case ' ':
+                    case 0:
+                        // Empty cell
+                        break;
+                        
+                    default:
+                        // Unknown cell type - try to parse as legacy format
+                        if (cell === 'E' || cell === 'I') {
+                            console.warn(`Legacy format '${cell}' detected at (${x}, ${y}). Please use numeric values: negative for enemies, positive for items.`);
+                        } else {
+                            console.warn(`Unknown cell type '${cell}' at position (${x}, ${y})`);
+                        }
+                        break;
+                }
+            }
+        }
+    }
+    
+    // Store initial enemy count for stats
+    gameState.initialEnemyCount = gameState.enemies.length;
+    
+    console.log(`Loaded level from layout: ${gameState.enemies.length} enemies, ${gameState.items.length} items`);
+}
+
+// Spawn Player (fallback for old system)
 function spawnPlayer() {
     // Spawn at top-left corner
     gameState.player.x = 0;
@@ -155,13 +376,14 @@ function selectEnemyTypeByDistribution(distribution) {
     return CONFIG.ENEMY_TYPES[0];
 }
 
-// Spawn Enemies
+// Spawn Enemies (fallback for old system)
 function spawnEnemies() {
     gameState.enemies = [];
     const levelConfig = gameState.levelConfig;
+    const enemyCount = levelConfig.enemyCount || 0;
     let attempts = 0;
     
-    while (gameState.enemies.length < levelConfig.enemyCount && attempts < 100) {
+    while (gameState.enemies.length < enemyCount && attempts < 100) {
         const x = Math.floor(Math.random() * gameState.gridWidth);
         const y = Math.floor(Math.random() * gameState.gridHeight);
         
@@ -188,6 +410,9 @@ function spawnEnemies() {
         gameState.grid[y][x].enemy = enemy.id;
         attempts++;
     }
+    
+    // Store initial enemy count for stats
+    gameState.initialEnemyCount = gameState.enemies.length;
 }
 
 // Spawn Items
@@ -371,6 +596,48 @@ function renderGrid() {
                 }
             }
             
+            // Add gold bag (always show if not collected)
+            if (cellData.gold && !cellData.goldCollected) {
+                cell.classList.add('gold-bag');
+                cell.classList.add('special-grid');
+                
+                // Add gold icon as overlay - centered and larger (similar to special grid)
+                const goldIcon = document.createElement('div');
+                goldIcon.className = 'gold-icon-overlay';
+                goldIcon.textContent = '💰';
+                goldIcon.style.cssText = `
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    font-size: 32px;
+                    z-index: 1;
+                    pointer-events: none;
+                    line-height: 1;
+                `;
+                cell.appendChild(goldIcon);
+                
+                // Add gold amount display (top right corner of cell)
+                const goldAmountDisplay = document.createElement('div');
+                goldAmountDisplay.className = 'gold-amount-display';
+                goldAmountDisplay.textContent = cellData.goldAmount || 0;
+                goldAmountDisplay.style.cssText = `
+                    position: absolute;
+                    top: 2px;
+                    right: 2px;
+                    background: rgba(241, 196, 15, 0.9);
+                    color: white;
+                    font-size: 10px;
+                    font-weight: bold;
+                    padding: 2px 4px;
+                    border-radius: 4px;
+                    z-index: 10;
+                    pointer-events: none;
+                    line-height: 1;
+                `;
+                cell.appendChild(goldAmountDisplay);
+            }
+            
             // Set content first
             if (content) {
                 const contentSpan = document.createElement('span');
@@ -472,11 +739,38 @@ function updateUI() {
     const objectiveDisplay = getObjectiveDisplay();
     elements.objectiveIcon.textContent = objectiveDisplay.icon;
     elements.objectiveText.textContent = objectiveDisplay.text;
+    
+    // Update Run Stats Display
+    if (elements.runStatsDisplay) {
+        elements.runStatsDisplay.innerHTML = `
+            <div class="stat-item">
+                <span class="stat-label">Dice:</span>
+                <span class="stat-value">${gameState.runStats.minRoll}-${gameState.runStats.maxRoll}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Base Power:</span>
+                <span class="stat-value">${2 + gameState.runStats.startValueBoost}</span>
+            </div>
+        `;
+    }
+    
+    // Update Gold Display
+    if (elements.goldValue) {
+        elements.goldValue.textContent = gameState.currentGold || 0;
+    }
 }
 
-// Roll Dice
+// Roll Dice - uses min/max from run stats (for player)
 function rollDice() {
-    return Math.floor(Math.random() * CONFIG.DICE_SIDES) + 1;
+    const min = gameState.runStats.minRoll;
+    const max = gameState.runStats.maxRoll;
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+// Roll Dice for Enemy - max dice = enemy value
+function rollEnemyDice(enemyValue) {
+    // Enemy rolls from 1 to its value
+    return Math.floor(Math.random() * enemyValue) + 1;
 }
 
 // Player Roll
@@ -728,6 +1022,12 @@ async function movePlayerToCell(targetX, targetY) {
             await collectItem(gameState.player.x, gameState.player.y);
         }
         
+        // Check for gold bag
+        const cellData = gameState.grid[gameState.player.y][gameState.player.x];
+        if (cellData.gold && !cellData.goldCollected) {
+            await collectGold(gameState.player.x, gameState.player.y);
+        }
+        
         // Check for special grid effects
         const specialGrid = gameState.grid[gameState.player.y][gameState.player.x].specialGrid;
         if (specialGrid) {
@@ -759,13 +1059,15 @@ async function movePlayerToCell(targetX, targetY) {
 
 // Update Dice Display
 function updateDiceDisplay() {
+    const rollRange = `${gameState.runStats.minRoll}-${gameState.runStats.maxRoll}`;
+    
     if (gameState.playerRemainingSteps > 0) {
         elements.diceFace.textContent = gameState.playerRemainingSteps;
-        elements.diceLabel.textContent = `${gameState.playerRemainingSteps} step${gameState.playerRemainingSteps > 1 ? 's' : ''} remaining`;
+        elements.diceLabel.textContent = `${gameState.playerRemainingSteps} step${gameState.playerRemainingSteps > 1 ? 's' : ''} remaining (Dice: ${rollRange})`;
         elements.endTurnButton.style.display = 'inline-block';
     } else {
         elements.diceFace.textContent = '?';
-        elements.diceLabel.textContent = 'Your turn';
+        elements.diceLabel.textContent = `Your turn (Dice: ${rollRange})`;
         elements.endTurnButton.style.display = 'none';
     }
 }
@@ -929,6 +1231,12 @@ async function teleportPlayerToCell(targetX, targetY) {
         await collectItem(targetX, targetY);
     }
     
+    // Check for gold bag at new position
+    const cellData = gameState.grid[targetY][targetX];
+    if (cellData.gold && !cellData.goldCollected) {
+        await collectGold(targetX, targetY);
+    }
+    
     // Check for enemy at new position
     if (gameState.grid[targetY][targetX].enemy !== null) {
         await performCombat(targetX, targetY);
@@ -1022,6 +1330,83 @@ async function collectItem(x, y) {
     // Check instant win first, then impossible win after collecting item
     if (!checkInstantWin()) {
         checkImpossibleWin();
+    }
+}
+
+// Collect Gold
+async function collectGold(x, y) {
+    const cellData = gameState.grid[y][x];
+    if (!cellData.gold || cellData.goldCollected) return;
+    
+    const goldAmount = cellData.goldAmount || 0;
+    if (goldAmount <= 0) return;
+    
+    // Mark as collected
+    cellData.goldCollected = true;
+    gameState.currentGold += goldAmount;
+    
+    // Add to collected bags
+    gameState.goldBags.push(`${x},${y}`);
+    
+    // Animation
+    const cell = elements.gameGrid.querySelector(`[data-x="${x}"][data-y="${y}"]`);
+    if (cell) {
+        cell.classList.add('collecting');
+        setTimeout(() => cell.classList.remove('collecting'), 500);
+    }
+    
+    // Show gold animation flying to top corner
+    showGoldAnimation(x, y, goldAmount);
+    
+    updateUI();
+    renderGrid(); // Re-render to remove gold
+    await sleep(300);
+    
+    console.log(`Collected ${goldAmount} gold! Total gold: ${gameState.currentGold}`);
+}
+
+// Show Gold Animation (flying to top corner)
+function showGoldAnimation(x, y, amount) {
+    const cell = elements.gameGrid.querySelector(`[data-x="${x}"][data-y="${y}"]`);
+    if (!cell) return;
+    
+    const goldText = document.createElement('div');
+    goldText.className = 'gold-animation';
+    goldText.textContent = `💰 +${amount}`;
+    goldText.style.position = 'fixed';
+    goldText.style.left = cell.getBoundingClientRect().left + cell.offsetWidth / 2 + 'px';
+    goldText.style.top = cell.getBoundingClientRect().top + cell.offsetHeight / 2 + 'px';
+    goldText.style.transform = 'translate(-50%, -50%)';
+    goldText.style.color = '#f1c40f';
+    goldText.style.fontSize = '18px';
+    goldText.style.fontWeight = 'bold';
+    goldText.style.textShadow = '0 0 10px rgba(241, 196, 15, 0.8)';
+    goldText.style.pointerEvents = 'none';
+    goldText.style.zIndex = '10000';
+    goldText.style.transition = 'all 1.2s ease-out';
+    
+    document.body.appendChild(goldText);
+    
+    // Get target position (top right corner of game header)
+    const gameScreen = document.getElementById('gameScreen');
+    const gameHeader = document.querySelector('.game-header');
+    if (gameHeader) {
+        const targetX = gameHeader.getBoundingClientRect().right - 60;
+        const targetY = gameHeader.getBoundingClientRect().top + gameHeader.offsetHeight / 2;
+        
+        // Animate to top corner
+        setTimeout(() => {
+            goldText.style.left = targetX + 'px';
+            goldText.style.top = targetY + 'px';
+            goldText.style.transform = 'translate(-50%, -50%) scale(0.8)';
+            goldText.style.opacity = '0';
+            
+            setTimeout(() => {
+                if (goldText.parentNode) {
+                    goldText.parentNode.removeChild(goldText);
+                }
+            }, 1200);
+        }, 100);
     }
 }
 
@@ -1435,9 +1820,9 @@ async function enemyTurn() {
         // Skip if enemy was removed
         if (!gameState.enemies.find(e => e.id === enemy.id)) continue;
         
-        // Roll dice for enemy
-        const roll = rollDice();
-        console.log(`Enemy ${enemy.id} rolled: ${roll}`);
+        // Roll dice for enemy - max dice = enemy value
+        const roll = rollEnemyDice(enemy.value);
+        console.log(`Enemy ${enemy.id} (value ${enemy.value}) rolled: ${roll} (range: 1-${enemy.value})`);
         
         // Show dice roll animation on enemy cell
         await showEnemyDiceRoll(enemy, roll);
@@ -1801,6 +2186,97 @@ async function instantWin() {
     checkLevelComplete();
 }
 
+// Highlight Impossible Enemies - Add warning icon at top-left
+function highlightImpossibleEnemies(impossibleEnemies) {
+    impossibleEnemies.forEach(enemy => {
+        const cell = elements.gameGrid.querySelector(`[data-x="${enemy.x}"][data-y="${enemy.y}"]`);
+        if (cell) {
+            cell.classList.add('impossible-enemy');
+            
+            // Remove existing warning icon if any
+            const existingIcon = cell.querySelector('.impossible-warning-icon');
+            if (existingIcon) {
+                existingIcon.remove();
+            }
+            
+            // Add warning icon at top-left corner
+            const warningIcon = document.createElement('div');
+            warningIcon.className = 'impossible-warning-icon';
+            warningIcon.textContent = '⚠️';
+            warningIcon.style.cssText = `
+                position: absolute;
+                top: 2px;
+                left: 2px;
+                font-size: 20px;
+                z-index: 11;
+                pointer-events: none;
+                animation: warningPulse 1s ease-in-out infinite;
+            `;
+            cell.appendChild(warningIcon);
+        }
+    });
+}
+
+// Remove Impossible Enemy Highlights
+function removeImpossibleEnemyHighlights() {
+    const highlightedCells = elements.gameGrid.querySelectorAll('.impossible-enemy');
+    highlightedCells.forEach(cell => {
+        cell.classList.remove('impossible-enemy');
+        cell.style.animation = '';
+        
+        // Remove warning icons
+        const warningIcons = cell.querySelectorAll('.impossible-warning-icon');
+        warningIcons.forEach(icon => icon.remove());
+    });
+}
+
+// Show Instant Lose Message (text only, like instant win)
+async function showInstantLosePopup(impossibleEnemies, currentMaxValue, maxPossibleValue) {
+    // Prevent further actions
+    gameState.gameRunning = false;
+    gameState.isMoving = true;
+    
+    // Highlight impossible enemies first
+    highlightImpossibleEnemies(impossibleEnemies);
+    
+    // Wait a bit to show highlights
+    await sleep(800);
+    
+    // Show instant lose message (text only, like instant win)
+    const instantLoseMessage = document.createElement('div');
+    instantLoseMessage.className = 'instant-lose-message';
+    instantLoseMessage.textContent = 'IMPOSSIBLE WIN!';
+    instantLoseMessage.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 48px;
+        font-weight: bold;
+        color: #e74c3c;
+        text-shadow: 0 0 20px rgba(231, 76, 60, 1), 0 0 40px rgba(231, 76, 60, 0.8);
+        z-index: 10000;
+        animation: instantLosePulse 1s ease-in-out infinite;
+        pointer-events: none;
+        white-space: nowrap;
+    `;
+    document.body.appendChild(instantLoseMessage);
+    
+    // Wait for message display
+    await sleep(2000);
+    
+    // Remove highlights
+    removeImpossibleEnemyHighlights();
+    
+    // Remove instant lose message
+    if (instantLoseMessage.parentNode) {
+        instantLoseMessage.parentNode.removeChild(instantLoseMessage);
+    }
+    
+    // Show game over screen
+    gameOver(false);
+}
+
 // Check if player can still win (impossible win condition)
 function checkImpossibleWin() {
     if (!gameState.gameRunning || gameState.enemies.length === 0) {
@@ -1823,8 +2299,10 @@ function checkImpossibleWin() {
     // If player cannot defeat any enemy even with all items, it's impossible
     if (defeatableEnemies.length === 0) {
         const strongestEnemy = gameState.enemies.reduce((max, e) => e.value > max.value ? e : max, gameState.enemies[0]);
-        console.log(`Impossible win! Max possible value (${currentMaxValue}) cannot defeat any enemy. Strongest: ${strongestEnemy.value}. Game Over.`);
-        gameOver(false);
+        console.log(`Impossible win! Max possible value (${currentMaxValue}) cannot defeat any enemy. Strongest: ${strongestEnemy.value}.`);
+        
+        // Show instant lose popup with all enemies highlighted
+        showInstantLosePopup(gameState.enemies, currentMaxValue, currentMaxValue);
         return;
     }
     
@@ -1837,8 +2315,10 @@ function checkImpossibleWin() {
         const strongestUndefeatable = undefeatableEnemies.reduce((max, e) => e.value > max.value ? e : max, undefeatableEnemies[0]);
         
         if (maxPossibleValueAfterDefeatingAll < strongestUndefeatable.value) {
-            console.log(`Impossible win! Even after defeating all defeatable enemies, max value (${maxPossibleValueAfterDefeatingAll}) cannot defeat strongest enemy (${strongestUndefeatable.value}). Game Over.`);
-            gameOver(false);
+            console.log(`Impossible win! Even after defeating all defeatable enemies, max value (${maxPossibleValueAfterDefeatingAll}) cannot defeat strongest enemy (${strongestUndefeatable.value}).`);
+            
+            // Show instant lose popup with impossible enemies highlighted
+            showInstantLosePopup(undefeatableEnemies, currentMaxValue, maxPossibleValueAfterDefeatingAll);
             return;
         }
     }
@@ -1886,18 +2366,232 @@ function checkLevelComplete() {
     
     const levelConfig = gameState.levelConfig;
     const nextLevel = gameState.level + 1;
-    const isLastLevel = nextLevel > CONFIG.LEVELS.length;
+    
+    // Award gold for completing level
+    const levelGold = levelConfig.goldPerLevel || 0;
+    if (levelGold > 0) {
+        gameState.currentGold += levelGold;
+        console.log(`Level complete! Awarded ${levelGold} gold. Total gold: ${gameState.currentGold}`);
+        updateUI();
+    }
+    
+    // Get total levels from LEVEL_DESIGN or CONFIG
+    const totalLevels = (typeof LEVEL_DESIGN !== 'undefined' && LEVEL_DESIGN.LEVELS) 
+        ? LEVEL_DESIGN.LEVELS.length 
+        : (CONFIG.LEVELS ? CONFIG.LEVELS.length : 0);
+    const isLastLevel = nextLevel > totalLevels;
     
     if (isLastLevel) {
-        // Game completed!
+        // Game completed! Save total gold
+        saveTotalGold();
         gameOver(true, true);
     } else {
-        // Level complete - show next level screen
-        showLevelComplete(nextLevel);
+        // Level complete - show power-up selection screen
+        showPowerupSelection(nextLevel);
     }
 }
 
-// Show Level Complete Screen
+// Show Power-up Selection Screen
+function showPowerupSelection(nextLevel) {
+    // Generate random power-ups
+    gameState.availablePowerups = POWERUP_CONFIG.getRandomPowerups(3);
+    gameState.currentResources = 0;
+    gameState.resourceDiceRolled = false;
+    gameState.nextLevel = nextLevel;
+    
+    // Show power-up screen
+    if (elements.powerupScreen) {
+        elements.powerupScreen.style.display = 'flex';
+    }
+    
+    // Update current dice range display
+    const powerupDiceRange = document.getElementById('powerupDiceRange');
+    if (powerupDiceRange && gameState.runStats) {
+        powerupDiceRange.textContent = `${gameState.runStats.minRoll}-${gameState.runStats.maxRoll}`;
+    }
+    
+    // Generate power-up cards
+    generatePowerupCards();
+    
+    // Reset resource dice
+    if (elements.resourceDice) {
+        elements.resourceDice.textContent = '?';
+    }
+    if (elements.rollResourceDice) {
+        elements.rollResourceDice.disabled = false;
+    }
+}
+
+// Hide Power-up Selection Screen
+function hidePowerupSelection() {
+    if (elements.powerupScreen) {
+        elements.powerupScreen.style.display = 'none';
+    }
+    
+    // Reset resources
+    gameState.currentResources = 0;
+    gameState.resourceDiceRolled = false;
+    gameState.availablePowerups = [];
+    
+    // Proceed to next level
+    if (gameState.nextLevel) {
+        initGame(gameState.nextLevel);
+    }
+}
+
+// Generate Power-up Cards
+function generatePowerupCards() {
+    if (!elements.powerupCards) return;
+    
+    elements.powerupCards.innerHTML = '';
+    
+    gameState.availablePowerups.forEach(powerup => {
+        const card = document.createElement('div');
+        card.className = 'powerup-card';
+        card.dataset.powerupId = powerup.id;
+        
+        card.innerHTML = `
+            <div class="powerup-cost">🎲 ${powerup.diceRequired}</div>
+            <div class="powerup-name">${powerup.name}</div>
+            <div class="powerup-description">${powerup.description}</div>
+        `;
+        
+        // Add click event
+        card.addEventListener('click', () => selectPowerup(powerup.id));
+        
+        elements.powerupCards.appendChild(card);
+    });
+    
+    updatePowerupCardsAffordability();
+}
+
+// Update Power-up Cards Affordability
+function updatePowerupCardsAffordability() {
+    if (!elements.powerupCards) return;
+    
+    const cards = elements.powerupCards.querySelectorAll('.powerup-card');
+    
+    cards.forEach(card => {
+        // Skip cards that are already selected
+        if (card.classList.contains('selected')) {
+            return;
+        }
+        
+        const powerupId = card.dataset.powerupId;
+        const powerup = POWERUP_CONFIG.getPowerup(powerupId);
+        if (!powerup) return;
+        
+        const costElement = card.querySelector('.powerup-cost');
+        
+        if (gameState.currentResources >= powerup.diceRequired) {
+            card.classList.remove('unaffordable');
+            card.classList.add('affordable');
+            if (costElement) costElement.classList.add('affordable');
+        } else {
+            card.classList.remove('affordable');
+            card.classList.add('unaffordable');
+            if (costElement) costElement.classList.remove('affordable');
+        }
+    });
+}
+
+// Roll Resource Dice - uses min/max from run stats
+function rollResourceDice() {
+    if (gameState.resourceDiceRolled || !elements.resourceDice) return;
+    
+    // Add rolling animation
+    elements.resourceDice.classList.add('rolling');
+    
+    // Roll using min/max from run stats after animation
+    setTimeout(() => {
+        const min = gameState.runStats.minRoll;
+        const max = gameState.runStats.maxRoll;
+        const rollResult = Math.floor(Math.random() * (max - min + 1)) + min;
+        
+        elements.resourceDice.textContent = rollResult;
+        elements.resourceDice.classList.remove('rolling');
+        if (elements.rollResourceDice) {
+            elements.rollResourceDice.disabled = true;
+        }
+        gameState.resourceDiceRolled = true;
+        gameState.currentResources = rollResult;
+        
+        // Update power-up cards affordability
+        updatePowerupCardsAffordability();
+    }, 1000);
+}
+
+// Select Power-up
+function selectPowerup(powerupId) {
+    const powerup = POWERUP_CONFIG.getPowerup(powerupId);
+    
+    if (!powerup || gameState.currentResources < powerup.diceRequired) {
+        return; // Can't afford
+    }
+    
+    // Mark power-up as selected
+    const card = elements.powerupCards.querySelector(`[data-powerup-id="${powerupId}"]`);
+    if (card) {
+        card.classList.add('selected');
+        card.classList.remove('affordable', 'unaffordable');
+    }
+    
+    // Subtract resources
+    gameState.currentResources -= powerup.diceRequired;
+    
+    // Update dice display
+    if (elements.resourceDice) {
+        elements.resourceDice.textContent = gameState.currentResources;
+    }
+    
+    // Apply power-up effect
+    applyPowerupEffect(powerup);
+    
+    // Update power-up cards affordability
+    updatePowerupCardsAffordability();
+    
+    // Check if user can still afford any power-ups
+    const canAffordAny = gameState.availablePowerups.some(p => 
+        gameState.currentResources >= p.diceRequired && 
+        !elements.powerupCards.querySelector(`[data-powerup-id="${p.id}"].selected`)
+    );
+    
+    if (!canAffordAny) {
+        // No more affordable power-ups, proceed to next level
+        setTimeout(() => {
+            hidePowerupSelection();
+        }, 1000);
+    }
+}
+
+// Apply Power-up Effect
+function applyPowerupEffect(powerup) {
+    switch (powerup.effect) {
+        case 'increase_min_roll':
+            gameState.runStats.minRoll += powerup.value;
+            console.log(`Min roll increased to ${gameState.runStats.minRoll}`);
+            break;
+            
+        case 'increase_max_roll':
+            gameState.runStats.maxRoll += powerup.value;
+            console.log(`Max roll increased to ${gameState.runStats.maxRoll}`);
+            break;
+            
+        case 'increase_start_value':
+            gameState.runStats.startValueBoost += powerup.value;
+            console.log(`Start value boost increased to +${gameState.runStats.startValueBoost}`);
+            break;
+            
+        default:
+            console.log('Power-up effect not implemented:', powerup.effect);
+            break;
+    }
+    
+    // Update UI to reflect new stats
+    updateUI();
+}
+
+// Show Level Complete Screen (fallback, not used when power-ups are active)
 function showLevelComplete(nextLevel) {
     const levelConfig = gameState.levelConfig;
     const nextLevelConfig = getLevelConfig(nextLevel);
@@ -1916,21 +2610,108 @@ function showLevelComplete(nextLevel) {
     }
 }
 
+// Save Total Gold to localStorage (also sync to HOME_MANAGER)
+function saveTotalGold() {
+    // Always get the most up-to-date gold from HOME_MANAGER first
+    let totalGold = 0;
+    if (typeof HOME_MANAGER !== 'undefined' && HOME_MANAGER.playerData) {
+        totalGold = HOME_MANAGER.playerData.totalGold;
+    } else {
+        // Fallback to old system
+        const saved = localStorage.getItem('diceBoundTotalGold');
+        totalGold = saved ? parseInt(saved, 10) : 0;
+    }
+    
+    const newTotal = totalGold + gameState.currentGold;
+    
+    // Save to both systems
+    localStorage.setItem('diceBoundTotalGold', newTotal.toString());
+    
+    // Sync to HOME_MANAGER playerData
+    if (typeof HOME_MANAGER !== 'undefined') {
+        HOME_MANAGER.playerData.totalGold = newTotal;
+        HOME_MANAGER.savePlayerData();
+    }
+    
+    console.log(`Saved ${gameState.currentGold} gold to total. New total: ${newTotal}`);
+}
+
+// Load Total Gold from localStorage (prefer HOME_MANAGER if available)
+function loadTotalGold() {
+    // Try to get from HOME_MANAGER first (most reliable source)
+    if (typeof HOME_MANAGER !== 'undefined' && HOME_MANAGER.playerData) {
+        // Sync to old system if different
+        const playerGold = HOME_MANAGER.playerData.totalGold;
+        const oldGold = localStorage.getItem('diceBoundTotalGold');
+        const oldGoldValue = oldGold ? parseInt(oldGold, 10) : 0;
+        
+        if (playerGold !== oldGoldValue && playerGold > oldGoldValue) {
+            // Sync playerData to old system if playerData is higher
+            localStorage.setItem('diceBoundTotalGold', playerGold.toString());
+        }
+        
+        return playerGold;
+    }
+    
+    // Fallback to old system
+    const saved = localStorage.getItem('diceBoundTotalGold');
+    return saved ? parseInt(saved, 10) : 0;
+}
+
 // Game Over
 function gameOver(won, gameCompleted = false) {
     gameState.gameRunning = false;
     
+    // Save gold only when game ends (win or completed)
+    if (gameState.currentGold > 0 && won) {
+        saveTotalGold();
+    }
+    
     const levelConfig = gameState.levelConfig;
+    // Get total levels from LEVEL_DESIGN or CONFIG
+    const totalLevels = (typeof LEVEL_DESIGN !== 'undefined' && LEVEL_DESIGN.LEVELS) 
+        ? LEVEL_DESIGN.LEVELS.length 
+        : (CONFIG.LEVELS ? CONFIG.LEVELS.length : 0);
+    
     const title = gameCompleted ? '🎉 Game Completed! 🎉' : (won ? 'Victory!' : 'Game Over!');
     const message = gameCompleted
-        ? `Congratulations! You completed all ${CONFIG.LEVELS.length} levels!\nFinal value: ${gameState.player.value}`
+        ? `Congratulations! You completed all ${totalLevels} levels!\nFinal value: ${gameState.player.value}`
         : won 
             ? `You defeated all enemies in Level ${gameState.level}!\nFinal value: ${gameState.player.value}`
             : `You were defeated in Level ${gameState.level}!\nYour value: ${gameState.player.value}`;
-    const stats = `Level ${gameState.level}: ${levelConfig.name}\nEnemies defeated: ${levelConfig.enemyCount - gameState.enemies.length}/${levelConfig.enemyCount}`;
+    // Calculate enemies defeated from initial count
+    const totalEnemies = gameState.initialEnemyCount || gameState.enemies.length;
+    const enemiesDefeated = totalEnemies - gameState.enemies.length;
+    const stats = `Level ${gameState.level}: ${levelConfig.name}\nEnemies defeated: ${enemiesDefeated}/${totalEnemies}`;
+    
+    // Show run summary when lost
+    const runSummary = !won ? {
+        level: gameState.level,
+        gold: gameState.currentGold
+    } : null;
     
     if (typeof HOME_MANAGER !== 'undefined' && HOME_MANAGER.showGameOver) {
-        HOME_MANAGER.showGameOver(title, message, stats);
+        HOME_MANAGER.showGameOver(title, message, stats, runSummary);
+    }
+}
+
+// Exit Game (no rewards, no save)
+function exitGame() {
+    // Confirm exit
+    const confirmed = confirm('Exit game? You will not receive any gold or rewards from this run.');
+    if (!confirmed) {
+        return;
+    }
+    
+    // Stop game
+    gameState.gameRunning = false;
+    
+    // Reset current gold (don't save)
+    gameState.currentGold = 0;
+    
+    // Return to home screen
+    if (typeof HOME_MANAGER !== 'undefined' && HOME_MANAGER.showHomeScreen) {
+        HOME_MANAGER.showHomeScreen();
     }
 }
 
@@ -1947,6 +2728,27 @@ elements.rollButton.addEventListener('click', () => {
 elements.endTurnButton.addEventListener('click', () => {
     endPlayerTurnManually();
 });
+
+// Power-up screen event listeners
+if (elements.rollResourceDice) {
+    elements.rollResourceDice.addEventListener('click', () => {
+        rollResourceDice();
+    });
+}
+
+if (elements.skipPowerup) {
+    elements.skipPowerup.addEventListener('click', () => {
+        hidePowerupSelection();
+    });
+}
+
+// Exit game button
+const exitGameBtn = document.getElementById('exitGameBtn');
+if (exitGameBtn) {
+    exitGameBtn.addEventListener('click', () => {
+        exitGame();
+    });
+}
 
 // Reachable cells are handled in renderGrid() when cells are created
 
