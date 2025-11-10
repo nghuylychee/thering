@@ -50,7 +50,21 @@ let gameState = {
     nextLevel: null,
     // Gold system
     currentGold: 0,        // Gold collected in current run
-    goldBags: []           // Array of gold bag positions that have been collected
+    goldBags: [],           // Array of gold bag positions that have been collected
+    // Combat system
+    combatState: {
+        active: false,
+        playerHP: 0,
+        enemyHP: 0,
+        maxPlayerHP: 0,
+        maxEnemyHP: 0,
+        currentCombatTurn: 'player',
+        enemyId: null,
+        enemyEmoji: '👹',
+        enemyName: 'Enemy'
+    },
+    // Item Spawn system
+    pendingSpawns: []
 };
 
 // DOM Elements
@@ -72,7 +86,26 @@ const elements = {
     powerupCards: document.getElementById('powerupCards'),
     resourceDice: document.getElementById('resourceDice'),
     rollResourceDice: document.getElementById('rollResourceDice'),
-    skipPowerup: document.getElementById('skipPowerup')
+    skipPowerup: document.getElementById('skipPowerup'),
+    // Combat screen elements
+    combatScreen: document.getElementById('combatScreen'),
+    combatPlayerEmoji: document.getElementById('combatPlayerEmoji'),
+    combatPlayerDice: document.getElementById('combatPlayerDice'),
+    combatPlayerHPText: document.getElementById('combatPlayerHPText'),
+    combatPlayerHPBar: document.getElementById('combatPlayerHPBar'),
+    combatEnemyEmoji: document.getElementById('combatEnemyEmoji'),
+    combatEnemyDice: document.getElementById('combatEnemyDice'),
+    combatEnemyHPText: document.getElementById('combatEnemyHPText'),
+    combatEnemyHPBar: document.getElementById('combatEnemyHPBar'),
+    combatEnemyName: document.getElementById('combatEnemyName'),
+    combatTurnText: document.getElementById('combatTurnText'),
+    combatPlayerArea: document.getElementById('combatPlayerArea'),
+    combatEnemyArea: document.getElementById('combatEnemyArea'),
+    combatPlayerDamage: document.getElementById('combatPlayerDamage'),
+    combatEnemyDamage: document.getElementById('combatEnemyDamage'),
+    combatContainer: document.querySelector('.combat-container'),
+    combatPlayerDiceRange: document.getElementById('combatPlayerDiceRange'),
+    combatEnemyDiceRange: document.getElementById('combatEnemyDiceRange')
 };
 
 // Initialize Game
@@ -88,6 +121,8 @@ function initGame(levelNumber = 1) {
     
     // Reset runStats if starting a new run (level 1)
     let currentRunStats;
+    let playerStats;
+    
     if (levelNumber === 1) {
         // New run - get base stats from upgrades
         let baseMinRoll = 1;
@@ -100,6 +135,35 @@ function initGame(levelNumber = 1) {
             baseMinRoll = 1 + baseUpgrades.minRoll;
             baseMaxRoll = 2 + baseUpgrades.maxRoll;
             baseStartValueBoost = baseUpgrades.startValueBoost;
+            
+            // Initialize player stats from upgrades
+            // HP = starting value + HP upgrades
+            const baseHP = levelConfig.playerStartValue + baseStartValueBoost + baseUpgrades.hp;
+            // DMG: min=1 + dmgMin upgrades, max=starting value + dmgMax upgrades
+            const baseDMGMin = 1 + baseUpgrades.dmgMin;
+            const baseDMGMax = levelConfig.playerStartValue + baseStartValueBoost + baseUpgrades.dmgMax;
+            // SPD: min=1 + spdMin upgrades, max=2 + spdMax upgrades (replaces minRoll-maxRoll)
+            const baseSPDMin = 1 + baseUpgrades.spdMin;
+            const baseSPDMax = 2 + baseUpgrades.spdMax;
+            // INT: min=1 + intMin upgrades, max=2 + intMax upgrades
+            const baseINTMin = 1 + baseUpgrades.intMin;
+            const baseINTMax = 2 + baseUpgrades.intMax;
+            
+            playerStats = {
+                hp: { current: baseHP, max: baseHP },
+                dmg: { min: baseDMGMin, max: baseDMGMax },
+                spd: { min: baseSPDMin, max: baseSPDMax },
+                int: { min: baseINTMin, max: baseINTMax }
+            };
+        } else {
+            // Fallback if HOME_MANAGER not available
+            const baseHP = levelConfig.playerStartValue + baseStartValueBoost;
+            playerStats = {
+                hp: { current: baseHP, max: baseHP },
+                dmg: { min: 1, max: baseHP },
+                spd: { min: 1, max: 2 },
+                int: { min: 1, max: 2 }
+            };
         }
         
         currentRunStats = {
@@ -108,6 +172,7 @@ function initGame(levelNumber = 1) {
             startValueBoost: baseStartValueBoost
         };
         console.log(`Starting new run - base stats: min=${currentRunStats.minRoll}, max=${currentRunStats.maxRoll}, startBoost=${currentRunStats.startValueBoost}`);
+        console.log(`Player stats: HP=${playerStats.hp.current}/${playerStats.hp.max}, DMG=${playerStats.dmg.min}-${playerStats.dmg.max}, SPD=${playerStats.spd.min}-${playerStats.spd.max}, INT=${playerStats.int.min}-${playerStats.int.max}`);
     } else {
         // Continue run - preserve stats
         currentRunStats = gameState.runStats || {
@@ -115,11 +180,39 @@ function initGame(levelNumber = 1) {
             maxRoll: 2,
             startValueBoost: 0
         };
+        
+        // Preserve player stats from previous level
+        if (gameState.playerStats) {
+            playerStats = { 
+                ...gameState.playerStats,
+                hp: { ...gameState.playerStats.hp } // Preserve current/max structure
+            };
+            // Keep current HP from previous level (don't reset to max)
+        } else {
+            // Fallback if playerStats doesn't exist
+            const baseHP = levelConfig.playerStartValue + currentRunStats.startValueBoost;
+            playerStats = {
+                hp: { current: baseHP, max: baseHP },
+                dmg: { min: 1, max: baseHP },
+                spd: { min: currentRunStats.minRoll, max: currentRunStats.maxRoll },
+                int: { min: 1, max: 2 }
+            };
+        }
         console.log(`Continuing run - stats: min=${currentRunStats.minRoll}, max=${currentRunStats.maxRoll}, startBoost=${currentRunStats.startValueBoost}`);
     }
     
     // Calculate starting value with boost
     const startingValue = levelConfig.playerStartValue + currentRunStats.startValueBoost;
+    // Ensure HP max matches starting value (if new run, also set current)
+    if (levelNumber === 1) {
+        playerStats.hp.max = startingValue;
+        playerStats.hp.current = startingValue;
+    } else {
+        // Preserve current HP, only update max if needed
+        if (playerStats.hp.max < startingValue) {
+            playerStats.hp.max = startingValue;
+        }
+    }
     
     gameState = {
         grid: [],
@@ -137,6 +230,7 @@ function initGame(levelNumber = 1) {
             value: startingValue,
             lastValue: startingValue
         },
+        playerStats: playerStats, // Player stats: HP, DMG, SPD, INT
         enemies: [],
         items: [],
         initialEnemyCount: 0, // Track initial enemy count for stats
@@ -149,7 +243,21 @@ function initGame(levelNumber = 1) {
         runStats: currentRunStats, // Preserve run stats across levels
         // Preserve gold across levels in run
         currentGold: (levelNumber === 1) ? 0 : (gameState.currentGold || 0),
-        goldBags: [] // Reset gold bags per level
+        goldBags: [], // Reset gold bags per level
+        // Combat system
+        combatState: {
+            active: false,
+            playerHP: 0,
+            enemyHP: 0,
+            maxPlayerHP: 0,
+            maxEnemyHP: 0,
+            currentCombatTurn: 'player',
+            enemyId: null,
+            enemyEmoji: '👹',
+            enemyName: 'Enemy'
+        },
+        // Item Spawn system
+        pendingSpawns: []
     };
 
     // Initialize grid
@@ -174,8 +282,14 @@ function initGame(levelNumber = 1) {
     
     // Enable roll button
     elements.rollButton.disabled = false;
-    const rollRange = `${gameState.runStats.minRoll}-${gameState.runStats.maxRoll}`;
-    elements.diceLabel.textContent = `Roll to start (Dice: ${rollRange})`;
+    // Use playerStats.spd for display
+    let rollRange;
+    if (gameState.playerStats && gameState.playerStats.spd) {
+        rollRange = `${gameState.playerStats.spd.min}-${gameState.playerStats.spd.max}`;
+    } else {
+        rollRange = `${gameState.runStats.minRoll}-${gameState.runStats.maxRoll}`;
+    }
+    elements.diceLabel.textContent = `Roll to start (SPD: ${rollRange})`;
     elements.diceFace.textContent = '?';
     
     console.log(`Level ${levelNumber} - ${levelConfig.name}: ${levelConfig.description}`);
@@ -269,8 +383,13 @@ function loadLevelFromLayout(levelConfig) {
                         x: x,
                         y: y,
                         value: enemyValue,
+                        initialValue: enemyValue, // Store initial value for dice rolling
                         type: enemyType.name,
-                        emoji: enemyType.emoji
+                        emoji: enemyType.emoji,
+                        // Enemy stats based on value
+                        hp: { current: enemyValue, max: enemyValue },
+                        dmg: { min: 1, max: enemyValue },
+                        spd: { min: 1, max: enemyValue } // For movement, max = initialValue (same as value at spawn)
                     };
                     gameState.enemies.push(enemy);
                     gameState.grid[y][x].enemy = enemy.id;
@@ -402,8 +521,13 @@ function spawnEnemies() {
             x: x,
             y: y,
             value: enemyType.value,
+            initialValue: enemyType.value, // Store initial value for dice rolling
             type: enemyType.name,
-            emoji: enemyType.emoji
+            emoji: enemyType.emoji,
+            // Enemy stats based on value
+            hp: { current: enemyType.value, max: enemyType.value },
+            dmg: { min: 1, max: enemyType.value },
+            spd: { min: 1, max: enemyType.value } // For movement, max = initialValue (same as value at spawn)
         };
         
         gameState.enemies.push(enemy);
@@ -430,11 +554,32 @@ function spawnItems() {
         if (gameState.grid[y][x].enemy !== null) continue;
         if (gameState.grid[y][x].item !== null) continue;
         
-        // Randomly select item type
-        const randomIndex = Math.floor(Math.random() * CONFIG.ITEM_TYPES.length);
-        const itemType = CONFIG.ITEM_TYPES[randomIndex];
+        // Filter item types by current level - item value must not exceed level
+        const currentLevel = gameState.level;
+        const availableItemTypes = CONFIG.ITEM_TYPES.filter(itemType => itemType.value <= currentLevel);
+        
+        if (availableItemTypes.length === 0) {
+            // Fallback to smallest item if no items available for this level
+            const smallestItem = CONFIG.ITEM_TYPES[0];
+            const item = {
+                id: gameState.items.length,
+                x: x,
+                y: y,
+                value: smallestItem.value,
+                type: smallestItem.name,
+                emoji: smallestItem.emoji
+            };
+            gameState.items.push(item);
+            gameState.grid[y][x].item = item.id;
+            attempts++;
+            continue;
+        }
+        
+        // Randomly select item type from available types
+        const randomIndex = Math.floor(Math.random() * availableItemTypes.length);
+        const itemType = availableItemTypes[randomIndex];
         if (!itemType) {
-            console.error('Item type not found! Random index:', randomIndex, 'ITEM_TYPES length:', CONFIG.ITEM_TYPES.length);
+            console.error('Item type not found! Random index:', randomIndex, 'availableItemTypes length:', availableItemTypes.length);
             continue;
         }
         const item = {
@@ -654,10 +799,14 @@ function renderGrid() {
             if (cellData.player) {
                 const valueBadge = document.createElement('div');
                 valueBadge.className = 'value-badge player-value';
-                valueBadge.textContent = gameState.player.value;
-                if (gameState.player.value !== gameState.player.lastValue) {
+                // Display current HP instead of player.value
+                const currentHP = gameState.playerStats ? gameState.playerStats.hp.current : gameState.player.value;
+                valueBadge.textContent = currentHP;
+                // Track last displayed HP for animation
+                if (!gameState.player.lastHP) gameState.player.lastHP = currentHP;
+                if (currentHP !== gameState.player.lastHP) {
                     valueBadge.classList.add('value-updated');
-                    gameState.player.lastValue = gameState.player.value;
+                    gameState.player.lastHP = currentHP;
                 }
                 cell.appendChild(valueBadge);
             }
@@ -679,14 +828,21 @@ function renderGrid() {
             
             if (cellData.item !== null) {
                 const item = gameState.items.find(i => i.id === cellData.item);
-                const valueBadge = document.createElement('div');
-                valueBadge.className = 'value-badge item-value';
-                valueBadge.textContent = item?.value || '?';
-                // Ensure value badge doesn't block pointer events for reachable cells
-                if (isReachableCell) {
-                    valueBadge.style.pointerEvents = 'none';
+                // Only show value badge if item exists and has a valid value
+                if (item && item.value !== undefined && item.value !== null) {
+                    const valueBadge = document.createElement('div');
+                    valueBadge.className = 'value-badge item-value';
+                    valueBadge.textContent = item.value;
+                    // Ensure value badge doesn't block pointer events for reachable cells
+                    if (isReachableCell) {
+                        valueBadge.style.pointerEvents = 'none';
+                    }
+                    cell.appendChild(valueBadge);
+                } else {
+                    // Item reference exists in grid but item not found in items array - clean up
+                    console.warn(`Item ${cellData.item} referenced in grid but not found in items array. Cleaning up.`);
+                    cellData.item = null;
                 }
-                cell.appendChild(valueBadge);
             }
             
             // Add value badge for special grids (if they have value)
@@ -707,6 +863,74 @@ function renderGrid() {
             elements.gameGrid.appendChild(cell);
         }
     }
+    
+    // Re-render pending spawn previews (always recreate after grid re-render)
+    gameState.pendingSpawns.forEach(spawn => {
+        const cell = elements.gameGrid.querySelector(`[data-x="${spawn.x}"][data-y="${spawn.y}"]`);
+        if (!cell) return; // Cell not found, skip
+        
+        // Remove old preview if it exists (it's been destroyed by innerHTML = '')
+        // We need to always recreate since grid was just re-rendered
+        const itemType = findItemTypeByValue(spawn.value);
+        const previewContainer = document.createElement('div');
+        previewContainer.className = 'item-spawn-preview';
+        previewContainer.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 5;
+            pointer-events: none;
+        `;
+        
+        const itemEmoji = document.createElement('div');
+        itemEmoji.className = 'item-spawn-emoji';
+        itemEmoji.textContent = itemType.emoji;
+        itemEmoji.style.cssText = `
+            font-size: 32px;
+            opacity: 0.4;
+            filter: blur(1px);
+            animation: itemSpawnPulse 1.5s ease-in-out infinite;
+        `;
+        
+        const countdownContainer = document.createElement('div');
+        countdownContainer.className = 'item-spawn-countdown';
+        countdownContainer.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: 4px;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.8);
+            font-weight: bold;
+        `;
+        
+        const clockIcon = document.createElement('span');
+        clockIcon.textContent = '⏱️';
+        clockIcon.style.fontSize = '12px';
+        
+        const countdownText = document.createElement('span');
+        countdownText.className = 'item-spawn-turns';
+        countdownText.textContent = spawn.turnsRemaining;
+        
+        countdownContainer.appendChild(clockIcon);
+        countdownContainer.appendChild(countdownText);
+        
+        previewContainer.appendChild(itemEmoji);
+        previewContainer.appendChild(countdownContainer);
+        
+        cell.style.position = 'relative';
+        cell.appendChild(previewContainer);
+        
+        // Update references to new elements
+        spawn.previewElement = previewContainer;
+        spawn.countdownText = countdownText;
+    });
     
     // Event listeners are already attached when cells are created
 }
@@ -730,6 +954,12 @@ function getObjectiveDisplay() {
     };
 }
 
+// Sync HP max with player.value (for backward compatibility, but HP is now independent)
+function syncHP() {
+    // HP is now independent, but we can sync max if needed
+    // This function is kept for compatibility but may not be needed
+}
+
 // Update UI
 function updateUI() {
     // Update Level
@@ -740,18 +970,44 @@ function updateUI() {
     elements.objectiveIcon.textContent = objectiveDisplay.icon;
     elements.objectiveText.textContent = objectiveDisplay.text;
     
-    // Update Run Stats Display
+    // Update Run Stats Display - show all 4 stats with icons
     if (elements.runStatsDisplay) {
-        elements.runStatsDisplay.innerHTML = `
-            <div class="stat-item">
-                <span class="stat-label">Dice:</span>
-                <span class="stat-value">${gameState.runStats.minRoll}-${gameState.runStats.maxRoll}</span>
-            </div>
-            <div class="stat-item">
-                <span class="stat-label">Base Power:</span>
-                <span class="stat-value">${2 + gameState.runStats.startValueBoost}</span>
-            </div>
-        `;
+        if (gameState.playerStats) {
+            elements.runStatsDisplay.innerHTML = `
+                <div class="stat-item">
+                    <span class="stat-icon">❤️</span>
+                    <span class="stat-label">HP:</span>
+                    <span class="stat-value">${gameState.playerStats.hp.current}/${gameState.playerStats.hp.max}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-icon">⚔️</span>
+                    <span class="stat-label">DMG:</span>
+                    <span class="stat-value">${gameState.playerStats.dmg.min}-${gameState.playerStats.dmg.max}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-icon">🏃</span>
+                    <span class="stat-label">SPD:</span>
+                    <span class="stat-value">${gameState.playerStats.spd.min}-${gameState.playerStats.spd.max}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-icon">🧠</span>
+                    <span class="stat-label">INT:</span>
+                    <span class="stat-value">${gameState.playerStats.int.min}-${gameState.playerStats.int.max}</span>
+                </div>
+            `;
+        } else {
+            // Fallback to old system
+            elements.runStatsDisplay.innerHTML = `
+                <div class="stat-item">
+                    <span class="stat-label">Dice:</span>
+                    <span class="stat-value">${gameState.runStats.minRoll}-${gameState.runStats.maxRoll}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Base Power:</span>
+                    <span class="stat-value">${2 + gameState.runStats.startValueBoost}</span>
+                </div>
+            `;
+        }
     }
     
     // Update Gold Display
@@ -762,15 +1018,30 @@ function updateUI() {
 
 // Roll Dice - uses min/max from run stats (for player)
 function rollDice() {
-    const min = gameState.runStats.minRoll;
-    const max = gameState.runStats.maxRoll;
-    return Math.floor(Math.random() * (max - min + 1)) + min;
+    // Use playerStats.spd for movement (replaces minRoll-maxRoll)
+    if (gameState.playerStats && gameState.playerStats.spd) {
+        const min = gameState.playerStats.spd.min;
+        const max = gameState.playerStats.spd.max;
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    } else {
+        // Fallback to old system
+        const min = gameState.runStats.minRoll;
+        const max = gameState.runStats.maxRoll;
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
 }
 
-// Roll Dice for Enemy - max dice = enemy value
-function rollEnemyDice(enemyValue) {
-    // Enemy rolls from 1 to its value
-    return Math.floor(Math.random() * enemyValue) + 1;
+// Roll Dice for Enemy - uses enemy.spd.max (based on initialValue)
+// This function accepts either an enemy object or a number (for backward compatibility)
+function rollEnemyDice(enemy) {
+    // If enemy is an object, use spd stats
+    if (enemy && typeof enemy === 'object' && enemy.spd) {
+        return Math.floor(Math.random() * (enemy.spd.max - enemy.spd.min + 1)) + enemy.spd.min;
+    } else {
+        // Fallback: treat as old enemyValue number
+        const enemyValue = typeof enemy === 'number' ? enemy : (enemy?.initialValue || enemy?.value || 1);
+        return Math.floor(Math.random() * enemyValue) + 1;
+    }
 }
 
 // Player Roll
@@ -1059,15 +1330,22 @@ async function movePlayerToCell(targetX, targetY) {
 
 // Update Dice Display
 function updateDiceDisplay() {
-    const rollRange = `${gameState.runStats.minRoll}-${gameState.runStats.maxRoll}`;
+    // Use playerStats.spd for display (replaces minRoll-maxRoll)
+    let rollRange;
+    if (gameState.playerStats && gameState.playerStats.spd) {
+        rollRange = `${gameState.playerStats.spd.min}-${gameState.playerStats.spd.max}`;
+    } else {
+        // Fallback to old system
+        rollRange = `${gameState.runStats.minRoll}-${gameState.runStats.maxRoll}`;
+    }
     
     if (gameState.playerRemainingSteps > 0) {
         elements.diceFace.textContent = gameState.playerRemainingSteps;
-        elements.diceLabel.textContent = `${gameState.playerRemainingSteps} step${gameState.playerRemainingSteps > 1 ? 's' : ''} remaining (Dice: ${rollRange})`;
+        elements.diceLabel.textContent = `${gameState.playerRemainingSteps} step${gameState.playerRemainingSteps > 1 ? 's' : ''} remaining (SPD: ${rollRange})`;
         elements.endTurnButton.style.display = 'inline-block';
     } else {
         elements.diceFace.textContent = '?';
-        elements.diceLabel.textContent = `Your turn (Dice: ${rollRange})`;
+        elements.diceLabel.textContent = `Your turn (SPD: ${rollRange})`;
         elements.endTurnButton.style.display = 'none';
     }
 }
@@ -1079,16 +1357,19 @@ async function handleSpecialGrid(specialGridType, x, y) {
     
     switch (specialGridType) {
         case 'lava':
-            // Lava: Take 1 damage
-            if (gameState.player.value > 1) {
-                gameState.player.value -= gridConfig.damage;
+            // Lava: Take damage to HP
+            if (gameState.playerStats && gameState.playerStats.hp.current > gridConfig.damage) {
+                gameState.playerStats.hp.current -= gridConfig.damage;
                 showValueLossAnimation(x, y, gridConfig.damage);
                 updateUI();
                 renderGrid();
                 await sleep(300);
-                console.log(`Player stepped on Lava! Lost ${gridConfig.damage} value.`);
+                console.log(`Player stepped on Lava! Lost ${gridConfig.damage} HP.`);
             } else {
-                // Player dies if value reaches 0
+                // Player dies if HP reaches 0
+                if (gameState.playerStats) {
+                    gameState.playerStats.hp.current = 0;
+                }
                 console.log('Player died from Lava!');
                 gameOver(false);
                 return false;
@@ -1096,18 +1377,20 @@ async function handleSpecialGrid(specialGridType, x, y) {
             return true;
             
         case 'swamp':
-            // Swamp: Take 2 damage (auto, no trap)
+            // Swamp: Take damage to HP
             const swampDamage = gridConfig.damage || 2;
-            
-            if (gameState.player.value > swampDamage) {
-                gameState.player.value -= swampDamage;
+            if (gameState.playerStats && gameState.playerStats.hp.current > swampDamage) {
+                gameState.playerStats.hp.current -= swampDamage;
                 showValueLossAnimation(x, y, swampDamage);
                 updateUI();
                 renderGrid();
                 await sleep(300);
-                console.log(`Player stepped on Swamp! Lost ${swampDamage} value.`);
+                console.log(`Player stepped on Swamp! Lost ${swampDamage} HP.`);
             } else {
-                // Player dies if value reaches 0
+                // Player dies if HP reaches 0
+                if (gameState.playerStats) {
+                    gameState.playerStats.hp.current = 0;
+                }
                 console.log('Player died from Swamp!');
                 gameOver(false);
                 return false;
@@ -1302,12 +1585,11 @@ async function collectItem(x, y) {
     const item = gameState.items.find(i => i.id === itemId);
     if (!item) return;
     
-    const oldValue = gameState.player.value;
+    // Get item type for emoji
+    const itemType = findItemTypeByValue(item.value);
+    const itemEmoji = itemType ? itemType.emoji : '⭐';
     
-    // Add value
-    gameState.player.value += item.value;
-    
-    // Remove item
+    // Remove item from grid first
     gameState.grid[y][x].item = null;
     gameState.items = gameState.items.filter(i => i.id !== itemId);
     
@@ -1318,19 +1600,206 @@ async function collectItem(x, y) {
         setTimeout(() => cell.classList.remove('collecting'), 500);
     }
     
-    // Show value gain animation
-    showValueGainAnimation(x, y, item.value);
+    // Show pop-up for user to choose stat
+    const selectedStat = await showItemStatSelection(item.value, itemEmoji);
     
-    updateUI();
-    renderGrid(); // Re-render to show updated value
-    await sleep(300);
-    
-    console.log(`Collected item worth ${item.value}. Value: ${oldValue} → ${gameState.player.value}`);
-    
-    // Check instant win first, then impossible win after collecting item
-    if (!checkInstantWin()) {
-        checkImpossibleWin();
+    // Apply stat boost based on user selection
+    if (selectedStat) {
+        applyItemStatBoost(selectedStat, item.value, x, y);
     }
+    
+    // Check item spawn after collecting item
+    checkItemSpawn();
+}
+
+// Show Item Stat Selection Pop-up
+function showItemStatSelection(itemValue, itemEmoji) {
+    return new Promise((resolve) => {
+        const popup = document.getElementById('itemStatSelection');
+        if (!popup) {
+            resolve(null);
+            return;
+        }
+        
+        // Update pop-up content
+        const emojiElement = document.getElementById('itemStatEmoji');
+        const valueElement = document.getElementById('itemStatValue');
+        if (emojiElement) emojiElement.textContent = itemEmoji;
+        if (valueElement) valueElement.textContent = `+${itemValue}`;
+        
+        // Update current stat values
+        if (gameState.playerStats) {
+            const hpElement = document.getElementById('statOptionHP');
+            const dmgElement = document.getElementById('statOptionDMG');
+            const spdElement = document.getElementById('statOptionSPD');
+            const intElement = document.getElementById('statOptionINT');
+            
+            if (hpElement) hpElement.textContent = `${gameState.playerStats.hp.current}/${gameState.playerStats.hp.max}`;
+            if (dmgElement) dmgElement.textContent = gameState.playerStats.dmg.max;
+            if (spdElement) spdElement.textContent = gameState.playerStats.spd.max;
+            if (intElement) intElement.textContent = gameState.playerStats.int.max;
+        }
+        
+        // Setup button handlers
+        const buttons = popup.querySelectorAll('.stat-option-btn');
+        const handleClick = (e) => {
+            const stat = e.currentTarget.dataset.stat;
+            // DON'T close pop-up here - let applyItemStatBoost() handle it after animation
+            // Just remove listeners to prevent multiple clicks
+            buttons.forEach(btn => {
+                btn.removeEventListener('click', handleClick);
+            });
+            resolve(stat);
+        };
+        
+        buttons.forEach(btn => {
+            btn.addEventListener('click', handleClick);
+        });
+        
+        // Show pop-up
+        popup.style.display = 'flex';
+    });
+}
+
+// Hide Item Stat Selection Pop-up
+function hideItemStatSelection() {
+    const popup = document.getElementById('itemStatSelection');
+    if (popup) {
+        popup.style.display = 'none';
+    }
+}
+
+// Apply Item Stat Boost
+async function applyItemStatBoost(stat, value, x, y) {
+    if (!gameState.playerStats) return;
+    
+    let statChange = '';
+    let oldStatValue = 0;
+    let newStatValue = 0;
+    let statElement = null;
+    
+    switch (stat) {
+        case 'hp':
+            // HP: Heal current HP (cap at max), don't increase max
+            oldStatValue = gameState.playerStats.hp.current;
+            gameState.playerStats.hp.current = Math.min(gameState.playerStats.hp.current + value, gameState.playerStats.hp.max);
+            newStatValue = gameState.playerStats.hp.current;
+            statElement = document.getElementById('statOptionHP');
+            statChange = `HP Healed +${newStatValue - oldStatValue}`;
+            break;
+            
+        case 'dmg':
+            // DMG: Increase DMG max only
+            oldStatValue = gameState.playerStats.dmg.max;
+            gameState.playerStats.dmg.max += value;
+            newStatValue = gameState.playerStats.dmg.max;
+            statElement = document.getElementById('statOptionDMG');
+            statChange = `DMG Max +${value}`;
+            break;
+            
+        case 'spd':
+            // SPD: Increase SPD max only
+            oldStatValue = gameState.playerStats.spd.max;
+            gameState.playerStats.spd.max += value;
+            newStatValue = gameState.playerStats.spd.max;
+            statElement = document.getElementById('statOptionSPD');
+            statChange = `SPD Max +${value}`;
+            break;
+            
+        case 'int':
+            // INT: Increase INT max only
+            oldStatValue = gameState.playerStats.int.max;
+            gameState.playerStats.int.max += value;
+            newStatValue = gameState.playerStats.int.max;
+            statElement = document.getElementById('statOptionINT');
+            statChange = `INT Max +${value}`;
+            break;
+            
+        default:
+            console.warn(`Unknown stat: ${stat}`);
+            return;
+    }
+    
+    // Animate number incrementing in pop-up FIRST - this is the main animation
+    // Don't update UI below until animation in pop-up is complete
+    if (statElement) {
+        await animateStatIncrement(statElement, oldStatValue, newStatValue, stat === 'hp');
+    }
+    
+    // Wait a short moment to let user see the final value in pop-up
+    await sleep(400);
+    
+    // NOW close the pop-up
+    hideItemStatSelection();
+    
+    // After pop-up closes, update UI and show grid animations
+    showValueGainAnimation(x, y, value);
+    updateUI();
+    renderGrid();
+    
+    console.log(`Applied item to ${stat}. ${statChange}`);
+}
+
+// Animate stat increment in pop-up
+function animateStatIncrement(element, oldValue, newValue, isHP = false) {
+    return new Promise((resolve) => {
+        if (!element) {
+            resolve();
+            return;
+        }
+        
+        // If no change, just resolve immediately
+        if (oldValue === newValue) {
+            resolve();
+            return;
+        }
+        
+        const duration = 600; // ms - smooth animation duration
+        const steps = 25; // Steps for smooth animation
+        const increment = (newValue - oldValue) / steps;
+        let currentStep = 0;
+        
+        // Set transition for smooth animation
+        element.style.transition = 'all 0.3s ease';
+        
+        const interval = setInterval(() => {
+            currentStep++;
+            const currentValue = Math.round(oldValue + (increment * currentStep));
+            const displayValue = isHP ? `${currentValue}/${gameState.playerStats.hp.max}` : currentValue;
+            element.textContent = displayValue;
+            
+            // Calculate progress (0 to 1)
+            const progress = currentStep / steps;
+            
+            // Scale up and change to green simultaneously
+            const scale = 1 + (progress * 0.4); // Scale from 1 to 1.4
+            element.style.transform = `scale(${scale})`;
+            
+            // Change to green color as it scales up
+            element.style.color = '#2ecc71'; // Green color
+            element.style.fontWeight = 'bold';
+            element.style.textShadow = `0 0 ${8 + progress * 4}px rgba(46, 204, 113, ${0.3 + progress * 0.5})`;
+            
+            if (currentStep >= steps) {
+                clearInterval(interval);
+                element.textContent = isHP ? `${newValue}/${gameState.playerStats.hp.max}` : newValue;
+                // Final state: green and scaled
+                element.style.transform = 'scale(1.4)';
+                element.style.color = '#2ecc71';
+                element.style.textShadow = '0 0 12px rgba(46, 204, 113, 0.8)';
+                
+                // Keep green highlight for a moment, then reset
+                setTimeout(() => {
+                    element.style.transform = 'scale(1)';
+                    element.style.color = '';
+                    element.style.fontWeight = '';
+                    element.style.textShadow = '';
+                    element.style.transition = '';
+                    setTimeout(resolve, 200);
+                }, 400);
+            }
+        }, duration / steps);
+    });
 }
 
 // Collect Gold
@@ -1410,6 +1879,371 @@ function showGoldAnimation(x, y, amount) {
     }
 }
 
+// ========== COMBAT SYSTEM ==========
+
+// Show Combat Screen
+function showCombatScreen(playerValue, enemyValue, enemyEmoji, enemyName, enemyId) {
+    // Set combat state - use playerStats.hp.current and hp.max
+    const playerHP = gameState.playerStats ? gameState.playerStats.hp.current : playerValue;
+    const maxPlayerHP = gameState.playerStats ? gameState.playerStats.hp.max : playerValue;
+    
+    // Get enemy stats
+    const enemy = gameState.enemies.find(e => e.id === enemyId);
+    const enemyHP = enemy && enemy.hp ? enemy.hp.current : enemyValue;
+    const maxEnemyHP = enemy && enemy.hp ? enemy.hp.max : enemyValue;
+    
+    gameState.combatState.active = true;
+    gameState.combatState.playerHP = playerHP; // Use current HP
+    gameState.combatState.enemyHP = enemyHP;
+    gameState.combatState.maxPlayerHP = maxPlayerHP;
+    gameState.combatState.maxEnemyHP = maxEnemyHP;
+    gameState.combatState.currentCombatTurn = 'player';
+    gameState.combatState.enemyId = enemyId;
+    gameState.combatState.enemyEmoji = enemyEmoji;
+    gameState.combatState.enemyName = enemyName || 'Enemy';
+    
+    // Update UI
+    if (elements.combatPlayerEmoji) elements.combatPlayerEmoji.textContent = '🧙';
+    if (elements.combatEnemyEmoji) elements.combatEnemyEmoji.textContent = enemyEmoji;
+    if (elements.combatEnemyName) elements.combatEnemyName.textContent = enemyName || 'Enemy';
+    
+    // Update dice ranges (Damage: DMG min-max)
+    if (elements.combatPlayerDiceRange) {
+        // Player damage range from playerStats.dmg
+        if (gameState.playerStats && gameState.playerStats.dmg) {
+            elements.combatPlayerDiceRange.textContent = `${gameState.playerStats.dmg.min}-${gameState.playerStats.dmg.max}`;
+        } else {
+            // Fallback to old system
+            const playerValue = gameState.player.value;
+            elements.combatPlayerDiceRange.textContent = `1-${playerValue}`;
+        }
+    }
+    if (elements.combatEnemyDiceRange) {
+        // Enemy damage range is 1 to enemy.value
+        elements.combatEnemyDiceRange.textContent = `1-${enemyValue}`;
+    }
+    
+    // Update HP bars
+    updateCombatHPBars();
+    
+    // Reset dice displays
+    if (elements.combatPlayerDice) {
+        elements.combatPlayerDice.textContent = '';
+        elements.combatPlayerDice.classList.remove('visible', 'rolling');
+    }
+    if (elements.combatEnemyDice) {
+        elements.combatEnemyDice.textContent = '';
+        elements.combatEnemyDice.classList.remove('visible', 'rolling');
+    }
+    
+    // Reset character states
+    if (elements.combatPlayerArea) {
+        elements.combatPlayerArea.classList.remove('attacking', 'defending');
+    }
+    if (elements.combatEnemyArea) {
+        elements.combatEnemyArea.classList.remove('attacking', 'defending');
+    }
+    
+    // Show combat screen
+    if (elements.combatScreen) {
+        elements.combatScreen.style.display = 'flex';
+    }
+    
+    // Update turn indicator
+    updateCombatTurnIndicator();
+}
+
+// Hide Combat Screen
+function hideCombatScreen() {
+    gameState.combatState.active = false;
+    
+    if (elements.combatScreen) {
+        elements.combatScreen.style.display = 'none';
+    }
+    
+    // Clear combat state
+    gameState.combatState.playerHP = 0;
+    gameState.combatState.enemyHP = 0;
+    gameState.combatState.maxPlayerHP = 0;
+    gameState.combatState.maxEnemyHP = 0;
+    gameState.combatState.currentCombatTurn = 'player';
+    gameState.combatState.enemyId = null;
+}
+
+// Update Combat HP Bars
+function updateCombatHPBars() {
+    const state = gameState.combatState;
+    
+    // Player HP
+    const playerHPPercent = state.maxPlayerHP > 0 ? (state.playerHP / state.maxPlayerHP) * 100 : 0;
+    if (elements.combatPlayerHPBar) {
+        elements.combatPlayerHPBar.style.width = `${Math.max(0, playerHPPercent)}%`;
+    }
+    if (elements.combatPlayerHPText) {
+        elements.combatPlayerHPText.textContent = `${state.playerHP}/${state.maxPlayerHP}`;
+    }
+    
+    // Enemy HP
+    const enemyHPPercent = state.maxEnemyHP > 0 ? (state.enemyHP / state.maxEnemyHP) * 100 : 0;
+    if (elements.combatEnemyHPBar) {
+        elements.combatEnemyHPBar.style.width = `${Math.max(0, enemyHPPercent)}%`;
+    }
+    if (elements.combatEnemyHPText) {
+        elements.combatEnemyHPText.textContent = `${state.enemyHP}/${state.maxEnemyHP}`;
+    }
+}
+
+// Update Combat Turn Indicator
+function updateCombatTurnIndicator() {
+    if (elements.combatTurnText) {
+        const turn = gameState.combatState.currentCombatTurn;
+        elements.combatTurnText.textContent = turn === 'player' ? 'Player Turn' : 'Enemy Turn';
+    }
+}
+
+// Animate Dice Roll
+async function animateDiceRoll(character, diceValue) {
+    const diceElement = character === 'player' ? elements.combatPlayerDice : elements.combatEnemyDice;
+    
+    if (!diceElement) return;
+    
+    // Show dice
+    diceElement.textContent = '?';
+    diceElement.classList.add('visible', 'rolling');
+    
+    // Wait for rolling animation
+    await sleep(500);
+    
+    // Show result
+    diceElement.textContent = diceValue;
+    diceElement.classList.remove('rolling');
+    
+    // Wait a bit to show result
+    await sleep(400);
+}
+
+// Animate Attack
+async function animateAttack(attacker, defender) {
+    const attackerArea = attacker === 'player' ? elements.combatPlayerArea : elements.combatEnemyArea;
+    const defenderArea = defender === 'player' ? elements.combatPlayerArea : elements.combatEnemyArea;
+    
+    if (!attackerArea || !defenderArea) return;
+    
+    // Add attacking class
+    attackerArea.classList.add('attacking');
+    defenderArea.classList.add('defending');
+    
+    // Wait for attack animation
+    await sleep(600);
+    
+    // Remove classes
+    attackerArea.classList.remove('attacking');
+    defenderArea.classList.remove('defending');
+}
+
+// Animate Hit Effect
+async function animateHitEffect(target, damage) {
+    const damageElement = target === 'player' ? elements.combatPlayerDamage : elements.combatEnemyDamage;
+    
+    if (!damageElement) return;
+    
+    // Show damage number
+    damageElement.textContent = `-${damage}`;
+    damageElement.classList.add('show');
+    
+    // Add screen shake for significant damage
+    if (damage >= 3 && elements.combatContainer) {
+        elements.combatContainer.classList.add('shaking');
+    }
+    
+    // Wait for animation
+    await sleep(1000);
+    
+    // Remove classes
+    damageElement.classList.remove('show');
+    if (elements.combatContainer) {
+        elements.combatContainer.classList.remove('shaking');
+    }
+    
+    // Clear damage text
+    damageElement.textContent = '';
+}
+
+// Animate HP Bar Update
+async function animateHPBarUpdate(character, newHP) {
+    const hpBar = character === 'player' ? elements.combatPlayerHPBar : elements.combatEnemyHPBar;
+    
+    if (!hpBar) return;
+    
+    // Add damaging class for flash effect
+    hpBar.classList.add('damaging');
+    
+    // Update HP bar
+    updateCombatHPBars();
+    
+    // Wait for flash
+    await sleep(300);
+    
+    // Remove damaging class
+    hpBar.classList.remove('damaging');
+}
+
+// Perform Combat Turn
+async function performCombatTurn(turn) {
+    const state = gameState.combatState;
+    
+    if (!state.active) return;
+    
+    // Update turn indicator
+    state.currentCombatTurn = turn;
+    updateCombatTurnIndicator();
+    
+    await sleep(300);
+    
+    // Roll dice
+    let diceValue;
+    if (turn === 'player') {
+        // Player rolls from playerStats.dmg.min to playerStats.dmg.max
+        if (gameState.playerStats && gameState.playerStats.dmg) {
+            const dmgMin = gameState.playerStats.dmg.min;
+            const dmgMax = gameState.playerStats.dmg.max;
+            diceValue = Math.floor(Math.random() * (dmgMax - dmgMin + 1)) + dmgMin;
+        } else {
+            // Fallback to old system
+            const maxPlayerRoll = gameState.player.value;
+            diceValue = Math.floor(Math.random() * maxPlayerRoll) + 1;
+        }
+    } else {
+        // Enemy rolls from enemy.dmg.min to enemy.dmg.max (get from enemy object)
+        const enemy = gameState.enemies.find(e => e.id === state.enemyId);
+        if (enemy && enemy.dmg) {
+            diceValue = Math.floor(Math.random() * (enemy.dmg.max - enemy.dmg.min + 1)) + enemy.dmg.min;
+        } else {
+            // Fallback to old system
+            const maxEnemyRoll = enemy ? enemy.value : state.maxEnemyHP;
+            diceValue = Math.floor(Math.random() * maxEnemyRoll) + 1;
+        }
+    }
+    
+    // Animate dice roll
+    await animateDiceRoll(turn, diceValue);
+    
+    // Animate attack
+    const defender = turn === 'player' ? 'enemy' : 'player';
+    await animateAttack(turn, defender);
+    
+    // Apply damage
+    if (turn === 'player') {
+        state.enemyHP = Math.max(0, state.enemyHP - diceValue);
+        // Update enemy hp.current if enemy exists
+        const enemy = gameState.enemies.find(e => e.id === state.enemyId);
+        if (enemy && enemy.hp) {
+            enemy.hp.current = state.enemyHP;
+        }
+    } else {
+        state.playerHP = Math.max(0, state.playerHP - diceValue);
+        // Update playerStats.hp.current
+        if (gameState.playerStats) {
+            gameState.playerStats.hp.current = state.playerHP;
+        }
+    }
+    
+    // Animate hit effect and HP bar update
+    await Promise.all([
+        animateHitEffect(defender, diceValue),
+        animateHPBarUpdate(defender, turn === 'player' ? state.enemyHP : state.playerHP)
+    ]);
+    
+    // Check if combat ended
+    await checkCombatEnd();
+}
+
+// Check Combat End
+async function checkCombatEnd() {
+    const state = gameState.combatState;
+    
+    if (!state.active) return;
+    
+    // Check if someone died
+    if (state.playerHP <= 0) {
+        // Player lost - update HP
+        if (gameState.playerStats) {
+            gameState.playerStats.hp.current = 0;
+        }
+        await sleep(500);
+        await resolveCombatResult(false);
+        return;
+    }
+    
+    if (state.enemyHP <= 0) {
+        // Player won - update HP (no HP gain, just keep current)
+        if (gameState.playerStats) {
+            gameState.playerStats.hp.current = state.playerHP;
+        }
+        await sleep(500);
+        await resolveCombatResult(true);
+        return;
+    }
+    
+    // Continue to next turn
+    const nextTurn = state.currentCombatTurn === 'player' ? 'enemy' : 'player';
+    await performCombatTurn(nextTurn);
+}
+
+// Resolve Combat Result
+async function resolveCombatResult(playerWon) {
+    const state = gameState.combatState;
+    const enemyId = state.enemyId;
+    
+    // Hide combat screen
+    hideCombatScreen();
+    
+    if (playerWon) {
+        // Player wins - find and remove enemy
+        const enemy = gameState.enemies.find(e => e.id === enemyId);
+        if (enemy) {
+            // Remove enemy - no HP gain, no stat changes
+            // Just remove the enemy from the game
+            
+            // Remove enemy from grid
+            for (let y = 0; y < gameState.gridHeight; y++) {
+                for (let x = 0; x < gameState.gridWidth; x++) {
+                    if (gameState.grid[y][x].enemy === enemyId) {
+                        gameState.grid[y][x].enemy = null;
+                    }
+                }
+            }
+            
+            // Remove enemy from array
+            gameState.enemies = gameState.enemies.filter(e => e.id !== enemyId);
+            
+            // Re-render grid
+            renderGrid();
+            await sleep(100);
+            
+            updateUI();
+            await sleep(300);
+            
+            console.log(`Player won combat! Enemy defeated.`);
+            
+            // Check win condition
+            if (gameState.enemies.length === 0) {
+                checkLevelComplete();
+                return;
+            }
+            
+            // Check item spawn after defeating enemy
+            checkItemSpawn();
+        }
+    } else {
+        // Player loses - Game Over
+        console.log(`Player lost combat! Game Over.`);
+        
+        gameOver(false);
+        return;
+    }
+}
+
 // Perform Combat
 async function performCombat(x, y) {
     const enemyId = gameState.grid[y][x].enemy;
@@ -1435,67 +2269,17 @@ async function performCombat(x, y) {
     renderGrid();
     await sleep(100);
     
-    // Get the cell after render
-    const cell = elements.gameGrid.querySelector(`[data-x="${x}"][data-y="${y}"]`);
-    if (!cell) {
-        console.error('Cell not found for combat');
-        return;
-    }
+    // Show combat screen and start combat
+    showCombatScreen(
+        gameState.player.value,
+        enemy.value,
+        enemy.emoji || '👹',
+        enemy.type || 'Enemy',
+        enemyId
+    );
     
-    // Add combat class for animation (both icons visible in same cell)
-    cell.classList.add('combat');
-    
-    // Wait for animation - both icons visible together
-    await sleep(600);
-    
-    // Remove combat class before proceeding
-    cell.classList.remove('combat');
-    
-    // Compare values - Player wins if value >= enemy
-    if (gameState.player.value >= enemy.value) {
-        const oldValue = gameState.player.value;
-        const enemyValue = enemy.value;
-        
-        // Player wins - absorb enemy value
-        gameState.player.value += enemy.value;
-        
-        // Remove enemy
-        gameState.grid[y][x].enemy = null;
-        gameState.enemies = gameState.enemies.filter(e => e.id !== enemyId);
-        
-        // Player stays in the position (already moved there)
-        
-        // Re-render grid to show updated state
-        renderGrid();
-        await sleep(100);
-        
-        // Show value gain animation (after re-render)
-        const updatedCell = elements.gameGrid.querySelector(`[data-x="${x}"][data-y="${y}"]`);
-        if (updatedCell) {
-            showValueGainAnimation(x, y, enemyValue);
-        }
-        
-        updateUI();
-        await sleep(300);
-        
-        console.log(`Player won! Absorbed ${enemyValue}. Value: ${oldValue} → ${gameState.player.value}`);
-        
-        // Check win condition
-        if (gameState.enemies.length === 0) {
-            checkLevelComplete();
-            return;
-        }
-        
-        // Check instant win after defeating enemy
-        if (checkInstantWin()) {
-            return; // Instant win triggered
-        }
-    } else {
-        // Player loses - Game Over (enemy value > player value)
-        console.log(`Player lost! Enemy value (${enemy.value}) > Player value (${gameState.player.value}). Game Over.`);
-        gameOver(false);
-        return;
-    }
+    // Start combat with player turn
+    await performCombatTurn('player');
 }
 
 // ========== AI HELPER FUNCTIONS ==========
@@ -1773,6 +2557,9 @@ function endPlayerTurn() {
     elements.diceLabel.textContent = 'Enemy turn...';
     elements.diceFace.textContent = '...';
     
+    // Check item spawn after player turn (updatePendingSpawns is now called at start of turn)
+    checkItemSpawn();
+    
     // Enemy turn (movements already calculated and displayed)
     setTimeout(() => {
         enemyTurn();
@@ -1820,9 +2607,10 @@ async function enemyTurn() {
         // Skip if enemy was removed
         if (!gameState.enemies.find(e => e.id === enemy.id)) continue;
         
-        // Roll dice for enemy - max dice = enemy value
-        const roll = rollEnemyDice(enemy.value);
-        console.log(`Enemy ${enemy.id} (value ${enemy.value}) rolled: ${roll} (range: 1-${enemy.value})`);
+        // Roll dice for enemy - max dice = enemy initial value (fixed at spawn)
+        const roll = rollEnemyDice(enemy);
+        const spdRange = enemy.spd ? `${enemy.spd.min}-${enemy.spd.max}` : `1-${enemy.initialValue}`;
+        console.log(`Enemy ${enemy.id} (current value ${enemy.value}, initial value ${enemy.initialValue}) rolled: ${roll} (SPD range: ${spdRange})`);
         
         // Show dice roll animation on enemy cell
         await showEnemyDiceRoll(enemy, roll);
@@ -1927,13 +2715,17 @@ async function enemyTurn() {
     
     // End enemy turn
     if (gameState.gameRunning) {
-        // Check instant win first, then impossible win after enemy turn
-        if (!checkInstantWin()) {
-            checkImpossibleWin();
-        }
+        // Check item spawn after enemy turn (but don't update pending spawns - only player turn counts)
+        checkItemSpawn();
         
         if (gameState.gameRunning) {
             gameState.currentTurn = 'player';
+            
+            // Check item spawn at the START of player turn (before player can roll)
+            // This happens immediately when turn switches to player, before any player action
+            await updatePendingSpawns();
+            checkItemSpawn();
+            
             elements.diceLabel.textContent = 'Your turn';
             elements.diceFace.textContent = '?';
             elements.rollButton.disabled = false;
@@ -1960,10 +2752,8 @@ async function enemyCollectItem(enemy, x, y) {
     updateUI();
     console.log(`Enemy ${enemy.id} collected item worth ${item.value}`);
     
-    // Check instant win first, then impossible win after enemy collects item
-    if (!checkInstantWin()) {
-        checkImpossibleWin();
-    }
+    // Check item spawn after enemy collects item
+    checkItemSpawn();
 }
 
 // Perform Enemy Combat (when enemy hits player)
@@ -1977,351 +2767,306 @@ async function performEnemyCombat(enemy, x, y) {
     renderGrid();
     await sleep(100);
     
-    // Get the cell after render
-    const cell = elements.gameGrid.querySelector(`[data-x="${x}"][data-y="${y}"]`);
-    if (!cell) {
-        console.error('Cell not found for combat');
-        return;
-    }
+    // Show combat screen and start combat (player always goes first)
+    showCombatScreen(
+        gameState.player.value,
+        enemy.value,
+        enemy.emoji || '👹',
+        enemy.type || 'Enemy',
+        enemy.id
+    );
     
-    // Add combat class for animation
-    cell.classList.add('combat');
+    // Start combat with player turn (player always goes first)
+    await performCombatTurn('player');
+}
+
+// Item Spawn System
+
+// Check if items need to be spawned
+function checkItemSpawn() {
+    if (!gameState.gameRunning) return;
     
-    // Wait for animation
-    await sleep(600);
+    const levelConfig = getLevelConfig(gameState.level);
+    const minItems = levelConfig.minItems || 3;
+    // Count both existing items and pending spawns (items that are already in spawn process)
+    const currentItemCount = gameState.items.length + gameState.pendingSpawns.length;
     
-    // Remove combat class before proceeding
-    cell.classList.remove('combat');
-    
-    // Compare values - Player wins if value >= enemy
-    // Enemy wins if value > player
-    if (gameState.player.value >= enemy.value) {
-        // Player wins - enemy thua
-        const oldValue = gameState.player.value;
-        const enemyValue = enemy.value;
-        
-        // Player absorbs enemy value
-        gameState.player.value += enemy.value;
-        
-        // Remove enemy from grid and array
-        gameState.grid[y][x].enemy = null;
-        gameState.enemies = gameState.enemies.filter(e => e.id !== enemy.id);
-        
-        // Re-render grid to show updated state
-        renderGrid();
-        await sleep(100);
-        
-        // Show value gain animation
-        const updatedCell = elements.gameGrid.querySelector(`[data-x="${x}"][data-y="${y}"]`);
-        if (updatedCell) {
-            showValueGainAnimation(x, y, enemyValue);
+    // Check if we need to spawn more items
+    if (currentItemCount < minItems) {
+        const itemsToSpawn = minItems - currentItemCount;
+        for (let i = 0; i < itemsToSpawn; i++) {
+            initiateItemSpawn(levelConfig);
         }
-        
-        updateUI();
-        await sleep(300);
-        
-        console.log(`Player won! Enemy ${enemy.id} defeated. Absorbed ${enemyValue}. Value: ${oldValue} → ${gameState.player.value}`);
-        
-        // Check win condition
-        if (gameState.enemies.length === 0) {
-            checkLevelComplete();
-            return;
-        }
-        
-        // Check instant win after defeating enemy
-        if (checkInstantWin()) {
-            return; // Instant win triggered
-        }
-    } else {
-        // Enemy wins - Player loses (enemy value > player value)
-        console.log(`Player lost! Enemy ${enemy.id} value (${enemy.value}) > Player value (${gameState.player.value}). Game Over.`);
-        gameOver(false);
-        return;
     }
 }
 
-// Check if player can instant win (player value >= all enemy values AND no items left)
-function checkInstantWin() {
-    if (!gameState.gameRunning || gameState.enemies.length === 0) {
-        return false; // Game already over or won
+// Initiate item spawn - find empty cell and create preview
+function initiateItemSpawn(levelConfig) {
+    const spawnTurns = levelConfig.spawnTurns || 3;
+    
+    // Find all empty cells
+    const emptyCells = [];
+    for (let y = 0; y < gameState.gridHeight; y++) {
+        for (let x = 0; x < gameState.gridWidth; x++) {
+            const cell = gameState.grid[y][x];
+            // Check if cell is empty (no player, enemy, item, special grid, gold, or pending spawn)
+            if (!cell.player && 
+                cell.enemy === null && 
+                cell.item === null && 
+                cell.specialGrid === null &&
+                !cell.gold &&
+                !gameState.pendingSpawns.find(spawn => spawn.x === x && spawn.y === y)) {
+                emptyCells.push({ x, y });
+            }
+        }
     }
     
-    // Check if there are no items left (enemies can't collect items to increase value)
-    if (gameState.items.length > 0) {
-        return false; // Still have items, enemies might collect them
+    if (emptyCells.length === 0) {
+        console.log('No empty cells available for item spawn');
+        return;
     }
     
-    // Check if player can defeat all enemies
-    const canDefeatAll = gameState.enemies.every(enemy => gameState.player.value >= enemy.value);
+    // Random select an empty cell
+    const randomCell = emptyCells[Math.floor(Math.random() * emptyCells.length)];
     
-    if (canDefeatAll) {
-        console.log('Instant Win triggered! Player can defeat all enemies and no items left!');
-        instantWin();
-        return true;
+    // Filter item types by current level - item value must not exceed level
+    const currentLevel = gameState.level;
+    const availableItemTypes = CONFIG.ITEM_TYPES.filter(itemType => itemType.value <= currentLevel);
+    
+    if (availableItemTypes.length === 0) {
+        console.log(`No available item types for level ${currentLevel} - using smallest item`);
+        // Fallback to smallest item if no items available for this level
+        const smallestItem = CONFIG.ITEM_TYPES[0];
+        // Continue with spawn using smallest item
+        const spawnValue = smallestItem.value;
+        // Create preview element
+        const cell = elements.gameGrid.querySelector(`[data-x="${randomCell.x}"][data-y="${randomCell.y}"]`);
+        if (!cell) return;
+        
+        const previewContainer = document.createElement('div');
+        previewContainer.className = 'item-spawn-preview';
+        previewContainer.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 5;
+            pointer-events: none;
+        `;
+        
+        const emoji = document.createElement('div');
+        emoji.className = 'item-spawn-emoji';
+        emoji.textContent = smallestItem.emoji;
+        
+        const countdown = document.createElement('div');
+        countdown.className = 'item-spawn-countdown';
+        const clockIcon = document.createElement('span');
+        clockIcon.textContent = '⏰';
+        const turnsText = document.createElement('span');
+        turnsText.className = 'item-spawn-turns';
+        turnsText.textContent = spawnTurns;
+        countdown.appendChild(clockIcon);
+        countdown.appendChild(turnsText);
+        
+        previewContainer.appendChild(emoji);
+        previewContainer.appendChild(countdown);
+        cell.appendChild(previewContainer);
+        
+        // Add to pending spawns
+        gameState.pendingSpawns.push({
+            x: randomCell.x,
+            y: randomCell.y,
+            value: spawnValue,
+            turnsRemaining: spawnTurns,
+            previewElement: previewContainer,
+            countdownText: turnsText
+        });
+        
+        console.log(`Item spawn initiated at (${randomCell.x}, ${randomCell.y}), will spawn in ${spawnTurns} turns (fallback to smallest item)`);
+        return;
     }
     
-    return false;
-}
-
-// Instant Win - Player defeats all enemies with special animation
-async function instantWin() {
-    // Prevent further actions
-    gameState.gameRunning = false;
-    gameState.isMoving = true;
+    // Random select item value (weighted towards smaller items)
+    const weights = [0.4, 0.3, 0.2, 0.1].slice(0, availableItemTypes.length); // Adjust weights to match available items
+    // Normalize weights
+    const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+    const normalizedWeights = weights.map(w => w / totalWeight);
     
-    console.log('🎉 INSTANT WIN! Player value:', gameState.player.value);
+    let random = Math.random();
+    let selectedItem = availableItemTypes[0];
+    let cumulativeWeight = 0;
+    for (let i = 0; i < availableItemTypes.length; i++) {
+        cumulativeWeight += normalizedWeights[i];
+        if (random <= cumulativeWeight) {
+            selectedItem = availableItemTypes[i];
+            break;
+        }
+    }
     
-    // Delay before showing instant win message
-    await sleep(800);
+    // Create preview element
+    const cell = elements.gameGrid.querySelector(`[data-x="${randomCell.x}"][data-y="${randomCell.y}"]`);
+    if (!cell) return;
     
-    // Show instant win message
-    const instantWinMessage = document.createElement('div');
-    instantWinMessage.className = 'instant-win-message';
-    instantWinMessage.textContent = 'INSTANT WIN!';
-    instantWinMessage.style.cssText = `
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        font-size: 48px;
-        font-weight: bold;
-        color: #f1c40f;
-        text-shadow: 0 0 20px rgba(241, 196, 15, 1), 0 0 40px rgba(241, 196, 15, 0.8);
-        z-index: 10000;
-        animation: instantWinPulse 1s ease-in-out infinite;
+    const previewContainer = document.createElement('div');
+    previewContainer.className = 'item-spawn-preview';
+    previewContainer.style.cssText = `
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 5;
         pointer-events: none;
     `;
-    document.body.appendChild(instantWinMessage);
     
-    await sleep(1200);
+    const itemEmoji = document.createElement('div');
+    itemEmoji.className = 'item-spawn-emoji';
+    itemEmoji.textContent = selectedItem.emoji;
+    itemEmoji.style.cssText = `
+        font-size: 32px;
+        opacity: 0.4;
+        filter: blur(1px);
+        animation: itemSpawnPulse 1.5s ease-in-out infinite;
+    `;
     
-    // Get all enemies sorted by distance from player
-    const enemiesToDefeat = [...gameState.enemies].sort((a, b) => {
-        const distA = calculateManhattanDistance(gameState.player.x, gameState.player.y, a.x, a.y);
-        const distB = calculateManhattanDistance(gameState.player.x, gameState.player.y, b.x, b.y);
-        return distA - distB;
+    const countdownContainer = document.createElement('div');
+    countdownContainer.className = 'item-spawn-countdown';
+    countdownContainer.style.cssText = `
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin-top: 4px;
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.8);
+        font-weight: bold;
+    `;
+    
+    const clockIcon = document.createElement('span');
+    clockIcon.textContent = '⏱️';
+    clockIcon.style.fontSize = '12px';
+    
+    const countdownText = document.createElement('span');
+    countdownText.className = 'item-spawn-turns';
+    countdownText.textContent = spawnTurns;
+    
+    countdownContainer.appendChild(clockIcon);
+    countdownContainer.appendChild(countdownText);
+    
+    previewContainer.appendChild(itemEmoji);
+    previewContainer.appendChild(countdownContainer);
+    
+    cell.style.position = 'relative';
+    cell.appendChild(previewContainer);
+    
+    // Add to pending spawns
+    gameState.pendingSpawns.push({
+        x: randomCell.x,
+        y: randomCell.y,
+        value: selectedItem.value,
+        turnsRemaining: spawnTurns,
+        previewElement: previewContainer,
+        countdownText: countdownText
     });
     
-    // Defeat each enemy with animation
-    for (const enemy of enemiesToDefeat) {
-        if (!gameState.enemies.find(e => e.id === enemy.id)) continue; // Enemy already removed
-        
-        // Move player to enemy position (visual effect)
-        const oldPlayerX = gameState.player.x;
-        const oldPlayerY = gameState.player.y;
-        
-        // Temporarily move player to enemy position for animation
-        gameState.grid[oldPlayerY][oldPlayerX].player = false;
-        gameState.player.x = enemy.x;
-        gameState.player.y = enemy.y;
-        gameState.grid[enemy.y][enemy.x].player = true;
-        
-        renderGrid();
-        await sleep(200);
-        
-        // Show combat effect on enemy cell
-        const enemyCell = elements.gameGrid.querySelector(`[data-x="${enemy.x}"][data-y="${enemy.y}"]`);
-        if (enemyCell) {
-            enemyCell.classList.add('combat');
-            enemyCell.classList.add('instant-win-combat');
-            
-            // Create instant win effect
-            const instantWinEffect = document.createElement('div');
-            instantWinEffect.className = 'instant-win-effect';
-            instantWinEffect.textContent = '⚡';
-            instantWinEffect.style.cssText = `
-                position: absolute;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                font-size: 60px;
-                color: #f1c40f;
-                text-shadow: 0 0 20px rgba(241, 196, 15, 1);
-                z-index: 1000;
-                animation: instantWinFlash 0.5s ease-out;
-                pointer-events: none;
-            `;
-            enemyCell.style.position = 'relative';
-            enemyCell.appendChild(instantWinEffect);
-        }
-        
-        await sleep(300);
-        
-        // Absorb enemy value
-        const enemyValue = enemy.value;
-        gameState.player.value += enemyValue;
-        
-        // Remove enemy
-        gameState.grid[enemy.y][enemy.x].enemy = null;
-        gameState.enemies = gameState.enemies.filter(e => e.id !== enemy.id);
-        
-        // Show value gain animation
-        if (enemyCell) {
-            showValueGainAnimation(enemy.x, enemy.y, enemyValue);
-            enemyCell.classList.remove('combat', 'instant-win-combat');
-            
-            // Remove effect after animation
-            setTimeout(() => {
-                const effect = enemyCell.querySelector('.instant-win-effect');
-                if (effect) effect.remove();
-            }, 500);
-        }
-        
-        renderGrid();
-        updateUI();
-        await sleep(400);
-    }
-    
-    // Move player back to original position (or keep at last enemy position)
-    // Actually, let's keep player at the last enemy position
-    
-    // Remove instant win message
-    if (instantWinMessage.parentNode) {
-        instantWinMessage.parentNode.removeChild(instantWinMessage);
-    }
-    
-    await sleep(500);
-    
-    // Show level complete
-    checkLevelComplete();
+    console.log(`Item spawn initiated at (${randomCell.x}, ${randomCell.y}), will spawn in ${spawnTurns} turns`);
 }
 
-// Highlight Impossible Enemies - Add warning icon at top-left
-function highlightImpossibleEnemies(impossibleEnemies) {
-    impossibleEnemies.forEach(enemy => {
-        const cell = elements.gameGrid.querySelector(`[data-x="${enemy.x}"][data-y="${enemy.y}"]`);
-        if (cell) {
-            cell.classList.add('impossible-enemy');
+// Update pending spawns - decrease turns and spawn when ready
+// This should only be called at the START of player turn (not enemy turn)
+async function updatePendingSpawns() {
+    if (!gameState.gameRunning) return;
+    
+    let needsRender = false;
+    const spawnsToProcess = [...gameState.pendingSpawns];
+    
+    for (const spawn of spawnsToProcess) {
+        spawn.turnsRemaining--;
+        
+        // If turns reached 0, spawn the item
+        if (spawn.turnsRemaining <= 0) {
+            await spawnItemAtPosition(spawn.x, spawn.y, spawn.value);
             
-            // Remove existing warning icon if any
-            const existingIcon = cell.querySelector('.impossible-warning-icon');
-            if (existingIcon) {
-                existingIcon.remove();
+            // Remove preview if it still exists
+            if (spawn.previewElement && spawn.previewElement.parentNode) {
+                spawn.previewElement.parentNode.removeChild(spawn.previewElement);
             }
             
-            // Add warning icon at top-left corner
-            const warningIcon = document.createElement('div');
-            warningIcon.className = 'impossible-warning-icon';
-            warningIcon.textContent = '⚠️';
-            warningIcon.style.cssText = `
-                position: absolute;
-                top: 2px;
-                left: 2px;
-                font-size: 20px;
-                z-index: 11;
-                pointer-events: none;
-                animation: warningPulse 1s ease-in-out infinite;
-            `;
-            cell.appendChild(warningIcon);
+            // Clear references
+            spawn.previewElement = null;
+            spawn.countdownText = null;
+            
+            // Remove from pending spawns
+            gameState.pendingSpawns = gameState.pendingSpawns.filter(s => s !== spawn);
+            
+            needsRender = true; // Item was spawned, need to render
+        } else {
+            // Countdown updated, need to re-render to update preview display
+            needsRender = true;
         }
-    });
-}
-
-// Remove Impossible Enemy Highlights
-function removeImpossibleEnemyHighlights() {
-    const highlightedCells = elements.gameGrid.querySelectorAll('.impossible-enemy');
-    highlightedCells.forEach(cell => {
-        cell.classList.remove('impossible-enemy');
-        cell.style.animation = '';
-        
-        // Remove warning icons
-        const warningIcons = cell.querySelectorAll('.impossible-warning-icon');
-        warningIcons.forEach(icon => icon.remove());
-    });
-}
-
-// Show Instant Lose Message (text only, like instant win)
-async function showInstantLosePopup(impossibleEnemies, currentMaxValue, maxPossibleValue) {
-    // Prevent further actions
-    gameState.gameRunning = false;
-    gameState.isMoving = true;
-    
-    // Highlight impossible enemies first
-    highlightImpossibleEnemies(impossibleEnemies);
-    
-    // Wait a bit to show highlights
-    await sleep(800);
-    
-    // Show instant lose message (text only, like instant win)
-    const instantLoseMessage = document.createElement('div');
-    instantLoseMessage.className = 'instant-lose-message';
-    instantLoseMessage.textContent = 'IMPOSSIBLE WIN!';
-    instantLoseMessage.style.cssText = `
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        font-size: 48px;
-        font-weight: bold;
-        color: #e74c3c;
-        text-shadow: 0 0 20px rgba(231, 76, 60, 1), 0 0 40px rgba(231, 76, 60, 0.8);
-        z-index: 10000;
-        animation: instantLosePulse 1s ease-in-out infinite;
-        pointer-events: none;
-        white-space: nowrap;
-    `;
-    document.body.appendChild(instantLoseMessage);
-    
-    // Wait for message display
-    await sleep(2000);
-    
-    // Remove highlights
-    removeImpossibleEnemyHighlights();
-    
-    // Remove instant lose message
-    if (instantLoseMessage.parentNode) {
-        instantLoseMessage.parentNode.removeChild(instantLoseMessage);
     }
     
-    // Show game over screen
-    gameOver(false);
+    // Re-render grid to ensure previews are visible with updated countdown
+    // This will recreate all previews with the new turnsRemaining values
+    if (needsRender) {
+        renderGrid();
+    }
 }
 
-// Check if player can still win (impossible win condition)
-function checkImpossibleWin() {
-    if (!gameState.gameRunning || gameState.enemies.length === 0) {
-        return; // Game already over or won
-    }
-    
-    // First check for instant win
-    if (checkInstantWin()) {
-        return; // Instant win triggered, don't check impossible win
-    }
-    
-    // Calculate total possible player value (current + all remaining items)
-    const totalItemValue = gameState.items.reduce((sum, item) => sum + item.value, 0);
-    
-    // Find enemies that player can currently defeat (with items)
-    const currentMaxValue = gameState.player.value + totalItemValue;
-    const defeatableEnemies = gameState.enemies.filter(enemy => currentMaxValue >= enemy.value);
-    const undefeatableEnemies = gameState.enemies.filter(enemy => currentMaxValue < enemy.value);
-    
-    // If player cannot defeat any enemy even with all items, it's impossible
-    if (defeatableEnemies.length === 0) {
-        const strongestEnemy = gameState.enemies.reduce((max, e) => e.value > max.value ? e : max, gameState.enemies[0]);
-        console.log(`Impossible win! Max possible value (${currentMaxValue}) cannot defeat any enemy. Strongest: ${strongestEnemy.value}.`);
-        
-        // Show instant lose popup with all enemies highlighted
-        showInstantLosePopup(gameState.enemies, currentMaxValue, currentMaxValue);
+// Spawn item at position
+async function spawnItemAtPosition(x, y, value) {
+    // Check if cell is still empty (except player/enemy - they can collect immediately)
+    const cell = gameState.grid[y][x];
+    if (cell.item !== null || cell.specialGrid !== null) {
+        console.log(`Cannot spawn item at (${x}, ${y}) - cell is not empty`);
         return;
     }
     
-    // Calculate max possible value if player defeats all defeatable enemies
-    const totalValueFromDefeatableEnemies = defeatableEnemies.reduce((sum, enemy) => sum + enemy.value, 0);
-    const maxPossibleValueAfterDefeatingAll = currentMaxValue + totalValueFromDefeatableEnemies;
+    // Find item type
+    const itemType = findItemTypeByValue(value);
     
-    // Check if even after defeating all defeatable enemies, player still can't beat remaining enemies
-    if (undefeatableEnemies.length > 0) {
-        const strongestUndefeatable = undefeatableEnemies.reduce((max, e) => e.value > max.value ? e : max, undefeatableEnemies[0]);
-        
-        if (maxPossibleValueAfterDefeatingAll < strongestUndefeatable.value) {
-            console.log(`Impossible win! Even after defeating all defeatable enemies, max value (${maxPossibleValueAfterDefeatingAll}) cannot defeat strongest enemy (${strongestUndefeatable.value}).`);
-            
-            // Show instant lose popup with impossible enemies highlighted
-            showInstantLosePopup(undefeatableEnemies, currentMaxValue, maxPossibleValueAfterDefeatingAll);
+    // Create item
+    const item = {
+        id: gameState.items.length,
+        x: x,
+        y: y,
+        value: value,
+        type: itemType.name,
+        emoji: itemType.emoji
+    };
+    
+    // Add to game state
+    gameState.items.push(item);
+    gameState.grid[y][x].item = item.id;
+    
+    // Check if player or enemy is on this cell - collect immediately
+    if (cell.player) {
+        // Player is on this cell - collect immediately
+        console.log(`Item spawned at (${x}, ${y}) and player immediately collects it!`);
+        await collectItem(x, y);
+        return;
+    }
+    
+    if (cell.enemy !== null) {
+        // Enemy is on this cell - enemy collects immediately
+        const enemy = gameState.enemies.find(e => e.id === cell.enemy);
+        if (enemy) {
+            console.log(`Item spawned at (${x}, ${y}) and enemy ${enemy.id} immediately collects it!`);
+            await enemyCollectItem(enemy, x, y);
             return;
         }
     }
+    
+    // Don't render here - renderGrid() will be called by updatePendingSpawns() after spawning
+    console.log(`Item spawned at (${x}, ${y}) with value ${value}`);
 }
 
 // Show Value Gain Animation
@@ -2404,10 +3149,15 @@ function showPowerupSelection(nextLevel) {
         elements.powerupScreen.style.display = 'flex';
     }
     
-    // Update current dice range display
+    // Update current INT range display
     const powerupDiceRange = document.getElementById('powerupDiceRange');
-    if (powerupDiceRange && gameState.runStats) {
-        powerupDiceRange.textContent = `${gameState.runStats.minRoll}-${gameState.runStats.maxRoll}`;
+    if (powerupDiceRange) {
+        if (gameState.playerStats && gameState.playerStats.int) {
+            powerupDiceRange.textContent = `${gameState.playerStats.int.min}-${gameState.playerStats.int.max}`;
+        } else if (gameState.runStats) {
+            // Fallback to old system
+            powerupDiceRange.textContent = `${gameState.runStats.minRoll}-${gameState.runStats.maxRoll}`;
+        }
     }
     
     // Generate power-up cards
@@ -2502,10 +3252,17 @@ function rollResourceDice() {
     // Add rolling animation
     elements.resourceDice.classList.add('rolling');
     
-    // Roll using min/max from run stats after animation
+    // Roll using INT stat (replaces minRoll-maxRoll)
     setTimeout(() => {
-        const min = gameState.runStats.minRoll;
-        const max = gameState.runStats.maxRoll;
+        let min, max;
+        if (gameState.playerStats && gameState.playerStats.int) {
+            min = gameState.playerStats.int.min;
+            max = gameState.playerStats.int.max;
+        } else {
+            // Fallback to old system
+            min = gameState.runStats.minRoll;
+            max = gameState.runStats.maxRoll;
+        }
         const rollResult = Math.floor(Math.random() * (max - min + 1)) + min;
         
         elements.resourceDice.textContent = rollResult;
@@ -2566,20 +3323,73 @@ function selectPowerup(powerupId) {
 
 // Apply Power-up Effect
 function applyPowerupEffect(powerup) {
+    if (!gameState.playerStats) {
+        console.warn('playerStats not initialized, cannot apply power-up effect');
+        return;
+    }
+    
     switch (powerup.effect) {
         case 'increase_min_roll':
+            // Legacy: increase SPD min (replaces minRoll)
             gameState.runStats.minRoll += powerup.value;
-            console.log(`Min roll increased to ${gameState.runStats.minRoll}`);
+            gameState.playerStats.spd.min += powerup.value;
+            console.log(`SPD min increased to ${gameState.playerStats.spd.min}`);
             break;
             
         case 'increase_max_roll':
+            // Legacy: increase SPD max (replaces maxRoll)
             gameState.runStats.maxRoll += powerup.value;
-            console.log(`Max roll increased to ${gameState.runStats.maxRoll}`);
+            gameState.playerStats.spd.max += powerup.value;
+            console.log(`SPD max increased to ${gameState.playerStats.spd.max}`);
             break;
             
         case 'increase_start_value':
             gameState.runStats.startValueBoost += powerup.value;
             console.log(`Start value boost increased to +${gameState.runStats.startValueBoost}`);
+            break;
+            
+        case 'increase_hp':
+            // Increase max HP only (not current)
+            gameState.playerStats.hp.max += powerup.value;
+            console.log(`HP max increased to ${gameState.playerStats.hp.max}`);
+            break;
+            
+        case 'heal_hp_full':
+            // Heal current HP to max
+            gameState.playerStats.hp.current = gameState.playerStats.hp.max;
+            console.log(`HP healed to ${gameState.playerStats.hp.current}/${gameState.playerStats.hp.max}`);
+            break;
+            
+        case 'increase_dmg_min':
+            gameState.playerStats.dmg.min += powerup.value;
+            console.log(`DMG min increased to ${gameState.playerStats.dmg.min}`);
+            break;
+            
+        case 'increase_dmg_max':
+            gameState.playerStats.dmg.max += powerup.value;
+            console.log(`DMG max increased to ${gameState.playerStats.dmg.max}`);
+            break;
+            
+        case 'increase_spd_min':
+            gameState.playerStats.spd.min += powerup.value;
+            gameState.runStats.minRoll += powerup.value; // Keep legacy in sync
+            console.log(`SPD min increased to ${gameState.playerStats.spd.min}`);
+            break;
+            
+        case 'increase_spd_max':
+            gameState.playerStats.spd.max += powerup.value;
+            gameState.runStats.maxRoll += powerup.value; // Keep legacy in sync
+            console.log(`SPD max increased to ${gameState.playerStats.spd.max}`);
+            break;
+            
+        case 'increase_int_min':
+            gameState.playerStats.int.min += powerup.value;
+            console.log(`INT min increased to ${gameState.playerStats.int.min}`);
+            break;
+            
+        case 'increase_int_max':
+            gameState.playerStats.int.max += powerup.value;
+            console.log(`INT max increased to ${gameState.playerStats.int.max}`);
             break;
             
         default:

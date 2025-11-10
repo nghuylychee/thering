@@ -5,9 +5,18 @@ const HOME_MANAGER = {
     playerData: {
         totalGold: 0,
         upgrades: {
+            // Legacy upgrades (kept for backward compatibility, will be migrated to new stats)
             minRoll: { level: 0, cost: 50 },
             maxRoll: { level: 0, cost: 50 },
-            startValueBoost: { level: 0, cost: 75 }
+            startValueBoost: { level: 0, cost: 75 },
+            // New stat upgrades
+            hp: { level: 0, cost: 75 },
+            dmgMin: { level: 0, cost: 50 },
+            dmgMax: { level: 0, cost: 50 },
+            spdMin: { level: 0, cost: 50 },
+            spdMax: { level: 0, cost: 50 },
+            intMin: { level: 0, cost: 50 },
+            intMax: { level: 0, cost: 50 }
         }
     },
 
@@ -15,7 +24,14 @@ const HOME_MANAGER = {
     upgradeCostScaling: {
         minRoll: 1.3,
         maxRoll: 1.3,
-        startValueBoost: 1.4
+        startValueBoost: 1.4,
+        hp: 1.4,
+        dmgMin: 1.3,
+        dmgMax: 1.3,
+        spdMin: 1.3,
+        spdMax: 1.3,
+        intMin: 1.3,
+        intMax: 1.3
     },
 
     // Initialize home manager
@@ -30,7 +46,16 @@ const HOME_MANAGER = {
     loadPlayerData: function() {
         const saved = localStorage.getItem('diceBoundPlayerData');
         if (saved) {
-            this.playerData = { ...this.playerData, ...JSON.parse(saved) };
+            const loadedData = JSON.parse(saved);
+            // Merge with default upgrades to ensure new upgrades exist
+            this.playerData = { 
+                ...this.playerData, 
+                ...loadedData,
+                upgrades: {
+                    ...this.playerData.upgrades,
+                    ...(loadedData.upgrades || {})
+                }
+            };
         }
         
         // Sync gold: prefer playerData over old system, but sync both ways
@@ -59,9 +84,18 @@ const HOME_MANAGER = {
     // Get base upgrades (for game initialization)
     getBaseUpgrades: function() {
         return {
+            // Legacy upgrades (for backward compatibility)
             minRoll: this.playerData.upgrades.minRoll.level,
             maxRoll: this.playerData.upgrades.maxRoll.level,
-            startValueBoost: this.playerData.upgrades.startValueBoost.level
+            startValueBoost: this.playerData.upgrades.startValueBoost.level,
+            // New stat upgrades
+            hp: this.playerData.upgrades.hp.level,
+            dmgMin: this.playerData.upgrades.dmgMin.level,
+            dmgMax: this.playerData.upgrades.dmgMax.level,
+            spdMin: this.playerData.upgrades.spdMin.level,
+            spdMax: this.playerData.upgrades.spdMax.level,
+            intMin: this.playerData.upgrades.intMin.level,
+            intMax: this.playerData.upgrades.intMax.level
         };
     },
 
@@ -163,21 +197,24 @@ const HOME_MANAGER = {
         // Get base upgrades
         const upgrades = this.getBaseUpgrades();
         
-        // Calculate base stats (1 + minRoll upgrades, 2 + maxRoll upgrades)
-        const baseMinRoll = 1 + upgrades.minRoll;
-        const baseMaxRoll = 2 + upgrades.maxRoll;
-        // Base Power = starting value (2) + upgrades
-        const basePower = 2 + upgrades.startValueBoost;
+        // Calculate base stats
+        const baseHP = 2 + upgrades.startValueBoost + upgrades.hp;
+        const baseDMGMin = 1 + upgrades.dmgMin;
+        const baseDMGMax = 2 + upgrades.startValueBoost + upgrades.dmgMax;
+        const baseSPDMin = 1 + upgrades.spdMin;
+        const baseSPDMax = 2 + upgrades.spdMax;
+        const baseINTMin = 1 + upgrades.intMin;
+        const baseINTMax = 2 + upgrades.intMax;
         
         // Update home stats display
-        const homeDiceRange = document.getElementById('homeDiceRange');
-        const homeBonusValue = document.getElementById('homeBonusValue');
-        if (homeDiceRange) {
-            homeDiceRange.textContent = `${baseMinRoll}-${baseMaxRoll}`;
-        }
-        if (homeBonusValue) {
-            homeBonusValue.textContent = `${basePower}`;
-        }
+        const homeHP = document.getElementById('homeHP');
+        const homeDMG = document.getElementById('homeDMG');
+        const homeSPD = document.getElementById('homeSPD');
+        const homeINT = document.getElementById('homeINT');
+        if (homeHP) homeHP.textContent = baseHP;
+        if (homeDMG) homeDMG.textContent = `${baseDMGMin}-${baseDMGMax}`;
+        if (homeSPD) homeSPD.textContent = `${baseSPDMin}-${baseSPDMax}`;
+        if (homeINT) homeINT.textContent = `${baseINTMin}-${baseINTMax}`;
     },
 
     // Update upgrades UI
@@ -190,18 +227,30 @@ const HOME_MANAGER = {
         
         // Update stats display
         const upgrades = this.getBaseUpgrades();
-        const baseMinRoll = 1 + upgrades.minRoll;
-        const baseMaxRoll = 2 + upgrades.maxRoll;
-        // Base Power = starting value (2) + upgrades
-        const basePower = 2 + upgrades.startValueBoost;
+        const baseHP = 2 + upgrades.startValueBoost + upgrades.hp;
+        const baseDMGMin = 1 + upgrades.dmgMin;
+        const baseDMGMax = 2 + upgrades.startValueBoost + upgrades.dmgMax;
+        const baseSPDMin = 1 + upgrades.spdMin;
+        const baseSPDMax = 2 + upgrades.spdMax;
+        const baseINTMin = 1 + upgrades.intMin;
+        const baseINTMax = 2 + upgrades.intMax;
         
-        const upgradeMinRoll = document.getElementById('upgradeMinRoll');
-        const upgradeMaxRoll = document.getElementById('upgradeMaxRoll');
-        const upgradeStartValue = document.getElementById('upgradeStartValue');
+        // Update stat displays
+        const upgradeHP = document.getElementById('upgradeHP');
+        const upgradeDMGMin = document.getElementById('upgradeDMGMin');
+        const upgradeDMGMax = document.getElementById('upgradeDMGMax');
+        const upgradeSPDMin = document.getElementById('upgradeSPDMin');
+        const upgradeSPDMax = document.getElementById('upgradeSPDMax');
+        const upgradeINTMin = document.getElementById('upgradeINTMin');
+        const upgradeINTMax = document.getElementById('upgradeINTMax');
         
-        if (upgradeMinRoll) upgradeMinRoll.textContent = baseMinRoll;
-        if (upgradeMaxRoll) upgradeMaxRoll.textContent = baseMaxRoll;
-        if (upgradeStartValue) upgradeStartValue.textContent = `${basePower}`;
+        if (upgradeHP) upgradeHP.textContent = baseHP;
+        if (upgradeDMGMin) upgradeDMGMin.textContent = baseDMGMin;
+        if (upgradeDMGMax) upgradeDMGMax.textContent = baseDMGMax;
+        if (upgradeSPDMin) upgradeSPDMin.textContent = baseSPDMin;
+        if (upgradeSPDMax) upgradeSPDMax.textContent = baseSPDMax;
+        if (upgradeINTMin) upgradeINTMin.textContent = baseINTMin;
+        if (upgradeINTMax) upgradeINTMax.textContent = baseINTMax;
         
         // Update each upgrade card
         Object.keys(this.playerData.upgrades).forEach(upgradeType => {
@@ -508,4 +557,6 @@ const HOME_MANAGER = {
 document.addEventListener('DOMContentLoaded', () => {
     HOME_MANAGER.init();
 });
+
+
 

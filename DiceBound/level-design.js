@@ -7,7 +7,6 @@
 // - 'L' = Lava
 // - 'S' = Swamp
 // - 'C' = Canon
-// - 'G' = Gold bag
 // - '.' or ' ' or 0 = Empty cell
 
 const LEVEL_DESIGN = {
@@ -20,17 +19,19 @@ const LEVEL_DESIGN = {
             description: 'Learn the basics - immediate enemy threat',
             goldPerLevel: 10,
             goldPerBag: 5,
+            minItems: 3,
+            spawnTurns: 3,
             layout: [
                 ['P', 0, 0, 0, 0, 0, 0, 0],
                 [0, 1, 0, 0, 0, 0, 0, 0],  // Item nearby
                 [0, 0, 0, 0, -1, 0, 0, 0],  // Enemy right side
-                [0, 0, 0, 'G', 0, 0, 0, 0],  // Gold bag
-                [0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0],  // Gold bag
+                [0, 0, 0, 0, 0, 0, 0, 0],  // Item mid-left
                 [0, 0, -1, 0, 0, 0, -1, 0],  // Enemies mid-left and mid-right
-                [0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0],  // Item mid-right
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, -1, 0, 0, 0, 0, 0, 0],  // Enemy left side
-                [0, 0, 0, 0, 0, 0, 0, 0]
+                [0, 0, 0, 0, 0, 0, 0, 0]  // Item bottom-right
             ]
         },
         {
@@ -40,17 +41,19 @@ const LEVEL_DESIGN = {
             description: 'Boxes + enemies - navigate carefully',
             goldPerLevel: 12,
             goldPerBag: 5,
+            minItems: 3,
+            spawnTurns: 3,
             layout: [
                 ['P', 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 'B', 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 'B', 0],
                 [0, 0, 0, 0, 'B', 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 1, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, -1, 0, 0, 0, 0, -3, 0],  // Enemies left and right
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, -1, -3, 'G', -3, -3, 0, 0]  // Enemies scattered bottom + gold
+                [0, -1, -3, 0, -3, -3, 0, 0]  // Enemies scattered bottom + gold
             ]
         },
         {
@@ -60,17 +63,19 @@ const LEVEL_DESIGN = {
             description: 'Weak + Normal enemies - enemies closer',
             goldPerLevel: 15,
             goldPerBag: 5,
+            minItems: 3,
+            spawnTurns: 3,
             layout: [
                 ['P', 0, 0, 0, 0, 0, 0, 0],
-                [0, 1, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 'B', 0, 0, 0, 0],
                 [0, 0, 0, 0, -1, 0, 0, 0],  // Enemy mid-top
-                [0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 1, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, -3, 0, 0],  // Enemy mid-right
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, -3, 0, 0, 0, 0, 0, 0],  // Enemy left side
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, -3, 'G', -5, 0, 0, 0]  // Enemies scattered bottom + gold
+                [0, 0, -3, 0, -5, 0, 0, 0]  // Enemies scattered bottom + gold
             ]
         },
         {
@@ -80,6 +85,8 @@ const LEVEL_DESIGN = {
             description: 'More obstacles + enemies closing in',
             goldPerLevel: 18,
             goldPerBag: 6,
+            minItems: 4,
+            spawnTurns: 3,
             layout: [
                 ['P', 0, 0, 0, 0, 0, 0, 0],
                 [0, 'B', 0, 0, 0, 'B', 0, 0],
@@ -90,7 +97,7 @@ const LEVEL_DESIGN = {
                 [0, -3, 0, 0, 0, 0, -3, 0],  // Enemies left and right
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, -3, -5, 'G', -5, -5, 0]  // Enemies scattered bottom + gold
+                [0, 0, -3, -5, 0, -5, -5, 0]  // Enemies scattered bottom + gold
             ]
         },
         {
@@ -100,9 +107,11 @@ const LEVEL_DESIGN = {
             description: 'Lava + enemies - high pressure!',
             goldPerLevel: 20,
             goldPerBag: 6,
+            minItems: 4,
+            spawnTurns: 3,
             layout: [
                 ['P', 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 1, 0],
                 [0, 0, 'B', 0, 'L', 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
@@ -110,7 +119,7 @@ const LEVEL_DESIGN = {
                 [0, -3, 0, 0, 0, 0, -3, 0],  // Enemies left and right
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, -5, -5, 'G', -5, -8, 0]  // Enemies scattered bottom + gold
+                [0, 0, -5, -5, 0, -5, -8, 0]  // Enemies scattered bottom + gold
             ]
         },
         
@@ -122,9 +131,11 @@ const LEVEL_DESIGN = {
             description: 'Multiple enemies - high pressure!',
             goldPerLevel: 25,
             goldPerBag: 7,
+            minItems: 4,
+            spawnTurns: 3,
             layout: [
                 ['P', 0, 0, 0, 0, 0, 0, 0],
-                [0, 1, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 'B', 0, 0, 0, 'B', 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
@@ -132,7 +143,7 @@ const LEVEL_DESIGN = {
                 [0, -1, 0, 0, 0, 0, -3, 0],  // Enemies left and right
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [-3, 0, -5, -5, 'G', -5, -8, 0]  // Enemies scattered bottom + gold
+                [-3, 0, -5, -5, 0, -5, -8, 0]  // Enemies scattered bottom + gold
             ]
         },
         {
@@ -142,6 +153,8 @@ const LEVEL_DESIGN = {
             description: 'Swamp + many enemies - extreme danger!',
             goldPerLevel: 28,
             goldPerBag: 7,
+            minItems: 4,
+            spawnTurns: 3,
             layout: [
                 ['P', 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
@@ -152,7 +165,7 @@ const LEVEL_DESIGN = {
                 [0, -3, 0, 0, 0, 0, -3, 0],  // Enemies left and right
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [-5, 0, -5, -5, 'G', -5, -8, 0]  // Enemies scattered bottom + gold
+                [-5, 0, -5, -5, 0, -5, -8, 0]  // Enemies scattered bottom + gold
             ]
         },
         {
@@ -162,6 +175,8 @@ const LEVEL_DESIGN = {
             description: 'Canon + enemies closing in',
             goldPerLevel: 32,
             goldPerBag: 8,
+            minItems: 5,
+            spawnTurns: 3,
             layout: [
                 ['P', 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
@@ -172,7 +187,7 @@ const LEVEL_DESIGN = {
                 [0, -3, 0, 0, 0, 0, -5, 0],  // Enemies left and right
                 [0, 0, 0, 0, 0, 0, 'C', 0],  // Canon
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [-5, 0, -5, 'G', -8, -8, 0, 0]  // Enemies scattered bottom + gold
+                [-5, 0, -5, 0, -8, -8, 0, 0]  // Enemies scattered bottom + gold
             ]
         },
         {
@@ -182,6 +197,8 @@ const LEVEL_DESIGN = {
             description: 'Complex obstacles + enemies everywhere',
             goldPerLevel: 35,
             goldPerBag: 8,
+            minItems: 5,
+            spawnTurns: 3,
             layout: [
                 ['P', 0, 0, 0, 0, 0, 0, 0],
                 [0, 'B', 0, 0, 0, 'B', 0, 0],
@@ -192,7 +209,7 @@ const LEVEL_DESIGN = {
                 [0, 'B', 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [-3, 0, 0, 0, 0, 0, -3, 0],  // Enemies left and right
-                [0, 0, -5, -5, 'G', -8, -8, -8]  // Enemies scattered bottom + gold
+                [0, 0, -5, -5, 0, -8, -8, -8]  // Enemies scattered bottom + gold
             ]
         },
         {
@@ -202,9 +219,11 @@ const LEVEL_DESIGN = {
             description: 'Boss + strong enemies - ultimate challenge!',
             goldPerLevel: 40,
             goldPerBag: 10,
+            minItems: 5,
+            spawnTurns: 3,
             layout: [
                 ['P', 0, 0, 0, 0, 0, 0, 0],
-                [0, 1, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
@@ -212,7 +231,7 @@ const LEVEL_DESIGN = {
                 [0, -5, 0, 0, 0, 0, -5, 0],  // Enemies left and right
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [-5, 0, -8, -8, 'G', -8, -8, 0]  // Enemies scattered bottom + gold
+                [-5, 0, -8, -8, 0, -8, -8, 0]  // Enemies scattered bottom + gold
             ]
         },
         
@@ -224,6 +243,8 @@ const LEVEL_DESIGN = {
             description: 'Lava + swamp + many enemies - nightmare!',
             goldPerLevel: 45,
             goldPerBag: 10,
+            minItems: 5,
+            spawnTurns: 4,
             layout: [
                 ['P', 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
@@ -234,7 +255,7 @@ const LEVEL_DESIGN = {
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [-3, 0, 0, 0, 0, 0, -5, 0],  // Enemies left and right
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [-5, 0, -5, -5, 'G', -8, -8, 0]  // Enemies scattered bottom + gold
+                [-5, 0, -5, -5, 0, -8, -8, 0]  // Enemies scattered bottom + gold
             ]
         },
         {
@@ -244,6 +265,8 @@ const LEVEL_DESIGN = {
             description: 'All strong enemies - no mercy!',
             goldPerLevel: 50,
             goldPerBag: 12,
+            minItems: 6,
+            spawnTurns: 4,
             layout: [
                 ['P', 0, 0, 0, 0, 0, 0, 0],
                 [0, 1, 0, 0, 0, 0, 0, 0],
@@ -254,7 +277,7 @@ const LEVEL_DESIGN = {
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [-5, 0, 0, 0, 0, 0, -5, 0],  // Enemies left and right
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [-5, 0, -8, -8, 'G', -8, 0, 0]  // Enemies scattered bottom + gold
+                [-5, 0, -8, -8, 0, -8, 0, 0]  // Enemies scattered bottom + gold
             ]
         },
         {
@@ -264,6 +287,8 @@ const LEVEL_DESIGN = {
             description: 'Two bosses + strong enemies - impossible?',
             goldPerLevel: 55,
             goldPerBag: 12,
+            minItems: 6,
+            spawnTurns: 4,
             layout: [
                 ['P', 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
@@ -274,7 +299,7 @@ const LEVEL_DESIGN = {
                 [-5, 0, 0, 0, 0, 0, -5, 0],  // Enemies left and right
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [-8, 0, -8, -8, 'G', -8, 0, 0]  // Enemies scattered bottom + gold
+                [-8, 0, -8, -8, 0, -8, 0, 0]  // Enemies scattered bottom + gold
             ]
         },
         {
@@ -284,6 +309,8 @@ const LEVEL_DESIGN = {
             description: 'All hazards + enemies swarm - chaos!',
             goldPerLevel: 58,
             goldPerBag: 15,
+            minItems: 6,
+            spawnTurns: 4,
             layout: [
                 ['P', 0, 0, 0, 0, 0, 0, 0],
                 [0, 'B', 0, 0, 0, 'B', 0, 0],
@@ -294,7 +321,7 @@ const LEVEL_DESIGN = {
                 [0, 'B', 0, 0, 0, 0, 0, 0],
                 [-5, 0, 0, 0, 0, 0, -5, 0],  // Enemies left and right
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [-8, 0, -8, -8, 'G', -8, 0, 0]  // Enemies scattered bottom + gold
+                [-8, 0, -8, -8, 0, -8, 0, 0]  // Enemies scattered bottom + gold
             ]
         },
         {
@@ -304,6 +331,8 @@ const LEVEL_DESIGN = {
             description: 'Boss rush - multiple bosses!',
             goldPerLevel: 60,
             goldPerBag: 15,
+            minItems: 7,
+            spawnTurns: 4,
             layout: [
                 ['P', 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
@@ -314,7 +343,7 @@ const LEVEL_DESIGN = {
                 [-5, 0, 0, 0, 0, 0, -8, 0],  // Enemies left and right
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [-8, 0, -8, -8, 'G', -8, -8, 0]  // Enemies scattered bottom + gold
+                [-8, 0, -8, -8, 0, -8, -8, 0]  // Enemies scattered bottom + gold
             ]
         },
         
@@ -326,6 +355,8 @@ const LEVEL_DESIGN = {
             description: 'Extreme enemy count - perfect execution only!',
             goldPerLevel: 70,
             goldPerBag: 18,
+            minItems: 7,
+            spawnTurns: 4,
             layout: [
                 ['P', 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
@@ -336,7 +367,7 @@ const LEVEL_DESIGN = {
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [-5, 0, 0, 0, 0, 0, -5, 0],  // Enemies left and right
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [-5, 0, -8, -8, 'G', -8, -8, 0]  // Enemies scattered bottom + gold
+                [-5, 0, -8, -8, 0, -8, -8, 0]  // Enemies scattered bottom + gold
             ]
         },
         {
@@ -346,6 +377,8 @@ const LEVEL_DESIGN = {
             description: 'Canon + obstacles + boss swarm - impossible odds!',
             goldPerLevel: 75,
             goldPerBag: 18,
+            minItems: 8,
+            spawnTurns: 4,
             layout: [
                 ['P', 0, 0, 0, 0, 0, 0, 0],
                 [0, 'B', 0, 0, 0, 'B', 0, 0],
@@ -356,7 +389,7 @@ const LEVEL_DESIGN = {
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [-5, 0, 0, 0, 0, 0, 'C', 0],  // Canon right, enemy left
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [-8, 0, -8, -8, 'G', -8, -8, 0]  // Enemies scattered bottom + gold
+                [-8, 0, -8, -8, 0, -8, -8, 0]  // Enemies scattered bottom + gold
             ]
         },
         {
@@ -366,6 +399,8 @@ const LEVEL_DESIGN = {
             description: 'Three bosses + strong enemies - no items!',
             goldPerLevel: 80,
             goldPerBag: 20,
+            minItems: 8,
+            spawnTurns: 4,
             layout: [
                 ['P', 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
@@ -376,7 +411,7 @@ const LEVEL_DESIGN = {
                 [-5, 0, 0, 0, 0, 0, -5, 0],  // Enemies left and right
                 [0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [-8, 0, -8, -8, 'G', -8, 0, 0]  // Enemies scattered bottom + gold
+                [-8, 0, -8, -8, 0, -8, 0, 0]  // Enemies scattered bottom + gold
             ]
         },
         {
@@ -386,6 +421,8 @@ const LEVEL_DESIGN = {
             description: 'All hazards + boss swarm - survive impossible maze!',
             goldPerLevel: 90,
             goldPerBag: 20,
+            minItems: 8,
+            spawnTurns: 4,
             layout: [
                 ['P', 0, 0, 0, 0, 0, 0, 0],
                 [0, 'B', 0, 0, 0, 'B', 0, 0],
@@ -396,7 +433,7 @@ const LEVEL_DESIGN = {
                 [0, 'B', 0, 0, 0, 0, 0, 0],
                 [-5, 0, 0, 0, 0, 0, 'C', 0],  // Canon right, enemy left
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [-8, 0, -8, -8, 'G', -8, -8, -8]  // Enemies scattered bottom + gold
+                [-8, 0, -8, -8, 0, -8, -8, -8]  // Enemies scattered bottom + gold
             ]
         },
         {
@@ -406,6 +443,8 @@ const LEVEL_DESIGN = {
             description: 'Ultimate test - 7 bosses + all hazards - IMPOSSIBLE!',
             goldPerLevel: 100,
             goldPerBag: 25,
+            minItems: 8,
+            spawnTurns: 4,
             layout: [
                 ['P', 0, 0, 0, 0, 0, 0, 0],
                 [0, 'B', 0, 0, 0, 'B', 0, 0],
@@ -416,7 +455,7 @@ const LEVEL_DESIGN = {
                 [0, 'B', 0, 0, 0, 0, 0, 0],
                 [-8, 0, 0, 0, 0, 0, 'C', 0],  // Canon right, boss left
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [-8, 0, -8, -8, 'G', -8, -8, -8]  // Enemies scattered bottom + gold
+                [-8, 0, -8, -8, 0, -8, -8, -8]  // Enemies scattered bottom + gold
             ]
         }
     ]

@@ -16,7 +16,7 @@ const CONFIG = {
         { name: 'Boss', value: 8, emoji: '👑' }
     ],
 
-    // Item types
+    // Item types - only differ by value
     ITEM_TYPES: [
         { name: 'Small', value: 1, emoji: '⭐' },
         { name: 'Medium', value: 2, emoji: '💎' },

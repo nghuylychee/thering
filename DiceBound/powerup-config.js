@@ -22,22 +22,70 @@ const POWERUP_CONFIG = {
             value: 1
         },
         
-        // Starting Value Upgrades
-        'start_value_boost': {
-            name: 'Start Value Boost',
-            description: '+1 Base Power trong run',
-            diceRequired: 3,
-            category: 'value',
-            effect: 'increase_start_value',
+        // Stat Boost Power-ups
+        'hp_boost': {
+            name: 'HP Boost',
+            description: '+1 Max HP',
+            diceRequired: 2,
+            category: 'stat',
+            effect: 'increase_hp',
             value: 1
         },
-        'double_start_value': {
-            name: 'Double Start Value',
-            description: '+2 Base Power trong run',
-            diceRequired: 5,
-            category: 'value',
-            effect: 'increase_start_value',
-            value: 2
+        'hp_heal': {
+            name: 'HP Heal',
+            description: 'Heal HP to full',
+            diceRequired: 2,
+            category: 'stat',
+            effect: 'heal_hp_full',
+            value: 0
+        },
+        'dmg_min_boost': {
+            name: 'DMG Min Boost',
+            description: '+1 Minimum Damage',
+            diceRequired: 2,
+            category: 'stat',
+            effect: 'increase_dmg_min',
+            value: 1
+        },
+        'dmg_max_boost': {
+            name: 'DMG Max Boost',
+            description: '+1 Maximum Damage',
+            diceRequired: 2,
+            category: 'stat',
+            effect: 'increase_dmg_max',
+            value: 1
+        },
+        'spd_min_boost': {
+            name: 'SPD Min Boost',
+            description: '+1 Minimum Speed',
+            diceRequired: 2,
+            category: 'stat',
+            effect: 'increase_spd_min',
+            value: 1
+        },
+        'spd_max_boost': {
+            name: 'SPD Max Boost',
+            description: '+1 Maximum Speed',
+            diceRequired: 2,
+            category: 'stat',
+            effect: 'increase_spd_max',
+            value: 1
+        },
+        'int_min_boost': {
+            name: 'INT Min Boost',
+            description: '+1 Minimum Intelligence',
+            diceRequired: 2,
+            category: 'stat',
+            effect: 'increase_int_min',
+            value: 1
+        },
+        'int_max_boost': {
+            name: 'INT Max Boost',
+            description: '+1 Maximum Intelligence',
+            diceRequired: 2,
+            category: 'stat',
+            effect: 'increase_int_max',
+            value: 1
         }
     },
     
