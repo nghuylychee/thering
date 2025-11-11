@@ -2292,7 +2292,7 @@ async function performCombat(x, y) {
         enemyId
     );
     
-    // Start combat with player turn
+    // Start combat with player turn (player moved into enemy, so player attacks first)
     await performCombatTurn('player');
 }
 
@@ -2861,7 +2861,7 @@ async function performEnemyCombat(enemy, x, y) {
     renderGrid();
     await sleep(100);
     
-    // Show combat screen and start combat (player always goes first)
+    // Show combat screen and start combat
     showCombatScreen(
         gameState.player.value,
         enemy.value,
@@ -2870,8 +2870,8 @@ async function performEnemyCombat(enemy, x, y) {
         enemy.id
     );
     
-    // Start combat with player turn (player always goes first)
-    await performCombatTurn('player');
+    // Start combat with enemy turn (enemy moved into player, so enemy attacks first)
+    await performCombatTurn('enemy');
 }
 
 // Item Spawn System
