@@ -5,14 +5,6 @@ const POWERUP_CONFIG = {
     // Power-up types với các thuộc tính khác nhau
     types: {        
         // Stat Boost Power-ups
-        'hp_boost': {
-            name: 'Vitality Potion',
-            description: '+1 Max HP',
-            diceRequired: 3,
-            category: 'stat',
-            effect: 'increase_hp',
-            value: 1
-        },
         'hp_heal_1': {
             name: 'Minor Heal Potion',
             description: 'Heal +1 HP',

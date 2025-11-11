@@ -201,14 +201,12 @@ function initGame(levelNumber = 1) {
         console.log(`Continuing run - stats: min=${currentRunStats.minRoll}, max=${currentRunStats.maxRoll}, startBoost=${currentRunStats.startValueBoost}`);
     }
     
-    // Calculate starting value with boost
+    // Calculate starting value with boost (for backward compatibility, but HP max is now independent)
     const startingValue = levelConfig.playerStartValue + currentRunStats.startValueBoost;
-    // Ensure HP max matches starting value (if new run, also set current)
-    if (levelNumber === 1) {
-        playerStats.hp.max = startingValue;
-        playerStats.hp.current = startingValue;
-    } else {
-        // Preserve current HP, only update max if needed
+    // HP max is already set correctly from baseHP (includes HP upgrades) for level 1
+    // For other levels, only update max if it's lower than starting value (shouldn't happen, but safety check)
+    if (levelNumber !== 1) {
+        // Preserve current HP, only update max if needed (but this shouldn't happen as HP upgrades are applied at level 1)
         if (playerStats.hp.max < startingValue) {
             playerStats.hp.max = startingValue;
         }
@@ -1692,12 +1690,12 @@ async function applyItemStatBoost(stat, value, x, y) {
     
     switch (stat) {
         case 'hp':
-            // HP: Heal current HP (cap at max), don't increase max
-            oldStatValue = gameState.playerStats.hp.current;
-            gameState.playerStats.hp.current = Math.min(gameState.playerStats.hp.current + value, gameState.playerStats.hp.max);
-            newStatValue = gameState.playerStats.hp.current;
+            // HP: Increase max HP only
+            oldStatValue = gameState.playerStats.hp.max;
+            gameState.playerStats.hp.max += value;
+            newStatValue = gameState.playerStats.hp.max;
             statElement = document.getElementById('statOptionHP');
-            statChange = `HP Healed +${newStatValue - oldStatValue}`;
+            statChange = `HP Max +${value}`;
             break;
             
         case 'dmg':
@@ -1735,7 +1733,9 @@ async function applyItemStatBoost(stat, value, x, y) {
     // Animate number incrementing in pop-up FIRST - this is the main animation
     // Don't update UI below until animation in pop-up is complete
     if (statElement) {
-        await animateStatIncrement(statElement, oldStatValue, newStatValue, stat === 'hp');
+        // For HP, pass current HP for display during animation
+        const currentHP = stat === 'hp' ? gameState.playerStats.hp.current : null;
+        await animateStatIncrement(statElement, oldStatValue, newStatValue, stat === 'hp', currentHP);
     }
     
     // Wait a short moment to let user see the final value in pop-up
@@ -1753,7 +1753,7 @@ async function applyItemStatBoost(stat, value, x, y) {
 }
 
 // Animate stat increment in pop-up
-function animateStatIncrement(element, oldValue, newValue, isHP = false) {
+function animateStatIncrement(element, oldValue, newValue, isHP = false, currentHP = null) {
     return new Promise((resolve) => {
         if (!element) {
             resolve();
@@ -1776,8 +1776,9 @@ function animateStatIncrement(element, oldValue, newValue, isHP = false) {
         
         const interval = setInterval(() => {
             currentStep++;
-            const currentValue = Math.round(oldValue + (increment * currentStep));
-            const displayValue = isHP ? `${currentValue}/${gameState.playerStats.hp.max}` : currentValue;
+            const animatedValue = Math.round(oldValue + (increment * currentStep));
+            // For HP, display currentHP/animatedMaxHP during animation
+            const displayValue = isHP && currentHP !== null ? `${currentHP}/${animatedValue}` : (isHP ? `${animatedValue}/${newValue}` : animatedValue);
             element.textContent = displayValue;
             
             // Calculate progress (0 to 1)
@@ -1794,7 +1795,9 @@ function animateStatIncrement(element, oldValue, newValue, isHP = false) {
             
             if (currentStep >= steps) {
                 clearInterval(interval);
-                element.textContent = isHP ? `${newValue}/${gameState.playerStats.hp.max}` : newValue;
+                // For HP, display currentHP/newMaxHP
+                const finalDisplayValue = isHP && currentHP !== null ? `${currentHP}/${newValue}` : (isHP ? `${newValue}/${newValue}` : newValue);
+                element.textContent = finalDisplayValue;
                 // Final state: green and scaled
                 element.style.transform = 'scale(1.4)';
                 element.style.color = '#2ecc71';
