@@ -51,6 +51,27 @@ const HOME_MANAGER = {
             };
         }
         
+        // Ensure all required upgrades exist with default values
+        const requiredUpgrades = ['hp', 'dmgMin', 'dmgMax', 'spdMin', 'spdMax', 'intMin', 'intMax'];
+        requiredUpgrades.forEach(upgradeType => {
+            if (!this.playerData.upgrades[upgradeType]) {
+                // Initialize with default values based on upgrade type
+                const defaultCosts = {
+                    hp: 75,
+                    dmgMin: 20,
+                    dmgMax: 30,
+                    spdMin: 30,
+                    spdMax: 40,
+                    intMin: 10,
+                    intMax: 15
+                };
+                this.playerData.upgrades[upgradeType] = {
+                    level: 0,
+                    cost: defaultCosts[upgradeType] || 20
+                };
+            }
+        });
+        
         // Sync gold: prefer playerData over old system, but sync both ways
         const oldGold = localStorage.getItem('diceBoundTotalGold');
         if (oldGold) {
@@ -77,18 +98,18 @@ const HOME_MANAGER = {
     // Get base upgrades (for game initialization)
     getBaseUpgrades: function() {
         return {
-            // Legacy upgrades (for backward compatibility)
-            minRoll: this.playerData.upgrades.minRoll.level,
-            maxRoll: this.playerData.upgrades.maxRoll.level,
-            startValueBoost: this.playerData.upgrades.startValueBoost.level,
-            // New stat upgrades
-            hp: this.playerData.upgrades.hp.level,
-            dmgMin: this.playerData.upgrades.dmgMin.level,
-            dmgMax: this.playerData.upgrades.dmgMax.level,
-            spdMin: this.playerData.upgrades.spdMin.level,
-            spdMax: this.playerData.upgrades.spdMax.level,
-            intMin: this.playerData.upgrades.intMin.level,
-            intMax: this.playerData.upgrades.intMax.level
+            // Legacy upgrades (for backward compatibility) - default to 0 if not exists
+            minRoll: this.playerData.upgrades.minRoll?.level || 0,
+            maxRoll: this.playerData.upgrades.maxRoll?.level || 0,
+            startValueBoost: this.playerData.upgrades.startValueBoost?.level || 0,
+            // New stat upgrades - default to 0 if not exists
+            hp: this.playerData.upgrades.hp?.level || 0,
+            dmgMin: this.playerData.upgrades.dmgMin?.level || 0,
+            dmgMax: this.playerData.upgrades.dmgMax?.level || 0,
+            spdMin: this.playerData.upgrades.spdMin?.level || 0,
+            spdMax: this.playerData.upgrades.spdMax?.level || 0,
+            intMin: this.playerData.upgrades.intMin?.level || 0,
+            intMax: this.playerData.upgrades.intMax?.level || 0
         };
     },
 
@@ -248,23 +269,24 @@ const HOME_MANAGER = {
         // Update each upgrade card
         Object.keys(this.playerData.upgrades).forEach(upgradeType => {
             const upgrade = this.playerData.upgrades[upgradeType];
+            if (!upgrade) return; // Skip if upgrade doesn't exist
             
             // Update level display
             const levelElement = document.getElementById(upgradeType + 'Level');
             if (levelElement) {
-                levelElement.textContent = upgrade.level;
+                levelElement.textContent = upgrade.level || 0;
             }
 
             // Update cost display
             const costElement = document.getElementById(upgradeType + 'Cost');
             if (costElement) {
-                costElement.textContent = upgrade.cost;
+                costElement.textContent = upgrade.cost || 0;
             }
 
             // Update button state
             const buttonElement = document.querySelector(`[data-upgrade="${upgradeType}"]`);
             if (buttonElement) {
-                buttonElement.disabled = this.playerData.totalGold < upgrade.cost;
+                buttonElement.disabled = this.playerData.totalGold < (upgrade.cost || 0);
             }
         });
     },
@@ -272,6 +294,10 @@ const HOME_MANAGER = {
     // Purchase upgrade
     purchaseUpgrade: function(upgradeType) {
         const upgrade = this.playerData.upgrades[upgradeType];
+        if (!upgrade) {
+            console.warn(`Upgrade ${upgradeType} does not exist`);
+            return;
+        }
         
         if (this.playerData.totalGold >= upgrade.cost) {
             // Get old values for animation (BEFORE upgrade)
