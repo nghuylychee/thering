@@ -8,7 +8,7 @@ const POWERUP_CONFIG = {
         'hp_boost': {
             name: 'Vitality Potion',
             description: '+1 Max HP',
-            diceRequired: 2,
+            diceRequired: 3,
             category: 'stat',
             effect: 'increase_hp',
             value: 1
@@ -40,7 +40,7 @@ const POWERUP_CONFIG = {
         'dmg_max_boost': {
             name: 'Weapon Enhancement',
             description: '+1 Maximum Damage',
-            diceRequired: 2,
+            diceRequired: 3,
             category: 'stat',
             effect: 'increase_dmg_max',
             value: 1
@@ -56,7 +56,7 @@ const POWERUP_CONFIG = {
         'spd_max_boost': {
             name: 'Speed Potion',
             description: '+1 Maximum Speed',
-            diceRequired: 2,
+            diceRequired: 4,
             category: 'stat',
             effect: 'increase_spd_max',
             value: 1
@@ -72,7 +72,7 @@ const POWERUP_CONFIG = {
         'int_max_boost': {
             name: 'Intelligence Tome',
             description: '+1 Maximum Intelligence',
-            diceRequired: 2,
+            diceRequired: 4,
             category: 'stat',
             effect: 'increase_int_max',
             value: 1
