@@ -234,6 +234,7 @@ function initGame(levelNumber = 1) {
         enemies: [],
         items: [],
         initialEnemyCount: 0, // Track initial enemy count for stats
+        totalItemsSpawned: 0, // Track total items spawned in this level (for maxItems limit)
         currentTurn: 'player',
         playerRoll: null,
         playerRemainingSteps: 0,
@@ -257,7 +258,8 @@ function initGame(levelNumber = 1) {
             enemyName: 'Enemy'
         },
         // Item Spawn system
-        pendingSpawns: []
+        pendingSpawns: [],
+        totalItemsSpawned: 0 // Reset counter for new level
     };
 
     // Initialize grid
@@ -378,6 +380,9 @@ function loadLevelFromLayout(levelConfig) {
                     const enemyValue = Math.abs(cellNumber);
                     const enemyType = findEnemyTypeByValue(enemyValue);
                     
+                    // Enemy stats based on value - HP equals value, DMG and SPD roll from 1 to value (like player)
+                    const enemyHP = enemyValue; // HP always equals value
+                    
                     const enemy = {
                         id: gameState.enemies.length,
                         x: x,
@@ -386,10 +391,9 @@ function loadLevelFromLayout(levelConfig) {
                         initialValue: enemyValue, // Store initial value for dice rolling
                         type: enemyType.name,
                         emoji: enemyType.emoji,
-                        // Enemy stats based on value
-                        hp: { current: enemyValue, max: enemyValue },
-                        dmg: { min: 1, max: enemyValue },
-                        spd: { min: 1, max: enemyValue } // For movement, max = initialValue (same as value at spawn)
+                        hp: { current: enemyHP, max: enemyHP },
+                        dmg: { min: 1, max: enemyValue }, // DMG rolls from 1 to value (like player)
+                        spd: { min: 1, max: enemyValue } // SPD rolls from 1 to value (like player)
                     };
                     gameState.enemies.push(enemy);
                     gameState.grid[y][x].enemy = enemy.id;
@@ -408,6 +412,8 @@ function loadLevelFromLayout(levelConfig) {
                     };
                     gameState.items.push(item);
                     gameState.grid[y][x].item = item.id;
+                    // Increment total items spawned counter (for maxItems limit)
+                    gameState.totalItemsSpawned++;
                 }
                 // cellNumber === 0 is treated as empty, continue to default case
             } else {
@@ -516,19 +522,21 @@ function spawnEnemies() {
             console.error('Enemy type not found!');
             continue;
         }
-        const enemy = {
-            id: gameState.enemies.length,
-            x: x,
-            y: y,
-            value: enemyType.value,
-            initialValue: enemyType.value, // Store initial value for dice rolling
-            type: enemyType.name,
-            emoji: enemyType.emoji,
-            // Enemy stats based on value
-            hp: { current: enemyType.value, max: enemyType.value },
-            dmg: { min: 1, max: enemyType.value },
-            spd: { min: 1, max: enemyType.value } // For movement, max = initialValue (same as value at spawn)
-        };
+            // Enemy stats based on value - HP equals value, DMG and SPD roll from 1 to value (like player)
+            const enemyHP = enemyType.value; // HP always equals value
+            
+            const enemy = {
+                id: gameState.enemies.length,
+                x: x,
+                y: y,
+                value: enemyType.value,
+                initialValue: enemyType.value, // Store initial value for dice rolling
+                type: enemyType.name,
+                emoji: enemyType.emoji,
+                hp: { current: enemyHP, max: enemyHP },
+                dmg: { min: 1, max: enemyType.value }, // DMG rolls from 1 to value (like player)
+                spd: { min: 1, max: enemyType.value } // SPD rolls from 1 to value (like player)
+            };
         
         gameState.enemies.push(enemy);
         gameState.grid[y][x].enemy = enemy.id;
@@ -571,6 +579,8 @@ function spawnItems() {
             };
             gameState.items.push(item);
             gameState.grid[y][x].item = item.id;
+            // Increment total items spawned counter (for maxItems limit)
+            gameState.totalItemsSpawned++;
             attempts++;
             continue;
         }
@@ -592,6 +602,8 @@ function spawnItems() {
         };
         gameState.items.push(item);
         gameState.grid[y][x].item = item.id;
+        // Increment total items spawned counter (for maxItems limit)
+        gameState.totalItemsSpawned++;
         attempts++;
     }
 }
@@ -2114,10 +2126,12 @@ async function performCombatTurn(turn) {
             diceValue = Math.floor(Math.random() * maxPlayerRoll) + 1;
         }
     } else {
-        // Enemy rolls from enemy.dmg.min to enemy.dmg.max (get from enemy object)
+        // Enemy rolls from enemy.dmg.min to enemy.dmg.max (like player)
         const enemy = gameState.enemies.find(e => e.id === state.enemyId);
         if (enemy && enemy.dmg) {
-            diceValue = Math.floor(Math.random() * (enemy.dmg.max - enemy.dmg.min + 1)) + enemy.dmg.min;
+            const dmgMin = enemy.dmg.min;
+            const dmgMax = enemy.dmg.max;
+            diceValue = Math.floor(Math.random() * (dmgMax - dmgMin + 1)) + dmgMin;
         } else {
             // Fallback to old system
             const maxEnemyRoll = enemy ? enemy.value : state.maxEnemyHP;
@@ -2607,6 +2621,34 @@ async function enemyTurn() {
         // Skip if enemy was removed
         if (!gameState.enemies.find(e => e.id === enemy.id)) continue;
         
+        // Check if enemy value equals player value - if so, attack immediately
+        const playerValue = gameState.playerStats ? gameState.playerStats.hp.max : gameState.player.value;
+        if (enemy.value === playerValue) {
+            // Check if enemy is adjacent to player or can reach player
+            const playerX = gameState.player.x;
+            const playerY = gameState.player.y;
+            const distance = Math.abs(enemy.x - playerX) + Math.abs(enemy.y - playerY);
+            
+            // If adjacent (distance = 1) or can reach in 1 step, attack immediately
+            if (distance <= 1) {
+                console.log(`Enemy ${enemy.id} (value ${enemy.value}) equals player value (${playerValue}) - attacking immediately!`);
+                
+                // Move enemy to player position if not already there
+                if (distance === 1) {
+                    gameState.grid[enemy.y][enemy.x].enemy = null;
+                    enemy.x = playerX;
+                    enemy.y = playerY;
+                    gameState.grid[enemy.y][enemy.x].enemy = enemy.id;
+                    renderGrid();
+                    await sleep(200);
+                }
+                
+                // Start combat immediately
+                await performEnemyCombat(enemy, playerX, playerY);
+                continue; // Skip movement for this enemy
+            }
+        }
+        
         // Roll dice for enemy - max dice = enemy initial value (fixed at spawn)
         const roll = rollEnemyDice(enemy);
         const spdRange = enemy.spd ? `${enemy.spd.min}-${enemy.spd.max}` : `1-${enemy.initialValue}`;
@@ -2680,7 +2722,9 @@ async function enemyTurn() {
                 const lavaDamage = CONFIG.SPECIAL_GRID_TYPES.lava.damage;
                 if (enemy.value > lavaDamage) {
                     enemy.value -= lavaDamage;
-                    console.log(`Enemy ${enemy.id} stepped on Lava! Lost ${lavaDamage} value.`);
+                    // Sync enemy stats (HP, DMG, SPD) with new value
+                    syncEnemyStats(enemy);
+                    console.log(`Enemy ${enemy.id} stepped on Lava! Lost ${lavaDamage} value. New value: ${enemy.value}, HP: ${enemy.hp.current}/${enemy.hp.max}`);
                 } else {
                     // Enemy dies from lava
                     console.log(`Enemy ${enemy.id} died from Lava!`);
@@ -2693,7 +2737,9 @@ async function enemyTurn() {
                 const swampDamage = CONFIG.SPECIAL_GRID_TYPES.swamp.damage;
                 if (enemy.value > swampDamage) {
                     enemy.value -= swampDamage;
-                    console.log(`Enemy ${enemy.id} stepped on Swamp! Lost ${swampDamage} value.`);
+                    // Sync enemy stats (HP, DMG, SPD) with new value
+                    syncEnemyStats(enemy);
+                    console.log(`Enemy ${enemy.id} stepped on Swamp! Lost ${swampDamage} value. New value: ${enemy.value}, HP: ${enemy.hp.current}/${enemy.hp.max}`);
                 } else {
                     // Enemy dies from swamp
                     console.log(`Enemy ${enemy.id} died from Swamp!`);
@@ -2734,6 +2780,49 @@ async function enemyTurn() {
     }
 }
 
+// Sync Enemy Stats when value changes
+function syncEnemyStats(enemy) {
+    // Get old values before update
+    const oldMaxHP = enemy.hp ? enemy.hp.max : enemy.value;
+    const oldCurrentHP = enemy.hp ? enemy.hp.current : enemy.value;
+    
+    // Update max HP to match new value
+    const newMaxHP = enemy.value;
+    
+    // Calculate value change
+    const valueChange = enemy.value - oldMaxHP;
+    
+    // Update current HP: add the value change directly to current HP
+    // If value increased by X, current HP increases by X
+    // If value decreased by X, current HP decreases by X
+    let newCurrentHP = oldCurrentHP + valueChange;
+    
+    // Ensure current HP doesn't exceed max
+    newCurrentHP = Math.min(newCurrentHP, newMaxHP);
+    // Ensure current HP is at least 1 if enemy is alive (value > 0)
+    if (enemy.value > 0 && newCurrentHP <= 0) {
+        newCurrentHP = 1;
+    }
+    // Ensure current HP doesn't go below 0
+    newCurrentHP = Math.max(newCurrentHP, 0);
+    
+    // Update enemy stats
+    enemy.hp = {
+        current: newCurrentHP,
+        max: newMaxHP
+    };
+    enemy.dmg = {
+        min: 1,
+        max: enemy.value
+    };
+    enemy.spd = {
+        min: 1,
+        max: enemy.value
+    };
+    
+    console.log(`Enemy ${enemy.id} stats synced: value=${enemy.value}, HP=${newCurrentHP}/${newMaxHP} (was ${oldCurrentHP}/${oldMaxHP}, change=${valueChange})`);
+}
+
 // Enemy Collect Item
 async function enemyCollectItem(enemy, x, y) {
     const itemId = gameState.grid[y][x].item;
@@ -2745,12 +2834,17 @@ async function enemyCollectItem(enemy, x, y) {
     // Enemy gets value
     enemy.value += item.value;
     
+    // Sync enemy stats (HP, DMG, SPD) with new value
+    syncEnemyStats(enemy);
+    
     // Remove item
     gameState.grid[y][x].item = null;
     gameState.items = gameState.items.filter(i => i.id !== itemId);
     
+    // Render grid to update enemy value badge display
+    renderGrid();
     updateUI();
-    console.log(`Enemy ${enemy.id} collected item worth ${item.value}`);
+    console.log(`Enemy ${enemy.id} collected item worth ${item.value}. New value: ${enemy.value}, HP: ${enemy.hp.current}/${enemy.hp.max}`);
     
     // Check item spawn after enemy collects item
     checkItemSpawn();
@@ -2788,20 +2882,38 @@ function checkItemSpawn() {
     
     const levelConfig = getLevelConfig(gameState.level);
     const minItems = levelConfig.minItems || 3;
+    const maxItems = levelConfig.maxItems || gameState.level; // Default to level number
+    
     // Count both existing items and pending spawns (items that are already in spawn process)
     const currentItemCount = gameState.items.length + gameState.pendingSpawns.length;
     
     // Check if we need to spawn more items
-    if (currentItemCount < minItems) {
-        const itemsToSpawn = minItems - currentItemCount;
+    // IMPORTANT: Check totalItemsSpawned (total items ever spawned in this level) against maxItems
+    // This prevents spawning too many items even if items are collected
+    if (currentItemCount < minItems && gameState.totalItemsSpawned < maxItems) {
+        // Calculate how many items we can still spawn (limited by maxItems)
+        const remainingSpawnSlots = maxItems - gameState.totalItemsSpawned;
+        const itemsNeeded = minItems - currentItemCount;
+        const itemsToSpawn = Math.min(itemsNeeded, remainingSpawnSlots);
+        
         for (let i = 0; i < itemsToSpawn; i++) {
-            initiateItemSpawn(levelConfig);
+            // Double check before each spawn to ensure we don't exceed maxItems
+            if (gameState.totalItemsSpawned < maxItems) {
+                initiateItemSpawn(levelConfig);
+            }
         }
     }
 }
 
 // Initiate item spawn - find empty cell and create preview
 function initiateItemSpawn(levelConfig) {
+    // Check if we've reached maxItems limit
+    const maxItems = levelConfig.maxItems || gameState.level;
+    if (gameState.totalItemsSpawned >= maxItems) {
+        console.log(`Max items limit reached (${maxItems}). Cannot spawn more items.`);
+        return;
+    }
+    
     const spawnTurns = levelConfig.spawnTurns || 3;
     
     // Find all empty cells
@@ -3046,6 +3158,9 @@ async function spawnItemAtPosition(x, y, value) {
     // Add to game state
     gameState.items.push(item);
     gameState.grid[y][x].item = item.id;
+    
+    // Increment total items spawned counter (for maxItems limit)
+    gameState.totalItemsSpawned++;
     
     // Check if player or enemy is on this cell - collect immediately
     if (cell.player) {
@@ -3354,10 +3469,21 @@ function applyPowerupEffect(powerup) {
             console.log(`HP max increased to ${gameState.playerStats.hp.max}`);
             break;
             
-        case 'heal_hp_full':
-            // Heal current HP to max
-            gameState.playerStats.hp.current = gameState.playerStats.hp.max;
-            console.log(`HP healed to ${gameState.playerStats.hp.current}/${gameState.playerStats.hp.max}`);
+        case 'heal_hp_1':
+            // Heal +1 HP
+            gameState.playerStats.hp.current = Math.min(
+                gameState.playerStats.hp.current + 1,
+                gameState.playerStats.hp.max
+            );
+            console.log(`Player healed +1 HP! HP: ${gameState.playerStats.hp.current}/${gameState.playerStats.hp.max}`);
+            break;
+        case 'heal_hp_2':
+            // Heal +2 HP
+            gameState.playerStats.hp.current = Math.min(
+                gameState.playerStats.hp.current + 2,
+                gameState.playerStats.hp.max
+            );
+            console.log(`Player healed +2 HP! HP: ${gameState.playerStats.hp.current}/${gameState.playerStats.hp.max}`);
             break;
             
         case 'increase_dmg_min':

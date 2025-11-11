@@ -14,450 +14,237 @@ const LEVEL_DESIGN = {
         // ========== LEVEL 1-5: TUTORIAL/EASY (Harder now - base dice 1-2) ==========
         {
             level: 1,
-            name: 'First Steps',
+            name: 'Dungeon Entrance',
             playerStartValue: 2,
-            description: 'Learn the basics - immediate enemy threat',
+            description: 'Enter the dark dungeon - your first challenge awaits',
             goldPerLevel: 10,
             goldPerBag: 5,
-            minItems: 3,
+            minItems: 1,
+            maxItems: 1,
             spawnTurns: 3,
             layout: [
-                ['P', 0, 0, 0, 0, 0, 0, 0],
-                [0, 1, 0, 0, 0, 0, 0, 0],  // Item nearby
-                [0, 0, 0, 0, -1, 0, 0, 0],  // Enemy right side
-                [0, 0, 0, 0, 0, 0, 0, 0],  // Gold bag
-                [0, 0, 0, 0, 0, 0, 0, 0],  // Item mid-left
-                [0, 0, -1, 0, 0, 0, -1, 0],  // Enemies mid-left and mid-right
-                [0, 0, 0, 0, 0, 0, 0, 0],  // Item mid-right
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, -1, 0, 0, 0, 0, 0, 0],  // Enemy left side
-                [0, 0, 0, 0, 0, 0, 0, 0]  // Item bottom-right
-            ]
+                ["B", "B", "B", "B", "B", "B", "B", "B"],
+                ["B", "B", "B", "B", "B", "B", "B", "B"],
+                ["B", "B", "B", "B", "B", "B", "B", "B"],
+                ["B", "B", -1, 0, 0, 0, "B", "B"],
+                ["B", "B", 0, 0, 0, 0, "B", "B"],
+                ["B", "B", 0, 1, 0, 0, "B", "B"],
+                ["B", "B", "P", 0, 0, 0, "B", "B"],
+                ["B", "B", "B", "B", "B", "B", "B", "B"],
+                ["B", "B", "B", "B", "B", "B", "B", "B"],
+                ["B", "B", "B", "B", "B", "B", "B", "B"]
+            ]            
         },
         {
             level: 2,
-            name: 'Obstacle Course',
+            name: 'Barrel Maze',
             playerStartValue: 2,
-            description: 'Boxes + enemies - navigate carefully',
+            description: 'Navigate through cluttered barrels and monsters',
             goldPerLevel: 12,
             goldPerBag: 5,
-            minItems: 3,
+            minItems: 1,
+            maxItems: 2,
             spawnTurns: 3,
             layout: [
-                ['P', 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 'B', 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 'B', 0],
-                [0, 0, 0, 0, 'B', 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, -1, 0, 0, 0, 0, -3, 0],  // Enemies left and right
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, -1, -3, 0, -3, -3, 0, 0]  // Enemies scattered bottom + gold
-            ]
+                ["B", "B", "B", "B", "B", "B", "B", "B"],
+                ["B", "B", "B", "B", "B", "B", "B", "B"],
+                ["B", 0, 0, 0, 0, 0, 0, "B"],
+                ["B", 0, -2, 0, 0, 0, -2, "B"],
+                ["B", 0, 0, 1, 0, 0, 0, "B"],
+                ["B", 0, 0, 0, 0, 1, 0, "B"],
+                ["B", 0, "P", 0, 0, 0, 0, "B"],
+                ["B", 0, 0, 0, 0, 0, 0, "B"],
+                ["B", "B", "B", "B", "B", "B", "B", "B"],
+                ["B", "B", "B", "B", "B", "B", "B", "B"]
+            ]            
         },
         {
             level: 3,
-            name: 'Mixed Threats',
+            name: 'Goblin Den',
             playerStartValue: 2,
-            description: 'Weak + Normal enemies - enemies closer',
+            description: 'Face hordes of goblins and rats',
             goldPerLevel: 15,
             goldPerBag: 5,
-            minItems: 3,
+            minItems: 1,
+            maxItems: 3,
             spawnTurns: 3,
             layout: [
-                ['P', 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 'B', 0, 0, 0, 0],
-                [0, 0, 0, 0, -1, 0, 0, 0],  // Enemy mid-top
-                [0, 0, 1, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, -3, 0, 0],  // Enemy mid-right
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, -3, 0, 0, 0, 0, 0, 0],  // Enemy left side
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, -3, 0, -5, 0, 0, 0]  // Enemies scattered bottom + gold
-            ]
+                ["B", "B", "B", "B", "B", "B", "B", "B"],
+                ["B", "B", "B", "B", "B", "B", "B", "B"],
+                ["B", 0, 0, 0, 0, 0, "P", "B"],
+                ["B", 0, -3, 0, 0, 0, 0, "B"],
+                ["B", 0, 0, 1, 0, 1, 0, "B"],
+                ["B", 0, 0, 0, 0, 0, 0, "B"],
+                ["B", 0, 0, 0, -3, 0, 0, "B"],
+                ["B", 0, 1, 0, 0, 0, 0, "B"],
+                ["B", "B", "B", "B", "B", "B", "B", "B"],
+                ["B", "B", "B", "B", "B", "B", "B", "B"]
+            ]            
         },
         {
             level: 4,
-            name: 'Tight Spaces',
+            name: 'Cluttered Corridor',
             playerStartValue: 2,
-            description: 'More obstacles + enemies closing in',
+            description: 'Tight spaces filled with barrels and orcs',
             goldPerLevel: 18,
             goldPerBag: 6,
-            minItems: 4,
+            minItems: 2,
+            maxItems: 4,
             spawnTurns: 3,
             layout: [
-                ['P', 0, 0, 0, 0, 0, 0, 0],
-                [0, 'B', 0, 0, 0, 'B', 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 'B', 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, -3, 0, 0, 0, 0, -3, 0],  // Enemies left and right
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, -3, -5, 0, -5, -5, 0]  // Enemies scattered bottom + gold
-            ]
+                ["B", "B", "B", "B", "B", "B", "B", "B"],
+                ["B", "B", "B", "B", "B", "B", "B", "B"],
+                ["B", -4, 0, 1, 0, 0, -4, "B"],
+                ["B", 0, 0, 0, 0, 0, 0, "B"],
+                ["B", 1, 0, 0, "P", 0, 0, "B"],
+                ["B", 0, 0, 0, 0, 0, 1, "B"],
+                ["B", 0, 0, 0, 0, 0, 0, "B"],
+                ["B", -4, 0, 1, 0, 0, -4, "B"],
+                ["B", "B", "B", "B", "B", "B", "B", "B"],
+                ["B", "B", "B", "B", "B", "B", "B", "B"]
+            ]            
         },
         {
             level: 5,
-            name: 'Lava Fields',
+            name: 'Fire Chamber',
             playerStartValue: 2,
-            description: 'Lava + enemies - high pressure!',
+            description: 'Beware the fire pits and dangerous monsters',
             goldPerLevel: 20,
             goldPerBag: 6,
-            minItems: 4,
+            minItems: 2,
+            maxItems: 5,
             spawnTurns: 3,
             layout: [
-                ['P', 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 1, 0],
-                [0, 0, 'B', 0, 'L', 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 'L', 0, 0],
-                [0, -3, 0, 0, 0, 0, -3, 0],  // Enemies left and right
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, -5, -5, 0, -5, -8, 0]  // Enemies scattered bottom + gold
-            ]
+                ["B", "B", "B", "B", "B", "B", "B", "B"],
+                ["B", 1, 0, 0, 0, 0, 1, "B"],
+                ["B", "B", "B", 0, "B", "B", "B", "B"],
+                ["B", 0, -4, 0, 0, -3, 0, "B"],
+                ["B", 0, 0, 0, 0, 0, 0, "B"],
+                ["B", 0, 0, 0, 0, 0, 0, "B"],
+                ["B", 0, -3, 0, 0, -4, 0, "B"],
+                ["B", "B", "B", 0, "B", "B", "B", "B"],
+                ["B", 1, 0, 0, 0, 1, "P", "B"],
+                ["B", "B", "B", "B", "B", "B", "B", "B"]
+            ]            
         },
         
         // ========== LEVEL 6-10: MEDIUM (Much harder now) ==========
         {
             level: 6,
-            name: 'Three Way Split',
+            name: 'Monster Lair',
             playerStartValue: 2,
-            description: 'Multiple enemies - high pressure!',
+            description: 'Multiple paths filled with dangerous creatures',
             goldPerLevel: 25,
             goldPerBag: 7,
-            minItems: 4,
+            minItems: 2,
+            maxItems: 6,
             spawnTurns: 3,
             layout: [
-                ['P', 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 'B', 0, 0, 0, 'B', 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, -1, 0, 0, 0, 0, -3, 0],  // Enemies left and right
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [-3, 0, -5, -5, 0, -5, -8, 0]  // Enemies scattered bottom + gold
-            ]
+                [-4, "B", "B", "B", "B", "B", -6, 0],
+                [0, 0, 0, 1, 0, 0, 0, 0],
+                ["B", "B", "B", 0, "B", "B", "B", "B"],
+                [1, 0, 0, 0, 0, 0, 0, 1],
+                ["B", "B", "B", 0, 0, 0, "B", "B"],
+                [1, 0, 0, 0, 0, 0, 0, 1],
+                ["B", 0, "B", 0, "B", "B", "B", "B"],
+                [0, "B", 0, 1, 0, 0, 0, 0],
+                [1, "B", "B", "B", "B", "B", "B", 0],
+                [-2, 0, 0, 0, "P", 0, 0, -1]
+            ]            
         },
         {
             level: 7,
-            name: 'Swamp Danger',
+            name: 'Poison Pools',
             playerStartValue: 2,
-            description: 'Swamp + many enemies - extreme danger!',
+            description: 'Toxic waters and swarms of monsters',
             goldPerLevel: 28,
             goldPerBag: 7,
-            minItems: 4,
+            minItems: 2,
+            maxItems: 7,
             spawnTurns: 3,
             layout: [
-                ['P', 0, 0, 0, 0, 0, 0, 0],
+                [1, "B", 0, "B", 0, 0, 1, 0],
+                [0, "B", 0, 1, 1, "B", 0, 0],
+                [-5, "B", "B", 0, 0, "B", "B", -6],
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 'B', 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 'S', 0, 0],
+                [-4, 0, 0, 0, 0, 0, 0, -3],
+                [0, 0, 1, 0, 1, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, -3, 0, 0, 0, 0, -3, 0],  // Enemies left and right
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [-5, 0, -5, -5, 0, -5, -8, 0]  // Enemies scattered bottom + gold
-            ]
+                [-1, "B", "B", 0, 0, "B", "B", -2],
+                [0, "B", 0, 0, "B", 0, 0, 0],
+                [1, "B", 0, "P", "B", 0, 0, 1]
+            ]            
         },
         {
             level: 8,
-            name: 'Canon Jump',
+            name: 'Teleport Runes',
             playerStartValue: 2,
-            description: 'Canon + enemies closing in',
+            description: 'Magic runes and closing enemies',
             goldPerLevel: 32,
             goldPerBag: 8,
-            minItems: 5,
+            minItems: 2,
+            maxItems: 8,
             spawnTurns: 3,
             layout: [
-                ['P', 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 'B', 0, 0, 0, 'B', 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, -3, 0, 0, 0, 0, -5, 0],  // Enemies left and right
-                [0, 0, 0, 0, 0, 0, 'C', 0],  // Canon
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [-5, 0, -5, 0, -8, -8, 0, 0]  // Enemies scattered bottom + gold
-            ]
+                [-5, 0, 0, 0, 0, 0, 0, -5],
+                [0, "B", 0, "B", "B", "B", "B", 0],
+                [0, "B", -2, 0, 0, 1, "B", 0],
+                [0, "B", 0, "B", 0, "B", 0, 0],
+                [0, "B", 0, 1, 1, 0, "B", 0],
+                [0, "B", 0, 1, 1, 0, "B", 0],
+                [0, "B", "B", "B", 0, "B", 0, 0],
+                [0, "B", 1, 0, 0, -2, "B", 0],
+                [0, "B", "B", "B", "B", 0, "B", 0],
+                [-3, 0, 0, 0, 0, 0, 0, -3]
+            ]            
         },
         {
             level: 9,
-            name: 'Maze Runner',
+            name: 'Dungeon Maze',
             playerStartValue: 2,
-            description: 'Complex obstacles + enemies everywhere',
+            description: 'Complex maze with obstacles and monsters',
             goldPerLevel: 35,
             goldPerBag: 8,
-            minItems: 5,
+            minItems: 3,
+            maxItems: 9,
             spawnTurns: 3,
             layout: [
-                ['P', 0, 0, 0, 0, 0, 0, 0],
-                [0, 'B', 0, 0, 0, 'B', 0, 0],
-                [0, 0, 0, 'B', 0, 0, 0, 0],
+                [1, 1, 0, 0, 0, 0, 0, -6],
+                ["B", "B", 0, 0, 0, 0, "B", "B"],
+                ["B", 0, "B", 1, "B", 1, "B", 0],
+                ["B", 0, "B", 0, 0, "B", 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0],
+                [0, "B", 1, "B", 1, "B", 1, "B"],
+                [0, "B", 0, "B", 0, "B", 0, "B"],
                 [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 'B', 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [-3, 0, 0, 0, 0, 0, -3, 0],  // Enemies left and right
-                [0, 0, -5, -5, 0, -8, -8, -8]  // Enemies scattered bottom + gold
-            ]
+                [0, "B", 0, "B", 0, "B", 0, "B"],
+                [-4, "B", -4, "B", "P", "B", -4, "B"]
+              ]              
         },
         {
             level: 10,
-            name: 'First Boss',
+            name: 'Dragon\'s Lair',
             playerStartValue: 2,
-            description: 'Boss + strong enemies - ultimate challenge!',
+            description: 'Face the first dragon and its minions',
             goldPerLevel: 40,
             goldPerBag: 10,
-            minItems: 5,
+            minItems: 3,
+            maxItems: 10,
             spawnTurns: 3,
             layout: [
-                ['P', 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, -5, 0, 0, 0, 0, -5, 0],  // Enemies left and right
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [-5, 0, -8, -8, 0, -8, -8, 0]  // Enemies scattered bottom + gold
-            ]
+                ["B", -6, 0, 0, 0, 0, -6, "B"],
+                [-3, "B", 0, 0, 0, 0, "B", -3],
+                [0, "B", 1, 0, 0, 0, 1, "B"],
+                [0, 1, "B", 0, 0, 0, "B", 1],
+                [0, 0, "B", 0, 0, 0, "B", 0],
+                [-3, 0, 1, "P", 0, 1, 0, -6],
+                [0, "B", 0, 0, 0, "B", 0, 0],
+                [0, "B", 0, 0, 0, "B", 0, 0],
+                [-3, "B", 0, 0, 0, 0, "B", -3],
+                ["B", -6, 0, 0, 0, 0, -6, "B"]
+              ]              
         },
         
-        // ========== LEVEL 11-15: HARD (Brutal now) ==========
-        {
-            level: 11,
-            name: 'Death Trap',
-            playerStartValue: 2,
-            description: 'Lava + swamp + many enemies - nightmare!',
-            goldPerLevel: 45,
-            goldPerBag: 10,
-            minItems: 5,
-            spawnTurns: 4,
-            layout: [
-                ['P', 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 'B', 0, 'L', 0, 'B', 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 'S', 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [-3, 0, 0, 0, 0, 0, -5, 0],  // Enemies left and right
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [-5, 0, -5, -5, 0, -8, -8, 0]  // Enemies scattered bottom + gold
-            ]
-        },
-        {
-            level: 12,
-            name: 'Elite Guard',
-            playerStartValue: 2,
-            description: 'All strong enemies - no mercy!',
-            goldPerLevel: 50,
-            goldPerBag: 12,
-            minItems: 6,
-            spawnTurns: 4,
-            layout: [
-                ['P', 0, 0, 0, 0, 0, 0, 0],
-                [0, 1, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 'B', 0, 'B', 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [-5, 0, 0, 0, 0, 0, -5, 0],  // Enemies left and right
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [-5, 0, -8, -8, 0, -8, 0, 0]  // Enemies scattered bottom + gold
-            ]
-        },
-        {
-            level: 13,
-            name: 'Boss Duo',
-            playerStartValue: 2,
-            description: 'Two bosses + strong enemies - impossible?',
-            goldPerLevel: 55,
-            goldPerBag: 12,
-            minItems: 6,
-            spawnTurns: 4,
-            layout: [
-                ['P', 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 'B', 0, 0, 0, 'B', 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [-5, 0, 0, 0, 0, 0, -5, 0],  // Enemies left and right
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [-8, 0, -8, -8, 0, -8, 0, 0]  // Enemies scattered bottom + gold
-            ]
-        },
-        {
-            level: 14,
-            name: 'Chaos Maze',
-            playerStartValue: 2,
-            description: 'All hazards + enemies swarm - chaos!',
-            goldPerLevel: 58,
-            goldPerBag: 15,
-            minItems: 6,
-            spawnTurns: 4,
-            layout: [
-                ['P', 0, 0, 0, 0, 0, 0, 0],
-                [0, 'B', 0, 0, 0, 'B', 0, 0],
-                [0, 0, 0, 'L', 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 'S', 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 'B', 0, 0, 0, 0, 0, 0],
-                [-5, 0, 0, 0, 0, 0, -5, 0],  // Enemies left and right
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [-8, 0, -8, -8, 0, -8, 0, 0]  // Enemies scattered bottom + gold
-            ]
-        },
-        {
-            level: 15,
-            name: 'Mid Game Climax',
-            playerStartValue: 2,
-            description: 'Boss rush - multiple bosses!',
-            goldPerLevel: 60,
-            goldPerBag: 15,
-            minItems: 7,
-            spawnTurns: 4,
-            layout: [
-                ['P', 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 'B', 0, 0, 0, 'B', 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [-5, 0, 0, 0, 0, 0, -8, 0],  // Enemies left and right
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [-8, 0, -8, -8, 0, -8, -8, 0]  // Enemies scattered bottom + gold
-            ]
-        },
-        
-        // ========== LEVEL 16-20: EXPERT/BOSS (Nightmare difficulty) ==========
-        {
-            level: 16,
-            name: 'Expert Test',
-            playerStartValue: 2,
-            description: 'Extreme enemy count - perfect execution only!',
-            goldPerLevel: 70,
-            goldPerBag: 18,
-            minItems: 7,
-            spawnTurns: 4,
-            layout: [
-                ['P', 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 'B', 0, 'L', 0, 'B', 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 'S', 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [-5, 0, 0, 0, 0, 0, -5, 0],  // Enemies left and right
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [-5, 0, -8, -8, 0, -8, -8, 0]  // Enemies scattered bottom + gold
-            ]
-        },
-        {
-            level: 17,
-            name: 'Tactical Warfare',
-            playerStartValue: 2,
-            description: 'Canon + obstacles + boss swarm - impossible odds!',
-            goldPerLevel: 75,
-            goldPerBag: 18,
-            minItems: 8,
-            spawnTurns: 4,
-            layout: [
-                ['P', 0, 0, 0, 0, 0, 0, 0],
-                [0, 'B', 0, 0, 0, 'B', 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [-5, 0, 0, 0, 0, 0, 'C', 0],  // Canon right, enemy left
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [-8, 0, -8, -8, 0, -8, -8, 0]  // Enemies scattered bottom + gold
-            ]
-        },
-        {
-            level: 18,
-            name: 'Boss Trio',
-            playerStartValue: 2,
-            description: 'Three bosses + strong enemies - no items!',
-            goldPerLevel: 80,
-            goldPerBag: 20,
-            minItems: 8,
-            spawnTurns: 4,
-            layout: [
-                ['P', 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 'B', 0, 0, 0, 'B', 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [-5, 0, 0, 0, 0, 0, -5, 0],  // Enemies left and right
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [-8, 0, -8, -8, 0, -8, 0, 0]  // Enemies scattered bottom + gold
-            ]
-        },
-        {
-            level: 19,
-            name: 'Nightmare Labyrinth',
-            playerStartValue: 2,
-            description: 'All hazards + boss swarm - survive impossible maze!',
-            goldPerLevel: 90,
-            goldPerBag: 20,
-            minItems: 8,
-            spawnTurns: 4,
-            layout: [
-                ['P', 0, 0, 0, 0, 0, 0, 0],
-                [0, 'B', 0, 0, 0, 'B', 0, 0],
-                [0, 0, 0, 'L', 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 'S', 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 'B', 0, 0, 0, 0, 0, 0],
-                [-5, 0, 0, 0, 0, 0, 'C', 0],  // Canon right, enemy left
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [-8, 0, -8, -8, 0, -8, -8, -8]  // Enemies scattered bottom + gold
-            ]
-        },
-        {
-            level: 20,
-            name: 'Final Challenge',
-            playerStartValue: 2,
-            description: 'Ultimate test - 7 bosses + all hazards - IMPOSSIBLE!',
-            goldPerLevel: 100,
-            goldPerBag: 25,
-            minItems: 8,
-            spawnTurns: 4,
-            layout: [
-                ['P', 0, 0, 0, 0, 0, 0, 0],
-                [0, 'B', 0, 0, 0, 'B', 0, 0],
-                [0, 0, 0, 'L', 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 'S', 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 'B', 0, 0, 0, 0, 0, 0],
-                [-8, 0, 0, 0, 0, 0, 'C', 0],  // Canon right, boss left
-                [0, 0, 0, 0, 0, 0, 0, 0],
-                [-8, 0, -8, -8, 0, -8, -8, -8]  // Enemies scattered bottom + gold
-            ]
-        }
     ]
 };
 

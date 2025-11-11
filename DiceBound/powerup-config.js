@@ -3,44 +3,34 @@
 
 const POWERUP_CONFIG = {
     // Power-up types với các thuộc tính khác nhau
-    types: {
-        // Dice Roll Upgrades
-        'min_roll_boost': {
-            name: 'Min Roll Boost',
-            description: 'Tăng minimum dice roll +1',
-            diceRequired: 2,
-            category: 'dice',
-            effect: 'increase_min_roll',
-            value: 1
-        },
-        'max_roll_boost': {
-            name: 'Max Roll Boost',
-            description: 'Tăng maximum dice roll +1',
-            diceRequired: 2,
-            category: 'dice',
-            effect: 'increase_max_roll',
-            value: 1
-        },
-        
+    types: {        
         // Stat Boost Power-ups
         'hp_boost': {
-            name: 'HP Boost',
+            name: 'Vitality Potion',
             description: '+1 Max HP',
             diceRequired: 2,
             category: 'stat',
             effect: 'increase_hp',
             value: 1
         },
-        'hp_heal': {
-            name: 'HP Heal',
-            description: 'Heal HP to full',
+        'hp_heal_1': {
+            name: 'Minor Heal Potion',
+            description: 'Heal +1 HP',
             diceRequired: 2,
             category: 'stat',
-            effect: 'heal_hp_full',
-            value: 0
+            effect: 'heal_hp_1',
+            value: 1
+        },
+        'hp_heal_2': {
+            name: 'Heal Potion',
+            description: 'Heal +2 HP',
+            diceRequired: 4,
+            category: 'stat',
+            effect: 'heal_hp_2',
+            value: 2
         },
         'dmg_min_boost': {
-            name: 'DMG Min Boost',
+            name: 'Sharpening Stone',
             description: '+1 Minimum Damage',
             diceRequired: 2,
             category: 'stat',
@@ -48,7 +38,7 @@ const POWERUP_CONFIG = {
             value: 1
         },
         'dmg_max_boost': {
-            name: 'DMG Max Boost',
+            name: 'Weapon Enhancement',
             description: '+1 Maximum Damage',
             diceRequired: 2,
             category: 'stat',
@@ -56,7 +46,7 @@ const POWERUP_CONFIG = {
             value: 1
         },
         'spd_min_boost': {
-            name: 'SPD Min Boost',
+            name: 'Agility Elixir',
             description: '+1 Minimum Speed',
             diceRequired: 2,
             category: 'stat',
@@ -64,7 +54,7 @@ const POWERUP_CONFIG = {
             value: 1
         },
         'spd_max_boost': {
-            name: 'SPD Max Boost',
+            name: 'Speed Potion',
             description: '+1 Maximum Speed',
             diceRequired: 2,
             category: 'stat',
@@ -72,7 +62,7 @@ const POWERUP_CONFIG = {
             value: 1
         },
         'int_min_boost': {
-            name: 'INT Min Boost',
+            name: 'Wisdom Scroll',
             description: '+1 Minimum Intelligence',
             diceRequired: 2,
             category: 'stat',
@@ -80,7 +70,7 @@ const POWERUP_CONFIG = {
             value: 1
         },
         'int_max_boost': {
-            name: 'INT Max Boost',
+            name: 'Intelligence Tome',
             description: '+1 Maximum Intelligence',
             diceRequired: 2,
             category: 'stat',

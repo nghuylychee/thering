@@ -5,26 +5,19 @@ const HOME_MANAGER = {
     playerData: {
         totalGold: 0,
         upgrades: {
-            // Legacy upgrades (kept for backward compatibility, will be migrated to new stats)
-            minRoll: { level: 0, cost: 50 },
-            maxRoll: { level: 0, cost: 50 },
-            startValueBoost: { level: 0, cost: 75 },
             // New stat upgrades
             hp: { level: 0, cost: 75 },
-            dmgMin: { level: 0, cost: 50 },
-            dmgMax: { level: 0, cost: 50 },
-            spdMin: { level: 0, cost: 50 },
-            spdMax: { level: 0, cost: 50 },
-            intMin: { level: 0, cost: 50 },
-            intMax: { level: 0, cost: 50 }
+            dmgMin: { level: 0, cost: 20 },
+            dmgMax: { level: 0, cost: 30 },
+            spdMin: { level: 0, cost: 30 },
+            spdMax: { level: 0, cost: 40 },
+            intMin: { level: 0, cost: 10 },
+            intMax: { level: 0, cost: 15 }
         }
     },
 
     // Upgrade costs scaling
     upgradeCostScaling: {
-        minRoll: 1.3,
-        maxRoll: 1.3,
-        startValueBoost: 1.4,
         hp: 1.4,
         dmgMin: 1.3,
         dmgMax: 1.3,
