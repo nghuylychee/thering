@@ -1,10 +1,10 @@
-// DiceBound Game Logic
+// DiceQuest Game Logic
 
 // Objective Types Configuration
 const OBJECTIVE_TYPES = {
     'defeat_all': {
-        icon: '🎯',
-        text: 'Defeat all enemies'
+        icon: '👸',
+        text: 'Rescue the princess'
     },
     // Future objective types can be added here
     // 'collect_items': { icon: '💎', text: 'Collect all items' },
@@ -64,7 +64,11 @@ let gameState = {
         enemyName: 'Enemy'
     },
     // Item Spawn system
-    pendingSpawns: []
+    pendingSpawns: [],
+    // Princess Rescue system
+    princessRescued: false,
+    princess: { x: -1, y: -1, rescued: false },
+    portal: { x: -1, y: -1, active: false }
 };
 
 // DOM Elements
@@ -110,7 +114,7 @@ const elements = {
 
 // Initialize Game
 function initGame(levelNumber = 1) {
-    console.log(`Initializing DiceBound - Level ${levelNumber}...`);
+    console.log(`Initializing DiceQuest - Level ${levelNumber}...`);
     
     // Get level config
     const levelConfig = getLevelConfig(levelNumber);
@@ -257,7 +261,11 @@ function initGame(levelNumber = 1) {
         },
         // Item Spawn system
         pendingSpawns: [],
-        totalItemsSpawned: 0 // Reset counter for new level
+        totalItemsSpawned: 0, // Reset counter for new level
+        // Princess Rescue system
+        princessRescued: false,
+        princess: { x: -1, y: -1, rescued: false },
+        portal: { x: -1, y: -1, active: false }
     };
 
     // Initialize grid
@@ -314,6 +322,8 @@ function initializeGrid() {
                 item: null,
                 specialGrid: null, // 'box' | 'lava' | 'swamp' | 'canon' | null
                 gold: false,       // Gold bag present
+                princess: false,  // Princess present
+                portal: false,    // Portal present
                 goldAmount: 0,     // Gold amount in bag
                 goldCollected: false // Whether gold has been collected
             };
@@ -442,6 +452,13 @@ function loadLevelFromLayout(levelConfig) {
                     case 'C':
                         // Canon
                         gameState.grid[y][x].specialGrid = 'canon';
+                        break;
+                        
+                    case 'R':
+                        // Princess
+                        gameState.princess.x = x;
+                        gameState.princess.y = y;
+                        gameState.grid[y][x].princess = true;
                         break;
                         
                     case 'G':
@@ -649,7 +666,7 @@ function renderGrid() {
     
     // Calculate reachable cells if player has remaining steps
     const showReachableCells = gameState.playerRemainingSteps > 0 && !gameState.isMoving && gameState.currentTurn === 'player';
-    const reachableCells = showReachableCells ? calculateReachableCells(gameState.player.x, gameState.player.y, gameState.playerRemainingSteps) : new Set();
+    const reachableCells = showReachableCells ? calculateReachableCells(gameState.player.x, gameState.player.y, gameState.playerRemainingSteps) : new Map();
     
     for (let y = 0; y < gameState.gridHeight; y++) {
         for (let x = 0; x < gameState.gridWidth; x++) {
@@ -671,6 +688,27 @@ function renderGrid() {
                     isReachableCell = true;
                     cell.classList.add('reachable-cell');
                     cell.style.cursor = 'pointer';
+                    
+                    // Get steps needed to reach this cell
+                    const stepsNeeded = reachableCells.get(cellKey);
+                    
+                    // Add step indicator (faded, centered)
+                    const stepIndicator = document.createElement('div');
+                    stepIndicator.className = 'step-indicator';
+                    stepIndicator.textContent = stepsNeeded;
+                    stepIndicator.style.cssText = `
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                        font-size: 24px;
+                        font-weight: bold;
+                        color: rgba(255, 255, 255, 0.4);
+                        z-index: 1;
+                        pointer-events: none;
+                        line-height: 1;
+                    `;
+                    cell.appendChild(stepIndicator);
                     
                     // Check if this reachable cell has enemy (combat)
                     if (cellData.enemy !== null) {
@@ -793,6 +831,32 @@ function renderGrid() {
                 cell.appendChild(goldAmountDisplay);
             }
             
+            // Add princess (always show if not rescued)
+            if (cellData.princess && !gameState.princessRescued) {
+                cell.classList.add('princess');
+                const princessIcon = document.createElement('span');
+                princessIcon.className = 'princess-on-grid';
+                princessIcon.textContent = '👸';
+                princessIcon.style.cssText = `
+                    font-size: 32px;
+                    line-height: 1;
+                `;
+                cell.appendChild(princessIcon);
+            }
+            
+            // Add portal (always show if active)
+            if (cellData.portal && gameState.portal.active) {
+                cell.classList.add('portal');
+                const portalIcon = document.createElement('span');
+                portalIcon.className = 'portal-icon';
+                portalIcon.textContent = '🚪';
+                portalIcon.style.cssText = `
+                    font-size: 32px;
+                    line-height: 1;
+                `;
+                cell.appendChild(portalIcon);
+            }
+            
             // Set content first
             if (content) {
                 const contentSpan = document.createElement('span');
@@ -819,6 +883,23 @@ function renderGrid() {
                     gameState.player.lastHP = currentHP;
                 }
                 cell.appendChild(valueBadge);
+                
+                // Add princess icon if rescued (top-left corner)
+                if (gameState.princessRescued) {
+                    const princessIcon = document.createElement('div');
+                    princessIcon.className = 'princess-carried';
+                    princessIcon.textContent = '👸';
+                    princessIcon.style.cssText = `
+                        position: absolute;
+                        top: 2px;
+                        left: 2px;
+                        font-size: 24px;
+                        z-index: 10;
+                        pointer-events: none;
+                        line-height: 1;
+                    `;
+                    cell.appendChild(princessIcon);
+                }
             }
             
             if (cellData.enemy !== null) {
@@ -1118,8 +1199,9 @@ function getValidDirections(x, y) {
 }
 
 // Calculate all reachable cells with remaining steps (BFS)
+// Returns a Map with cell key as key and steps as value
 function calculateReachableCells(startX, startY, maxSteps) {
-    const reachable = new Set();
+    const reachable = new Map(); // Changed to Map to store steps
     const queue = [{ x: startX, y: startY, steps: 0 }];
     const visited = new Set();
     visited.add(`${startX},${startY}`);
@@ -1133,7 +1215,8 @@ function calculateReachableCells(startX, startY, maxSteps) {
             // Only add empty cells or cells with items here (not enemies)
             // Enemies will be added separately below
             if (cellData.enemy === null) {
-                reachable.add(`${current.x},${current.y}`);
+                const cellKey = `${current.x},${current.y}`;
+                reachable.set(cellKey, current.steps);
             }
         }
         
@@ -1183,7 +1266,7 @@ function calculateReachableCells(startX, startY, maxSteps) {
                 // Check if this enemy cell is reachable by finding a path
                 const path = findPath(startX, startY, x, y, maxSteps);
                 if (path && path.length > 0 && path.length <= maxSteps) {
-                    reachable.add(`${x},${y}`);
+                    reachable.set(`${x},${y}`, path.length);
                 }
             }
         }
@@ -1307,6 +1390,32 @@ async function movePlayerToCell(targetX, targetY) {
         const cellData = gameState.grid[gameState.player.y][gameState.player.x];
         if (cellData.gold && !cellData.goldCollected) {
             await collectGold(gameState.player.x, gameState.player.y);
+        }
+        
+        // Check for princess rescue
+        if (cellData.princess && !gameState.princessRescued) {
+            // Rescue princess
+            gameState.princessRescued = true;
+            gameState.princess.rescued = true;
+            gameState.grid[gameState.player.y][gameState.player.x].princess = false;
+            // Spawn portal
+            spawnPortal();
+            renderGrid();
+            await sleep(300);
+            console.log('Princess rescued! Portal spawned.');
+        }
+        
+        // Check for portal (win condition)
+        if (cellData.portal && gameState.portal.active) {
+            if (gameState.princessRescued) {
+                // Win condition met - complete level
+                gameState.gameRunning = false;
+                checkLevelComplete();
+                break;
+            } else {
+                // Portal not accessible yet - princess must be rescued first
+                console.log('Portal requires princess to be rescued first!');
+            }
         }
         
         // Check for special grid effects
@@ -1613,9 +1722,9 @@ async function collectItem(x, y) {
     // Show pop-up for user to choose stat
     const selectedStat = await showItemStatSelection(item.value, itemEmoji);
     
-    // Apply stat boost based on user selection
+    // Apply stat boost based on user selection (await to ensure pop-up closes before continuing)
     if (selectedStat) {
-        applyItemStatBoost(selectedStat, item.value, x, y);
+        await applyItemStatBoost(selectedStat, item.value, x, y);
     }
     
     // Check item spawn after collecting item
@@ -1687,15 +1796,31 @@ async function applyItemStatBoost(stat, value, x, y) {
     let oldStatValue = 0;
     let newStatValue = 0;
     let statElement = null;
+    let oldCurrentHP = 0; // Store old current HP for HP animation
     
     switch (stat) {
         case 'hp':
-            // HP: Increase max HP only
-            oldStatValue = gameState.playerStats.hp.max;
+            // HP: Increase max HP and maintain currentHP/maxHP ratio (heal player proportionally)
+            oldCurrentHP = gameState.playerStats.hp.current;
+            const oldMaxHP = gameState.playerStats.hp.max;
+            
+            // Calculate current HP ratio
+            const hpRatio = oldMaxHP > 0 ? oldCurrentHP / oldMaxHP : 1;
+            
+            // Increase max HP
             gameState.playerStats.hp.max += value;
-            newStatValue = gameState.playerStats.hp.max;
+            
+            // Calculate new current HP based on ratio (round up to benefit player)
+            const newCurrentHP = Math.ceil(gameState.playerStats.hp.max * hpRatio);
+            gameState.playerStats.hp.current = Math.min(newCurrentHP, gameState.playerStats.hp.max);
+            
+            // For animation: animate both current and max HP
+            oldStatValue = oldCurrentHP; // Start with old current HP
+            newStatValue = gameState.playerStats.hp.current; // End with new current HP
+            
             statElement = document.getElementById('statOptionHP');
-            statChange = `HP Max +${value}`;
+            const hpHealed = gameState.playerStats.hp.current - oldCurrentHP;
+            statChange = `HP Max +${value}${hpHealed > 0 ? `, Healed +${hpHealed}` : ''}`;
             break;
             
         case 'dmg':
@@ -1733,9 +1858,15 @@ async function applyItemStatBoost(stat, value, x, y) {
     // Animate number incrementing in pop-up FIRST - this is the main animation
     // Don't update UI below until animation in pop-up is complete
     if (statElement) {
-        // For HP, pass current HP for display during animation
-        const currentHP = stat === 'hp' ? gameState.playerStats.hp.current : null;
-        await animateStatIncrement(statElement, oldStatValue, newStatValue, stat === 'hp', currentHP);
+        if (stat === 'hp') {
+            // For HP, animate both current and max HP
+            // oldStatValue = oldCurrentHP, newStatValue = newCurrentHP
+            const oldMaxHP = gameState.playerStats.hp.max - value; // Calculate old max HP
+            const newMaxHP = gameState.playerStats.hp.max;
+            await animateStatIncrement(statElement, oldStatValue, newStatValue, true, oldMaxHP, newMaxHP);
+        } else {
+            await animateStatIncrement(statElement, oldStatValue, newStatValue, false);
+        }
     }
     
     // Wait a short moment to let user see the final value in pop-up
@@ -1753,7 +1884,7 @@ async function applyItemStatBoost(stat, value, x, y) {
 }
 
 // Animate stat increment in pop-up
-function animateStatIncrement(element, oldValue, newValue, isHP = false, currentHP = null) {
+function animateStatIncrement(element, oldValue, newValue, isHP = false, oldMaxHP = null, newMaxHP = null) {
     return new Promise((resolve) => {
         if (!element) {
             resolve();
@@ -1777,9 +1908,19 @@ function animateStatIncrement(element, oldValue, newValue, isHP = false, current
         const interval = setInterval(() => {
             currentStep++;
             const animatedValue = Math.round(oldValue + (increment * currentStep));
-            // For HP, display currentHP/animatedMaxHP during animation
-            const displayValue = isHP && currentHP !== null ? `${currentHP}/${animatedValue}` : (isHP ? `${animatedValue}/${newValue}` : animatedValue);
-            element.textContent = displayValue;
+            // For HP, animate both current and max HP
+            if (isHP && oldMaxHP !== null && newMaxHP !== null) {
+                // Animate current HP from oldValue to newValue
+                const animatedCurrentHP = animatedValue;
+                // Animate max HP from oldMaxHP to newMaxHP
+                const maxHPIncrement = (newMaxHP - oldMaxHP) / steps;
+                const animatedMaxHP = Math.round(oldMaxHP + (maxHPIncrement * currentStep));
+                const displayValue = `${animatedCurrentHP}/${animatedMaxHP}`;
+                element.textContent = displayValue;
+            } else {
+                // For non-HP stats, just display the animated value
+                element.textContent = animatedValue;
+            }
             
             // Calculate progress (0 to 1)
             const progress = currentStep / steps;
@@ -1795,9 +1936,12 @@ function animateStatIncrement(element, oldValue, newValue, isHP = false, current
             
             if (currentStep >= steps) {
                 clearInterval(interval);
-                // For HP, display currentHP/newMaxHP
-                const finalDisplayValue = isHP && currentHP !== null ? `${currentHP}/${newValue}` : (isHP ? `${newValue}/${newValue}` : newValue);
-                element.textContent = finalDisplayValue;
+                // For HP, display final currentHP/newMaxHP
+                if (isHP && newMaxHP !== null) {
+                    element.textContent = `${newValue}/${newMaxHP}`;
+                } else {
+                    element.textContent = newValue;
+                }
                 // Final state: green and scaled
                 element.style.transform = 'scale(1.4)';
                 element.style.color = '#2ecc71';
@@ -2243,12 +2387,7 @@ async function resolveCombatResult(playerWon) {
             
             console.log(`Player won combat! Enemy defeated.`);
             
-            // Check win condition
-            if (gameState.enemies.length === 0) {
-                checkLevelComplete();
-                return;
-            }
-            
+            // Note: Win condition is now reaching portal after rescuing princess, not defeating all enemies
             // Check item spawn after defeating enemy
             checkItemSpawn();
         }
@@ -2447,9 +2586,38 @@ function evaluatePosition(enemy, direction, maxSteps) {
 
 // Choose best target cell for enemy using AI (returns target cell coordinates)
 function chooseBestTargetCell(enemy, roll) {
-    // Only chase player if enemy is STRICTLY stronger (value > player value)
+    // Phase 2: If princess is rescued, ALL enemies target player
+    if (gameState.princessRescued) {
+        // All enemies chase player in Phase 2
+        const playerPos = { x: gameState.player.x, y: gameState.player.y };
+        const reachableCells = calculateReachableCells(enemy.x, enemy.y, roll);
+        
+        // Find closest reachable cell to player
+        let bestCell = null;
+        let minDistance = Infinity;
+        
+        for (const cellKey of reachableCells.keys()) {
+            const [x, y] = cellKey.split(',').map(Number);
+            const distance = calculateManhattanDistance(x, y, playerPos.x, playerPos.y);
+            
+            if (distance < minDistance) {
+                minDistance = distance;
+                bestCell = { x, y };
+            }
+        }
+        
+        // If can reach player directly, target player
+        const playerKey = `${playerPos.x},${playerPos.y}`;
+        if (reachableCells.has(playerKey)) {
+            return playerPos;
+        }
+        
+        return bestCell || { x: enemy.x, y: enemy.y };
+    }
+    
+    // Phase 1: Original logic - only chase player if enemy is STRICTLY stronger (value > player value)
     // If equal or weaker, enemy should seek items to come back
-    const isStronger = enemy.value >= gameState.player.value;
+    const isStronger = enemy.value > gameState.player.value;
     
     if (isStronger) {
         // Strong enemy: Chase player
@@ -2460,7 +2628,7 @@ function chooseBestTargetCell(enemy, roll) {
         let bestCell = null;
         let minDistance = Infinity;
         
-        for (const cellKey of reachableCells) {
+        for (const cellKey of reachableCells.keys()) {
             const [x, y] = cellKey.split(',').map(Number);
             const distance = calculateManhattanDistance(x, y, playerPos.x, playerPos.y);
             
@@ -2525,7 +2693,7 @@ function chooseBestTargetCell(enemy, roll) {
                 let bestCell = null;
                 let minDistanceToItem = Infinity;
                 
-                for (const cellKey of reachableCells) {
+                for (const cellKey of reachableCells.keys()) {
                     const [x, y] = cellKey.split(',').map(Number);
                     // Skip box cells
                     if (gameState.grid[y][x].specialGrid === 'box') {
@@ -2549,7 +2717,7 @@ function chooseBestTargetCell(enemy, roll) {
         let bestCell = null;
         let maxDistance = -1;
         
-        for (const cellKey of reachableCells) {
+        for (const cellKey of reachableCells.keys()) {
             const [x, y] = cellKey.split(',').map(Number);
             // Skip box cells
             if (gameState.grid[y][x].specialGrid === 'box') {
@@ -2875,6 +3043,48 @@ async function performEnemyCombat(enemy, x, y) {
     
     // Start combat with enemy turn (enemy moved into player, so enemy attacks first)
     await performCombatTurn('enemy');
+}
+
+// Portal Spawn System
+
+// Spawn portal after princess rescue
+function spawnPortal() {
+    if (gameState.portal.active) {
+        // Portal already exists
+        return;
+    }
+    
+    // Find all empty cells (not occupied by player, enemy, item, special grid, gold, or portal)
+    const emptyCells = [];
+    for (let y = 0; y < gameState.gridHeight; y++) {
+        for (let x = 0; x < gameState.gridWidth; x++) {
+            const cell = gameState.grid[y][x];
+            if (!cell.player && 
+                cell.enemy === null && 
+                cell.item === null && 
+                cell.specialGrid === null &&
+                !cell.gold &&
+                !cell.portal) {
+                emptyCells.push({ x, y });
+            }
+        }
+    }
+    
+    if (emptyCells.length === 0) {
+        console.log('No empty cells available for portal spawn');
+        return;
+    }
+    
+    // Random select an empty cell
+    const randomCell = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+    
+    // Set portal position and activate
+    gameState.portal.x = randomCell.x;
+    gameState.portal.y = randomCell.y;
+    gameState.portal.active = true;
+    gameState.grid[randomCell.y][randomCell.x].portal = true;
+    
+    console.log(`Portal spawned at (${randomCell.x}, ${randomCell.y})`);
 }
 
 // Item Spawn System
@@ -3616,7 +3826,7 @@ function gameOver(won, gameCompleted = false) {
     const message = gameCompleted
         ? `Congratulations! You completed all ${totalLevels} levels!\nFinal value: ${gameState.player.value}`
         : won 
-            ? `You defeated all enemies in Level ${gameState.level}!\nFinal value: ${gameState.player.value}`
+            ? `You rescued the princess and escaped Level ${gameState.level}!\nFinal value: ${gameState.player.value}`
             : `You were defeated in Level ${gameState.level}!\nYour value: ${gameState.player.value}`;
     // Calculate enemies defeated from initial count
     const totalEnemies = gameState.initialEnemyCount || gameState.enemies.length;

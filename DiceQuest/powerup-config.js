@@ -1,4 +1,4 @@
-// Power-up Configuration for DiceBound
+// Power-up Configuration for DiceQuest
 // Định nghĩa các power-up có thể mua sau mỗi level
 
 const POWERUP_CONFIG = {
