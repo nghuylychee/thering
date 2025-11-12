@@ -1236,6 +1236,10 @@ function calculateReachableCells(startX, startY, maxSteps) {
                 if (cellData.specialGrid === 'box') {
                     continue; // Skip box cells
                 }
+                // Check if cell has canon (teleport) - enemies cannot enter
+                if (cellData.specialGrid === 'canon') {
+                    continue; // Skip canon cells
+                }
                 // Allow moving through cells with enemies (we can reach them for combat)
                 // But we don't add enemy cells to reachable in the main loop
                 // Enemy cells will be checked separately below
@@ -1245,8 +1249,8 @@ function calculateReachableCells(startX, startY, maxSteps) {
                 } else if (cellData.enemy !== null) {
                     // This cell has an enemy - we can still pass through it in BFS
                     // but we'll check if we can reach it separately
-                    // Still check for box
-                    if (cellData.specialGrid !== 'box') {
+                    // Still check for box and canon
+                    if (cellData.specialGrid !== 'box' && cellData.specialGrid !== 'canon') {
                         visited.add(key);
                         queue.push({ x: newPos.x, y: newPos.y, steps: current.steps + 1 });
                     }
@@ -1301,6 +1305,10 @@ function findPath(startX, startY, targetX, targetY, maxSteps) {
                 const cellData = gameState.grid[newPos.y][newPos.x];
                 // Cannot move through box (obstacle)
                 if (cellData.specialGrid === 'box') {
+                    continue;
+                }
+                // Cannot move through canon (teleport) - enemies cannot enter
+                if (cellData.specialGrid === 'canon') {
                     continue;
                 }
                 // Allow moving to cells with enemies (for combat)
@@ -2598,6 +2606,10 @@ function chooseBestTargetCell(enemy, roll) {
         
         for (const cellKey of reachableCells.keys()) {
             const [x, y] = cellKey.split(',').map(Number);
+            // Skip canon cells - enemies cannot enter
+            if (gameState.grid[y][x].specialGrid === 'canon') {
+                continue;
+            }
             const distance = calculateManhattanDistance(x, y, playerPos.x, playerPos.y);
             
             if (distance < minDistance) {
@@ -2630,6 +2642,10 @@ function chooseBestTargetCell(enemy, roll) {
         
         for (const cellKey of reachableCells.keys()) {
             const [x, y] = cellKey.split(',').map(Number);
+            // Skip canon cells - enemies cannot enter
+            if (gameState.grid[y][x].specialGrid === 'canon') {
+                continue;
+            }
             const distance = calculateManhattanDistance(x, y, playerPos.x, playerPos.y);
             
             if (distance < minDistance) {
@@ -2858,6 +2874,11 @@ async function enemyTurn() {
             // Check for box (obstacle)
             if (gameState.grid[newPos.y][newPos.x].specialGrid === 'box') {
                 break; // Hit box
+            }
+            
+            // Check for canon (teleport) - enemies cannot enter
+            if (gameState.grid[newPos.y][newPos.x].specialGrid === 'canon') {
+                break; // Hit canon - cannot enter
             }
             
             // Check for other enemies
