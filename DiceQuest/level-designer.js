@@ -66,7 +66,6 @@ const designerElements = {
     // Level parameters list
     levelParametersList: document.getElementById('levelParametersList'),
     generateAll10LevelsBtn: document.getElementById('generateAll10LevelsBtn'),
-    saveAll10Btn: document.getElementById('saveAll10Btn'),
     saveGenFileBtn: document.getElementById('saveGenFileBtn')
 };
 
@@ -105,9 +104,6 @@ function initLevelDesigner() {
     // Generate all and save actions
     if (designerElements.generateAll10LevelsBtn) {
         designerElements.generateAll10LevelsBtn.addEventListener('click', handleGenerateAll10);
-    }
-    if (designerElements.saveAll10Btn) {
-        designerElements.saveAll10Btn.addEventListener('click', handleSaveAll10);
     }
     if (designerElements.saveGenFileBtn) {
         designerElements.saveGenFileBtn.addEventListener('click', saveAllGeneratedLevelsToFile);
@@ -167,7 +163,18 @@ function loadGeneratedLevelsFromStorage() {
         const saved = localStorage.getItem('diceQuestGeneratedLevels');
         if (saved) {
             const parsed = JSON.parse(saved);
-            generatedLevelsCache = parsed;
+            // Ensure all loaded levels are properly formatted
+            Object.keys(parsed).forEach(levelNum => {
+                const level = parsed[levelNum];
+                if (level && level.layout) {
+                    // Ensure level number is set correctly
+                    if (!level.level) {
+                        level.level = parseInt(levelNum);
+                    }
+                    // Store in cache
+                    generatedLevelsCache[levelNum] = level;
+                }
+            });
             console.log(`Loaded ${Object.keys(generatedLevelsCache).length} cached levels from storage`);
         }
     } catch (error) {
@@ -175,10 +182,10 @@ function loadGeneratedLevelsFromStorage() {
     }
 }
 
-// Save all generated levels to file
+// Save all generated levels to file (matching level-design.js format)
 function saveAllGeneratedLevelsToFile() {
     if (Object.keys(generatedLevelsCache).length === 0) {
-        alert('No levels have been generated yet.');
+        console.warn('No levels have been generated yet.');
         return;
     }
     
@@ -192,45 +199,58 @@ function saveAllGeneratedLevelsToFile() {
     }
     
     if (levelsArray.length === 0) {
-        alert('No valid levels to save.');
+        console.warn('No valid levels to save.');
         return;
     }
     
     const allLevelsCode = levelsArray.join(',\n\n');
-    const fullCode = `// Auto-generated levels from Level Designer
-// Generated on: ${new Date().toLocaleString()}
+    const fullCode = `// DiceQuest Level Design Configuration
+// Level Design Format:
+// - 'P' = Player starting position
+// - Negative numbers (-1, -3, -5, -8, etc.) = Enemy (value = abs(number), icon auto-assigned)
+// - Positive numbers (1, 2, 3, 5, etc.) = Item (value = number, icon auto-assigned)
+// - 'B' = Box (obstacle)
+// - 'L' = Lava
+// - 'S' = Swamp
+// - 'C' = Canon
+// - 'R' = Princess (must be rescued to spawn portal)
+// - '.' or ' ' or 0 = Empty cell
 
-const GENERATED_LEVELS = [
+const LEVEL_DESIGN = {
+    LEVELS: [
 ${allLevelsCode}
-];
+        
+    ]
+};
 
-// Export for use
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = GENERATED_LEVELS;
+// Attach LEVELS to CONFIG for backward compatibility
+if (typeof CONFIG !== 'undefined') {
+    CONFIG.LEVELS = LEVEL_DESIGN.LEVELS;
 }`;
     
-    // Copy to clipboard
+    // Copy to clipboard (no pop-up)
     navigator.clipboard.writeText(fullCode).then(() => {
-        alert(`All ${levelsArray.length} generated levels copied to clipboard!\n\nCode saved to clipboard. You can paste it into level-design-gen.js`);
-        
+        console.log(`All ${levelsArray.length} generated levels copied to clipboard!`);
         console.log('All generated levels code:');
         console.log(fullCode);
     }).catch(err => {
-        alert(`All generated levels code:\n\n${fullCode}\n\nCopy this code and save it to level-design-gen.js`);
+        console.error('Failed to copy to clipboard:', err);
         console.log('All generated levels code:');
         console.log(fullCode);
     });
     
-    // Also create download link
+    // Also create download link (no pop-up)
     const blob = new Blob([fullCode], { type: 'text/javascript' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'level-design-gen.js';
+    a.download = 'level-design.js';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    
+    console.log(`File downloaded: level-design.js (${levelsArray.length} levels)`);
 }
 
 // Show/Hide Level Designer
@@ -401,9 +421,14 @@ function renderLevelParametersList() {
         }
         
         // Generate preview grid for this level (use cached or generate)
+        // This will also ensure the level is cached for Save functionality
         const previewLevel = getOrGenerateLevel(config.level, false);
         let previewGridHTML = '';
         if (previewLevel && previewLevel.layout) {
+            // Ensure level is in cache (getOrGenerateLevel should have done this, but double-check)
+            if (!generatedLevelsCache[config.level]) {
+                generatedLevelsCache[config.level] = previewLevel;
+            }
             // Show FULL map (no size limit) - same as preview modal
             const gridWidth = previewLevel.layout[0].length;
             const gridHeight = previewLevel.layout.length;
@@ -614,10 +639,21 @@ function updateLevelStatsFromInline(levelNumber) {
 
 // Get or generate level (with caching)
 function getOrGenerateLevel(levelNumber, forceRegenerate = false) {
+    // Normalize levelNumber to string for consistent cache key
+    const cacheKey = String(levelNumber);
+    
     // Check cache first (unless force regenerate)
-    if (!forceRegenerate && generatedLevelsCache[levelNumber]) {
-        console.log(`Using cached level ${levelNumber}`);
-        return generatedLevelsCache[levelNumber];
+    // Check both string and number keys for compatibility
+    if (!forceRegenerate) {
+        const cachedLevel = generatedLevelsCache[cacheKey] || generatedLevelsCache[levelNumber];
+        if (cachedLevel && cachedLevel.layout) {
+            console.log(`Using cached level ${levelNumber}`);
+            // Ensure cache key is consistent (use string key)
+            if (!generatedLevelsCache[cacheKey]) {
+                generatedLevelsCache[cacheKey] = cachedLevel;
+            }
+            return cachedLevel;
+        }
     }
     
     // Generate new level
@@ -633,7 +669,14 @@ function getOrGenerateLevel(levelNumber, forceRegenerate = false) {
         return null;
     }
     
-    // Cache the generated level
+    // Ensure level number is set
+    if (!level.level) {
+        level.level = levelNumber;
+    }
+    
+    // Cache the generated level (use string key for consistency)
+    generatedLevelsCache[cacheKey] = level;
+    // Also cache with number key for backward compatibility
     generatedLevelsCache[levelNumber] = level;
     console.log(`Generated and cached level ${levelNumber}`);
     
@@ -1216,39 +1259,93 @@ function handleRegenerateLevel(levelNumber) {
     console.log(`Level ${levelNumber} regenerated and cached`);
 }
 
-// Handle Save Level
+// Handle Save Level - Update level directly into main game
 function handleSaveLevel(levelNumber) {
-    // Get level from cache or generate if not exists
-    let level = generatedLevelsCache[levelNumber];
+    // Normalize levelNumber to string for consistent cache key
+    const cacheKey = String(levelNumber);
     
-    if (!level) {
-        const shouldGenerate = confirm('Level has not been generated yet. Generate now?');
-        if (shouldGenerate) {
-            level = getOrGenerateLevel(levelNumber, false);
-        } else {
-            return;
-        }
+    // Try to get level from cache first (check both string and number keys)
+    let level = generatedLevelsCache[cacheKey] || generatedLevelsCache[levelNumber];
+    
+    // If not in cache, try to get or generate (this will also populate cache)
+    if (!level || !level.layout) {
+        level = getOrGenerateLevel(levelNumber, false);
     }
     
-    if (!level) {
-        alert('Level not found. Please regenerate first.');
+    // If still no level, show error
+    if (!level || !level.layout) {
+        alert('Level not found. Please generate the level first by clicking "Regenerate" or "Generate All 10 Levels".');
         return;
     }
     
-    // Format level for file
-    const levelCode = formatLevelForFile(level, levelNumber);
+    // Convert generated level to format compatible with LEVEL_DESIGN.LEVELS
+    const levelConfig = {
+        level: levelNumber,
+        name: level.name,
+        playerStartValue: level.playerStartValue,
+        description: level.description,
+        goldPerLevel: level.goldPerLevel,
+        goldPerBag: level.goldPerBag,
+        minItems: level.minItems,
+        maxItems: level.maxItems,
+        spawnTurns: level.spawnTurns,
+        layout: level.layout
+    };
     
-    // Copy to clipboard only (no file download)
-    navigator.clipboard.writeText(levelCode).then(() => {
-        alert(`Level ${levelNumber} code copied to clipboard!\n\nTo add to level-design.js:\n1. Open level-design.js\n2. Find the LEVELS array\n3. Paste the code into the array\n4. Save the file`);
+    // Update LEVEL_DESIGN.LEVELS if it exists
+    if (typeof LEVEL_DESIGN !== 'undefined' && LEVEL_DESIGN.LEVELS) {
+        // Find existing level with same level number
+        const existingIndex = LEVEL_DESIGN.LEVELS.findIndex(l => l.level === levelNumber);
         
-        console.log(`Level ${levelNumber} code to add to level-design.js:`);
-        console.log(levelCode);
-    }).catch(err => {
-        alert(`Level ${levelNumber} code:\n\n${levelCode}\n\nCopy this code and add it to level-design.js in the LEVELS array.`);
-        console.log(`Level ${levelNumber} code to add to level-design.js:`);
-        console.log(levelCode);
-    });
+        if (existingIndex !== -1) {
+            // Replace existing level
+            LEVEL_DESIGN.LEVELS[existingIndex] = levelConfig;
+            console.log(`Updated level ${levelNumber} in LEVEL_DESIGN.LEVELS at index ${existingIndex}`);
+        } else {
+            // Insert new level (maintain sorted order by level number)
+            let insertIndex = LEVEL_DESIGN.LEVELS.length;
+            for (let i = 0; i < LEVEL_DESIGN.LEVELS.length; i++) {
+                if (LEVEL_DESIGN.LEVELS[i].level > levelNumber) {
+                    insertIndex = i;
+                    break;
+                }
+            }
+            LEVEL_DESIGN.LEVELS.splice(insertIndex, 0, levelConfig);
+            console.log(`Inserted level ${levelNumber} into LEVEL_DESIGN.LEVELS at index ${insertIndex}`);
+        }
+    }
+    
+    // Update CONFIG.LEVELS for backward compatibility
+    if (typeof CONFIG !== 'undefined') {
+        if (!CONFIG.LEVELS) {
+            CONFIG.LEVELS = [];
+        }
+        
+        // Find existing level with same level number
+        const existingIndex = CONFIG.LEVELS.findIndex(l => l.level === levelNumber);
+        
+        if (existingIndex !== -1) {
+            // Replace existing level
+            CONFIG.LEVELS[existingIndex] = levelConfig;
+            console.log(`Updated level ${levelNumber} in CONFIG.LEVELS at index ${existingIndex}`);
+        } else {
+            // Insert new level (maintain sorted order by level number)
+            let insertIndex = CONFIG.LEVELS.length;
+            for (let i = 0; i < CONFIG.LEVELS.length; i++) {
+                if (CONFIG.LEVELS[i].level > levelNumber) {
+                    insertIndex = i;
+                    break;
+                }
+            }
+            CONFIG.LEVELS.splice(insertIndex, 0, levelConfig);
+            console.log(`Inserted level ${levelNumber} into CONFIG.LEVELS at index ${insertIndex}`);
+        }
+    }
+    
+    // Show success message
+    alert(`Level ${levelNumber} "${level.name}" has been saved to the main game!\n\nYou can now play this level in the main game.`);
+    
+    console.log(`Level ${levelNumber} saved to main game:`, levelConfig);
 }
 
 // Get level parameters from form or inline edits
@@ -1858,19 +1955,19 @@ function getLevelConfigs() {
             walkableCells: 40,
             totalEnemyPower: 28,
             enemyCount: 6,
-            enemyMinDistance: 4,
-            enemyMaxDistance: 10,
+            enemyMinDistance: 3,
+            enemyMaxDistance: 8,
             totalItemValue: 23,
             itemCount: 6,
-            itemMinDistance: 3,
-            itemMaxDistance: 9,
+            itemMinDistance: 2,
+            itemMaxDistance: 8,
             itemMinDistanceFromEnemy: 2,
             obstacleBox: 14,
             obstacleLava: 5,
             obstacleSwamp: 4,
             obstacleCanon: 3,
-            princessDistance: 11,
-            portalDistance: 4,
+            princessDistance: 8,
+            portalDistance: 3,
             playerStartValue: 2,
             goldPerLevel: 32,
             goldPerBag: 8,
@@ -1887,19 +1984,19 @@ function getLevelConfigs() {
             walkableCells: 38,
             totalEnemyPower: 32,
             enemyCount: 6,
-            enemyMinDistance: 4,
-            enemyMaxDistance: 11,
+            enemyMinDistance: 3,
+            enemyMaxDistance: 9,
             totalItemValue: 26,
             itemCount: 6,
-            itemMinDistance: 3,
-            itemMaxDistance: 9,
+            itemMinDistance: 2,
+            itemMaxDistance: 8,
             itemMinDistanceFromEnemy: 2,
             obstacleBox: 16,
             obstacleLava: 5,
             obstacleSwamp: 4,
             obstacleCanon: 3,
-            princessDistance: 12,
-            portalDistance: 5,
+            princessDistance: 9,
+            portalDistance: 4,
             playerStartValue: 2,
             goldPerLevel: 35,
             goldPerBag: 8,
@@ -1917,19 +2014,19 @@ function getLevelConfigs() {
             walkableCells: 36,
             totalEnemyPower: 37,
             enemyCount: 7,
-            enemyMinDistance: 5,
-            enemyMaxDistance: 12,
+            enemyMinDistance: 4,
+            enemyMaxDistance: 9,
             totalItemValue: 30,
             itemCount: 7,
-            itemMinDistance: 3,
-            itemMaxDistance: 10,
+            itemMinDistance: 2,
+            itemMaxDistance: 8,
             itemMinDistanceFromEnemy: 2,
             obstacleBox: 18,
             obstacleLava: 6,
             obstacleSwamp: 5,
             obstacleCanon: 4,
-            princessDistance: 13,
-            portalDistance: 5,
+            princessDistance: 9,
+            portalDistance: 4,
             playerStartValue: 2,
             goldPerLevel: 40,
             goldPerBag: 10,
@@ -2292,62 +2389,55 @@ function handleGenerateAll10() {
         allLevels.push(params);
     }
     
-    // Show loading
-    alert('Generating all 10 levels... This may take a moment.');
-    
-    // Generate all levels
-    setTimeout(() => {
-        allLevels.forEach(params => {
-            const level = generateLevel(params);
-            if (level) {
-                // Cache the generated level
-                generatedLevelsCache[params.level] = level;
-                generatedLevels.push(level);
-                successCount++;
-            } else {
-                failedCount++;
-                generatedLevels.push({
-                    level: params.level,
-                    name: params.name,
-                    description: params.description + ' (Generation failed)',
-                    error: true,
-                    config: params
-                });
-            }
-        });
-        
-        generated10Levels = generatedLevels;
-        
-        // Save to localStorage
-        saveGeneratedLevelsToStorage();
-        
-        // Show save buttons
-        if (designerElements.saveAll10Btn) {
-            designerElements.saveAll10Btn.style.display = 'inline-block';
-        }
-        if (designerElements.saveGenFileBtn) {
-            designerElements.saveGenFileBtn.style.display = 'inline-block';
-        }
-        
-        // Update preview grids for all successfully generated levels
-        for (let levelNum = 1; levelNum <= 10; levelNum++) {
-            if (generatedLevelsCache[levelNum] && !generatedLevelsCache[levelNum].error) {
-                updatePreviewGrid(levelNum);
-            }
-        }
-        
-        // Update overview charts if overview tab is active
-        const overviewTab = document.getElementById('overviewTab');
-        if (overviewTab && overviewTab.classList.contains('active')) {
-            updateOverviewCharts(document.getElementById('metricSelector')?.value || 'difficultyScore');
-        }
-        
-        if (failedCount > 0) {
-            alert(`Generated ${successCount}/10 levels successfully. ${failedCount} levels failed to generate.`);
+    // Generate all levels (no pop-up, generate immediately)
+    allLevels.forEach(params => {
+        const level = generateLevel(params);
+        if (level) {
+            // Cache the generated level
+            generatedLevelsCache[params.level] = level;
+            generatedLevels.push(level);
+            successCount++;
         } else {
-            alert('Successfully generated all 10 levels!');
+            failedCount++;
+            generatedLevels.push({
+                level: params.level,
+                name: params.name,
+                description: params.description + ' (Generation failed)',
+                error: true,
+                config: params
+            });
         }
-    }, 100);
+    });
+    
+    generated10Levels = generatedLevels;
+    
+    // Save to localStorage
+    saveGeneratedLevelsToStorage();
+    
+    // Show save button
+    if (designerElements.saveGenFileBtn) {
+        designerElements.saveGenFileBtn.style.display = 'inline-block';
+    }
+    
+    // Update preview grids for all successfully generated levels
+    for (let levelNum = 1; levelNum <= 10; levelNum++) {
+        if (generatedLevelsCache[levelNum] && !generatedLevelsCache[levelNum].error) {
+            updatePreviewGrid(levelNum);
+        }
+    }
+    
+    // Update overview charts if overview tab is active
+    const overviewTab = document.getElementById('overviewTab');
+    if (overviewTab && overviewTab.classList.contains('active')) {
+        updateOverviewCharts(document.getElementById('metricSelector')?.value || 'difficultyScore');
+    }
+    
+    // Log result to console (no pop-up)
+    if (failedCount > 0) {
+        console.warn(`Generated ${successCount}/10 levels successfully. ${failedCount} levels failed to generate.`);
+    } else {
+        console.log('Successfully generated all 10 levels!');
+    }
 }
 
 // Render Overview (deprecated - now using level parameters list)
@@ -2876,67 +2966,8 @@ function updateOverviewCharts(selectedMetric) {
     // (They show obstacle distribution which is independent of selected metric)
 }
 
-// Handle Save All 10 Levels
-function handleSaveAll10() {
-    // Use cached levels if available
-    const levelsToSave = [];
-    for (let levelNum = 1; levelNum <= 10; levelNum++) {
-        const level = generatedLevelsCache[levelNum];
-        if (level && !level.error) {
-            levelsToSave.push(level);
-        }
-    }
-    
-    // Fallback to generated10Levels if cache is empty
-    if (levelsToSave.length === 0 && generated10Levels && generated10Levels.length > 0) {
-        const validLevels = generated10Levels.filter(l => !l.error);
-        if (validLevels.length > 0) {
-            levelsToSave.push(...validLevels);
-        }
-    }
-    
-    if (levelsToSave.length === 0) {
-        alert('No levels to save. Please generate levels first.');
-        return;
-    }
-    
-    const confirmMsg = `Save all ${levelsToSave.length} levels?\n\nThis will copy the level code to clipboard.`;
-    if (!confirm(confirmMsg)) {
-        return;
-    }
-    
-    // Format all levels for file
-    const allLevelsCode = levelsToSave.map(level => {
-        return formatLevelForFile(level, level.level);
-    }).join(',\n\n');
-    
-    const fullCode = `        ${allLevelsCode}`;
-    
-    // Copy to clipboard
-    navigator.clipboard.writeText(fullCode).then(() => {
-        alert(`All ${levelsToSave.length} levels copied to clipboard!\n\nTo add them to level-design.js:\n1. Open level-design.js\n2. Find the LEVELS array\n3. Paste the code into the array\n4. Save the file`);
-        
-        console.log('All levels code to add to level-design.js:');
-        console.log(fullCode);
-    }).catch(err => {
-        alert(`All levels code:\n\n${fullCode}\n\nCopy this code and add it to level-design.js in the LEVELS array.`);
-        console.log('All levels code to add to level-design.js:');
-        console.log(fullCode);
-    });
-    
-    // Also create download link
-    const blob = new Blob([fullCode], { type: 'text/javascript' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'all-10-levels.txt';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-}
 
-// Format level for file
+// Format level for file (matching level-design.js format)
 function formatLevelForFile(level, levelNumber) {
     const layoutStr = level.layout.map(row => {
         const rowStr = row.map(cell => {
@@ -2950,9 +2981,9 @@ function formatLevelForFile(level, levelNumber) {
     
     return `        {
             level: ${levelNumber},
-            name: '${level.name}',
+            name: '${level.name.replace(/'/g, "\\'")}',
             playerStartValue: ${level.playerStartValue},
-            description: '${level.description}',
+            description: '${level.description.replace(/'/g, "\\'")}',
             goldPerLevel: ${level.goldPerLevel},
             goldPerBag: ${level.goldPerBag},
             minItems: ${level.minItems},
