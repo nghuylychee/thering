@@ -36,6 +36,7 @@ let gameState = {
     playerDirection: null,
     gameRunning: false,
     isMoving: false,
+    isCanonSelecting: false, // Flag to disable normal movement when selecting canon target
     // Run stats (persist across levels)
     runStats: {
         minRoll: 1,        // Minimum dice roll
@@ -243,6 +244,7 @@ function initGame(levelNumber = 1) {
         playerDirection: null,
         gameRunning: true,
         isMoving: false,
+        isCanonSelecting: false, // Flag to disable normal movement when selecting canon target
         runStats: currentRunStats, // Preserve run stats across levels
         // Preserve gold across levels in run
         currentGold: (levelNumber === 1) ? 0 : (gameState.currentGold || 0),
@@ -665,7 +667,9 @@ function renderGrid() {
     elements.gameGrid.innerHTML = '';
     
     // Calculate reachable cells if player has remaining steps
-    const showReachableCells = gameState.playerRemainingSteps > 0 && !gameState.isMoving && gameState.currentTurn === 'player';
+    // Disable normal reachable cells when in canon selection mode
+    const showReachableCells = gameState.playerRemainingSteps > 0 && !gameState.isMoving && 
+                                gameState.currentTurn === 'player' && !gameState.isCanonSelecting;
     const reachableCells = showReachableCells ? calculateReachableCells(gameState.player.x, gameState.player.y, gameState.playerRemainingSteps) : new Map();
     
     for (let y = 0; y < gameState.gridHeight; y++) {
@@ -786,6 +790,24 @@ function renderGrid() {
                         line-height: 1;
                     `;
                     cell.appendChild(specialGridIcon);
+                    
+                    // If player is on this special grid cell and it's a canon, make it clickable
+                    // Player can activate canon when standing on it, regardless of remaining steps
+                    if (cellData.player && cellData.specialGrid === 'canon' && 
+                        gameState.currentTurn === 'player' && !gameState.isMoving) {
+                        cell.style.cursor = 'pointer';
+                        cell.classList.add('canon-activatable');
+                        
+                        // Add click listener to activate canon
+                        cell.addEventListener('click', async (e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            
+                            if (!gameState.isMoving) {
+                                await handleSpecialGrid('canon', x, y);
+                            }
+                        });
+                    }
                 }
             }
             
@@ -832,15 +854,29 @@ function renderGrid() {
             }
             
             // Add princess (always show if not rescued)
+            // If enemy is on same cell, adjust positioning to avoid overlap
             if (cellData.princess && !gameState.princessRescued) {
                 cell.classList.add('princess');
                 const princessIcon = document.createElement('span');
                 princessIcon.className = 'princess-on-grid';
                 princessIcon.textContent = '👸';
-                princessIcon.style.cssText = `
-                    font-size: 32px;
-                    line-height: 1;
-                `;
+                
+                // If enemy is on same cell, position princess slightly offset to avoid overlap
+                if (cellData.enemy !== null) {
+                    princessIcon.style.cssText = `
+                        font-size: 24px;
+                        line-height: 1;
+                        position: absolute;
+                        top: 10%;
+                        left: 10%;
+                        z-index: 2;
+                    `;
+                } else {
+                    princessIcon.style.cssText = `
+                        font-size: 32px;
+                        line-height: 1;
+                    `;
+                }
                 cell.appendChild(princessIcon);
             }
             
@@ -1024,6 +1060,14 @@ function renderGrid() {
     });
     
     // Event listeners are already attached when cells are created
+    
+    // If in canon selection mode, restore canon target selection highlights
+    if (gameState.isCanonSelecting) {
+        // Use setTimeout to ensure DOM is ready
+        setTimeout(() => {
+            restoreCanonTargetSelection();
+        }, 0);
+    }
 }
 
 // Get Objective Display Info
@@ -1236,10 +1280,8 @@ function calculateReachableCells(startX, startY, maxSteps) {
                 if (cellData.specialGrid === 'box') {
                     continue; // Skip box cells
                 }
-                // Check if cell has canon (teleport) - enemies cannot enter
-                if (cellData.specialGrid === 'canon') {
-                    continue; // Skip canon cells
-                }
+                // Canon cells are walkable for player (they can enter to activate teleport)
+                // Note: Enemies are blocked from canon in their movement logic
                 // Allow moving through cells with enemies (we can reach them for combat)
                 // But we don't add enemy cells to reachable in the main loop
                 // Enemy cells will be checked separately below
@@ -1249,8 +1291,8 @@ function calculateReachableCells(startX, startY, maxSteps) {
                 } else if (cellData.enemy !== null) {
                     // This cell has an enemy - we can still pass through it in BFS
                     // but we'll check if we can reach it separately
-                    // Still check for box and canon
-                    if (cellData.specialGrid !== 'box' && cellData.specialGrid !== 'canon') {
+                    // Still check for box (but allow canon for player)
+                    if (cellData.specialGrid !== 'box') {
                         visited.add(key);
                         queue.push({ x: newPos.x, y: newPos.y, steps: current.steps + 1 });
                     }
@@ -1307,10 +1349,8 @@ function findPath(startX, startY, targetX, targetY, maxSteps) {
                 if (cellData.specialGrid === 'box') {
                     continue;
                 }
-                // Cannot move through canon (teleport) - enemies cannot enter
-                if (cellData.specialGrid === 'canon') {
-                    continue;
-                }
+                // Canon cells are walkable for player (they can enter to activate teleport)
+                // Note: Enemies are blocked from canon in their movement logic
                 // Allow moving to cells with enemies (for combat)
                 if (cellData.enemy === null || (newPos.x === targetX && newPos.y === targetY)) {
                     visited.add(key);
@@ -1330,7 +1370,8 @@ function findPath(startX, startY, targetX, targetY, maxSteps) {
 
 // Move Player to Target Cell
 async function movePlayerToCell(targetX, targetY) {
-    if (!gameState.gameRunning || gameState.isMoving || gameState.playerRemainingSteps <= 0) {
+    // Disable normal movement when in canon selection mode
+    if (!gameState.gameRunning || gameState.isMoving || gameState.playerRemainingSteps <= 0 || gameState.isCanonSelecting) {
         return;
     }
     
@@ -1526,8 +1567,9 @@ async function handleSpecialGrid(specialGridType, x, y) {
             
         case 'canon':
             // Canon: Teleport player to chosen cell
-            // Stop movement first
+            // Stop movement first and disable normal movement
             gameState.isMoving = false;
+            gameState.isCanonSelecting = true; // Set flag to disable normal movement
             
             // Show canon activation effect
             const canonCell = elements.gameGrid.querySelector(`[data-x="${x}"][data-y="${y}"]`);
@@ -1536,13 +1578,28 @@ async function handleSpecialGrid(specialGridType, x, y) {
                 await sleep(500);
             }
             
-            // Show message to select target
+            // Show message to select target (this will disable normal reachable cells)
             await showCanonTargetSelection(x, y);
             return false; // Movement handled by canon teleport
             
         default:
             return true;
     }
+}
+
+// Get all walkable cells (cells that can be walked on, excluding boxes and canons)
+function getAllWalkableCells() {
+    const walkableCells = [];
+    for (let y = 0; y < gameState.gridHeight; y++) {
+        for (let x = 0; x < gameState.gridWidth; x++) {
+            const cellData = gameState.grid[y][x];
+            // Walkable if not box and not canon (canon is walkable but we don't want to teleport to another canon)
+            if (cellData.specialGrid !== 'box' && cellData.specialGrid !== 'canon') {
+                walkableCells.push({ x, y });
+            }
+        }
+    }
+    return walkableCells;
 }
 
 // Show Canon Target Selection
@@ -1568,19 +1625,43 @@ async function showCanonTargetSelection(canonX, canonY) {
     `;
     document.body.appendChild(message);
     
-    // Make all cells clickable (except box)
+    // Get all walkable cells
+    const walkableCells = getAllWalkableCells();
+    
+    // Make only walkable cells clickable and highlight them
     const allCells = elements.gameGrid.querySelectorAll('.grid-cell');
     const clickHandlers = [];
     
     allCells.forEach(cell => {
         const cellX = parseInt(cell.dataset.x);
         const cellY = parseInt(cell.dataset.y);
-        const cellData = gameState.grid[cellY][cellX];
         
-        // Allow clicking on any cell except box
-        if (cellData.specialGrid !== 'box') {
+        // Check if this cell is walkable
+        const isWalkable = walkableCells.some(w => w.x === cellX && w.y === cellY);
+        
+        if (isWalkable) {
+            // Highlight walkable cells with blue color and infinity symbol
             cell.classList.add('canon-target');
+            cell.style.backgroundColor = 'rgba(52, 152, 219, 0.5)';
             cell.style.cursor = 'pointer';
+            
+            // Add infinity symbol
+            const infinitySymbol = document.createElement('div');
+            infinitySymbol.className = 'canon-infinity';
+            infinitySymbol.textContent = '∞';
+            infinitySymbol.style.cssText = `
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                font-size: 32px;
+                font-weight: bold;
+                color: #3498db;
+                z-index: 10;
+                pointer-events: none;
+                text-shadow: 0 0 10px rgba(52, 152, 219, 0.8);
+            `;
+            cell.appendChild(infinitySymbol);
             
             const clickHandler = (e) => {
                 e.stopPropagation();
@@ -1591,17 +1672,25 @@ async function showCanonTargetSelection(canonX, canonY) {
                     message.parentNode.removeChild(message);
                 }
                 
-                // Remove all click handlers and classes
+                // Remove all click handlers, classes, and infinity symbols
                 allCells.forEach((c, idx) => {
                     c.classList.remove('canon-target');
+                    c.style.backgroundColor = '';
                     c.style.cursor = '';
+                    const infinity = c.querySelector('.canon-infinity');
+                    if (infinity) {
+                        infinity.remove();
+                    }
                     if (clickHandlers[idx]) {
                         c.removeEventListener('click', clickHandlers[idx]);
                     }
                 });
                 
-                // Teleport player
-                teleportPlayerToCell(cellX, cellY);
+                // Clear canon selection flag to re-enable normal movement
+                gameState.isCanonSelecting = false;
+                
+                // Move player to target with animation
+                movePlayerToCellWithAnimation(cellX, cellY);
             };
             
             clickHandlers.push(clickHandler);
@@ -1610,30 +1699,109 @@ async function showCanonTargetSelection(canonX, canonY) {
             clickHandlers.push(null);
         }
     });
+    
+    // Store message and clickHandlers for potential re-render
+    window.canonSelectionState = {
+        message: message,
+        clickHandlers: clickHandlers,
+        allCells: allCells
+    };
 }
 
-// Teleport Player to Target Cell
-async function teleportPlayerToCell(targetX, targetY) {
+// Restore canon target selection after grid re-render
+function restoreCanonTargetSelection() {
+    if (!gameState.isCanonSelecting || !window.canonSelectionState) {
+        return;
+    }
+    
+    const { message, clickHandlers, allCells: oldCells } = window.canonSelectionState;
+    
+    // Create a map of old cell coordinates to click handlers
+    const handlerMap = new Map();
+    oldCells.forEach((oldCell, idx) => {
+        if (clickHandlers[idx]) {
+            const cellX = parseInt(oldCell.dataset.x);
+            const cellY = parseInt(oldCell.dataset.y);
+            handlerMap.set(`${cellX},${cellY}`, clickHandlers[idx]);
+        }
+    });
+    
+    // Re-query cells after re-render
+    const currentCells = elements.gameGrid.querySelectorAll('.grid-cell');
+    const walkableCells = getAllWalkableCells();
+    
+    // Re-apply highlights and click handlers using coordinate matching
+    currentCells.forEach((cell) => {
+        const cellX = parseInt(cell.dataset.x);
+        const cellY = parseInt(cell.dataset.y);
+        const cellKey = `${cellX},${cellY}`;
+        
+        const isWalkable = walkableCells.some(w => w.x === cellX && w.y === cellY);
+        const clickHandler = handlerMap.get(cellKey);
+        
+        if (isWalkable && clickHandler) {
+            // Highlight walkable cells with blue color and infinity symbol
+            cell.classList.add('canon-target');
+            cell.style.backgroundColor = 'rgba(52, 152, 219, 0.5)';
+            cell.style.cursor = 'pointer';
+            
+            // Add infinity symbol
+            const infinitySymbol = document.createElement('div');
+            infinitySymbol.className = 'canon-infinity';
+            infinitySymbol.textContent = '∞';
+            infinitySymbol.style.cssText = `
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                font-size: 32px;
+                font-weight: bold;
+                color: #3498db;
+                z-index: 10;
+                pointer-events: none;
+                text-shadow: 0 0 10px rgba(52, 152, 219, 0.8);
+            `;
+            cell.appendChild(infinitySymbol);
+            
+            // Re-attach click handler
+            cell.addEventListener('click', clickHandler);
+        }
+    });
+}
+
+// Move Player to Target Cell with Animation (for canon teleport)
+async function movePlayerToCellWithAnimation(targetX, targetY) {
     const oldX = gameState.player.x;
     const oldY = gameState.player.y;
     
-    // Move player
-    gameState.grid[oldY][oldX].player = false;
-    gameState.player.x = targetX;
-    gameState.player.y = targetY;
-    gameState.grid[targetY][targetX].player = true;
+    // Find path from current position to target
+    const path = findPath(oldX, oldY, targetX, targetY, 999); // Use large maxSteps for canon teleport
     
-    // Show teleport animation
-    const targetCell = elements.gameGrid.querySelector(`[data-x="${targetX}"][data-y="${targetY}"]`);
-    if (targetCell) {
-        targetCell.classList.add('canon-teleport');
-    }
-    
-    renderGrid();
-    await sleep(500);
-    
-    if (targetCell) {
-        targetCell.classList.remove('canon-teleport');
+    if (!path || path.length === 0) {
+        // If no path found, just teleport directly
+        gameState.grid[oldY][oldX].player = false;
+        gameState.player.x = targetX;
+        gameState.player.y = targetY;
+        gameState.grid[targetY][targetX].player = true;
+        renderGrid();
+    } else {
+        // Move step by step following the path with animation
+        gameState.isMoving = true;
+        for (let i = 0; i < path.length && gameState.gameRunning; i++) {
+            const direction = path[i];
+            const newPos = getNewPosition(gameState.player.x, gameState.player.y, direction);
+            
+            // Move player
+            gameState.grid[gameState.player.y][gameState.player.x].player = false;
+            gameState.player.x = newPos.x;
+            gameState.player.y = newPos.y;
+            gameState.grid[gameState.player.y][gameState.player.x].player = true;
+            
+            // Render and wait for animation
+            renderGrid();
+            await sleep(150); // Animation speed
+        }
+        gameState.isMoving = false;
     }
     
     // Check for item at new position
@@ -1650,10 +1818,107 @@ async function teleportPlayerToCell(targetX, targetY) {
     // Check for enemy at new position
     if (gameState.grid[targetY][targetX].enemy !== null) {
         await performCombat(targetX, targetY);
+        // performCombat may end the turn, so check if game is still running
+        if (!gameState.gameRunning || gameState.currentTurn !== 'player') {
+            return; // Turn already ended
+        }
     }
     
-    // End turn after canon teleport
-    endPlayerTurn();
+    // End turn after canon teleport (only if still player's turn)
+    if (gameState.currentTurn === 'player' && gameState.gameRunning) {
+        endPlayerTurn();
+    }
+}
+
+// Teleport Player to Target Cell (kept for backward compatibility)
+async function teleportPlayerToCell(targetX, targetY) {
+    await movePlayerToCellWithAnimation(targetX, targetY);
+}
+
+// Handle Enemy Canon Teleport
+async function handleEnemyCanon(enemy, canonX, canonY) {
+    // Show canon activation effect
+    const canonCell = elements.gameGrid.querySelector(`[data-x="${canonX}"][data-y="${canonY}"]`);
+    if (canonCell) {
+        canonCell.classList.add('canon-activating');
+        await sleep(500);
+    }
+    
+    // Get all walkable cells
+    const walkableCells = getAllWalkableCells();
+    
+    // Enemy AI: Choose best target cell (closest to player)
+    const playerPos = { x: gameState.player.x, y: gameState.player.y };
+    let bestCell = null;
+    let minDistance = Infinity;
+    
+    for (const cell of walkableCells) {
+        const distance = calculateManhattanDistance(cell.x, cell.y, playerPos.x, playerPos.y);
+        if (distance < minDistance) {
+            minDistance = distance;
+            bestCell = cell;
+        }
+    }
+    
+    // If no best cell found, use first walkable cell
+    if (!bestCell && walkableCells.length > 0) {
+        bestCell = walkableCells[0];
+    }
+    
+    if (bestCell) {
+        // Move enemy to target with animation
+        await moveEnemyToCellWithAnimation(enemy, bestCell.x, bestCell.y);
+    }
+}
+
+// Move Enemy to Target Cell with Animation (for canon teleport)
+async function moveEnemyToCellWithAnimation(enemy, targetX, targetY) {
+    const oldX = enemy.x;
+    const oldY = enemy.y;
+    
+    // Find path from current position to target
+    const path = findPath(oldX, oldY, targetX, targetY, 999); // Use large maxSteps for canon teleport
+    
+    if (!path || path.length === 0) {
+        // If no path found, just teleport directly
+        gameState.grid[oldY][oldX].enemy = null;
+        enemy.x = targetX;
+        enemy.y = targetY;
+        gameState.grid[targetY][targetX].enemy = enemy.id;
+        renderGrid();
+    } else {
+        // Move step by step following the path with animation
+        for (let i = 0; i < path.length && gameState.gameRunning; i++) {
+            const direction = path[i];
+            const newPos = getNewPosition(enemy.x, enemy.y, direction);
+            
+            // Move enemy
+            gameState.grid[enemy.y][enemy.x].enemy = null;
+            enemy.x = newPos.x;
+            enemy.y = newPos.y;
+            gameState.grid[enemy.y][enemy.x].enemy = enemy.id;
+            
+            // Render and wait for animation
+            renderGrid();
+            await sleep(150); // Animation speed
+        }
+    }
+    
+    // Check for item at new position
+    if (gameState.grid[targetY][targetX].item !== null) {
+        await enemyCollectItem(enemy, targetX, targetY);
+    }
+    
+    // Check for player at new position (combat)
+    if (gameState.grid[targetY][targetX].player) {
+        await performEnemyCombat(enemy, targetX, targetY);
+        // performEnemyCombat may end the game or change turn, so return
+        // Enemy turn will continue with next enemy if game is still running
+        return;
+    }
+    
+    // After canon teleport, enemy's turn for this enemy is complete
+    // The enemyTurn() loop will continue with next enemy
 }
 
 // Show Value Loss Animation
@@ -2606,10 +2871,7 @@ function chooseBestTargetCell(enemy, roll) {
         
         for (const cellKey of reachableCells.keys()) {
             const [x, y] = cellKey.split(',').map(Number);
-            // Skip canon cells - enemies cannot enter
-            if (gameState.grid[y][x].specialGrid === 'canon') {
-                continue;
-            }
+            // Canon cells are walkable for enemies (they can enter to activate teleport)
             const distance = calculateManhattanDistance(x, y, playerPos.x, playerPos.y);
             
             if (distance < minDistance) {
@@ -2642,10 +2904,7 @@ function chooseBestTargetCell(enemy, roll) {
         
         for (const cellKey of reachableCells.keys()) {
             const [x, y] = cellKey.split(',').map(Number);
-            // Skip canon cells - enemies cannot enter
-            if (gameState.grid[y][x].specialGrid === 'canon') {
-                continue;
-            }
+            // Canon cells are walkable for enemies (they can enter to activate teleport)
             const distance = calculateManhattanDistance(x, y, playerPos.x, playerPos.y);
             
             if (distance < minDistance) {
@@ -2876,10 +3135,7 @@ async function enemyTurn() {
                 break; // Hit box
             }
             
-            // Check for canon (teleport) - enemies cannot enter
-            if (gameState.grid[newPos.y][newPos.x].specialGrid === 'canon') {
-                break; // Hit canon - cannot enter
-            }
+            // Canon cells are walkable for enemies (they can enter to activate teleport)
             
             // Check for other enemies
             if (gameState.grid[newPos.y][newPos.x].enemy !== null) {
@@ -2907,9 +3163,13 @@ async function enemyTurn() {
             enemy.y = newPos.y;
             gameState.grid[enemy.y][enemy.x].enemy = enemy.id;
             
-            // Check for special grid effects (enemy can take damage from lava and swamp)
+            // Check for special grid effects (enemy can take damage from lava and swamp, or use canon)
             const specialGrid = gameState.grid[enemy.y][enemy.x].specialGrid;
-            if (specialGrid === 'lava') {
+            if (specialGrid === 'canon') {
+                // Enemy stepped on canon - activate teleport
+                await handleEnemyCanon(enemy, enemy.x, enemy.y);
+                break; // Stop movement after canon teleport
+            } else if (specialGrid === 'lava') {
                 // Enemy takes damage from lava
                 const lavaDamage = CONFIG.SPECIAL_GRID_TYPES.lava.damage;
                 if (enemy.value > lavaDamage) {
@@ -3830,6 +4090,29 @@ function loadTotalGold() {
 
 // Game Over
 function gameOver(won, gameCompleted = false) {
+    // Check if we're in level designer test mode
+    if (window.isLevelDesignerTestMode) {
+        // In test mode, just show a simple message and return to designer
+        const message = won 
+            ? `Test Level Completed!\nYou rescued the princess in Level ${gameState.level}!\nFinal value: ${gameState.player.value}`
+            : `Test Level Failed!\nYou were defeated in Level ${gameState.level}!\nYour value: ${gameState.player.value}`;
+        alert(message);
+        
+        // Exit playtest mode (will return to designer)
+        // Use setTimeout to ensure alert is closed first
+        setTimeout(() => {
+            if (typeof window.exitGame === 'function' && window.exitGame !== exitGame) {
+                window.exitGame();
+            } else {
+                // Fallback: directly call exitPlaytestMode if available
+                if (typeof exitPlaytestMode === 'function') {
+                    exitPlaytestMode();
+                }
+            }
+        }, 100);
+        return;
+    }
+    
     gameState.gameRunning = false;
     
     // Save gold only when game ends (win or completed)
@@ -3867,6 +4150,15 @@ function gameOver(won, gameCompleted = false) {
 
 // Exit Game (no rewards, no save)
 function exitGame() {
+    // Check if we're in level designer test mode
+    if (window.isLevelDesignerTestMode) {
+        // Let the level designer handle the exit (it will call the overridden function)
+        if (typeof window.exitGame === 'function' && window.exitGame !== exitGame) {
+            window.exitGame();
+        }
+        return;
+    }
+    
     // Confirm exit
     const confirmed = confirm('Exit game? You will not receive any gold or rewards from this run.');
     if (!confirmed) {

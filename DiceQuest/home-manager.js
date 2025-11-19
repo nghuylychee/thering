@@ -160,6 +160,12 @@ const HOME_MANAGER = {
         document.getElementById('gameScreen').style.display = 'none';
         document.getElementById('gameOverScreen').style.display = 'none';
         
+        // Hide level designer screen if exists
+        const levelDesignerScreen = document.getElementById('levelDesignerScreen');
+        if (levelDesignerScreen) {
+            levelDesignerScreen.style.display = 'none';
+        }
+        
         // Hide power-up screen if exists
         const powerupScreen = document.getElementById('powerupScreen');
         if (powerupScreen) {
