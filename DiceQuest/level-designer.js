@@ -4,6 +4,7 @@ let currentGeneratedLevel = null;
 let testLevelNumber = null;
 let generated10Levels = null;
 let generatedLevelsCache = {}; // Cache for generated levels: { levelNumber: levelObject }
+let levelConfigsCache = null; // Cache for level configs (updated by AI)
 
 // DOM Elements
 const designerElements = {
@@ -105,6 +106,84 @@ function initLevelDesigner() {
     if (designerElements.generateAll10LevelsBtn) {
         designerElements.generateAll10LevelsBtn.addEventListener('click', handleGenerateAll10);
     }
+    const generateAllWithAIBtn = document.getElementById('generateAllWithAIBtn');
+    if (generateAllWithAIBtn) {
+        // Button is disabled - API generation temporarily disabled
+        // generateAllWithAIBtn.addEventListener('click', handleAIGenerateAll);
+    }
+    
+    // Load AI Result button
+    const loadAIResultBtn = document.getElementById('loadAIResultBtn');
+    const aiResultFileInput = document.getElementById('aiResultFileInput');
+    if (loadAIResultBtn) {
+        loadAIResultBtn.addEventListener('click', () => {
+            // Try to load from ai-result.json first
+            fetch('ai-result.json')
+                .then(response => {
+                    if (response.ok) {
+                        return response.json();
+                    } else {
+                        // If file not found, prompt for file upload
+                        aiResultFileInput?.click();
+                        return null;
+                    }
+                })
+                .then(data => {
+                    if (data) {
+                        handleLoadAIResult(data);
+                    }
+                })
+                .catch(error => {
+                    console.log('ai-result.json not found, using file input instead');
+                    aiResultFileInput?.click();
+                });
+        });
+    }
+    
+    if (aiResultFileInput) {
+        aiResultFileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const data = JSON.parse(event.target.result);
+                        handleLoadAIResult(data);
+                    } catch (error) {
+                        alert(`Failed to parse JSON file: ${error.message}`);
+                    }
+                };
+                reader.readAsText(file);
+            }
+        });
+    }
+    
+    // API Key input handler
+    const saveApiKeyBtn = document.getElementById('saveApiKeyBtn');
+    const apiKeyInput = document.getElementById('openaiApiKeyInput');
+    if (saveApiKeyBtn && apiKeyInput) {
+        // Load saved API key if available
+        if (typeof AI_LEVEL_DESIGNER !== 'undefined') {
+            const savedKey = AI_LEVEL_DESIGNER.getAPIKey();
+            if (savedKey) {
+                apiKeyInput.value = savedKey;
+            }
+        }
+        
+        saveApiKeyBtn.addEventListener('click', () => {
+            const key = apiKeyInput.value.trim();
+            if (!key) {
+                alert('Please enter an API key');
+                return;
+            }
+            if (typeof AI_LEVEL_DESIGNER !== 'undefined') {
+                AI_LEVEL_DESIGNER.setAPIKey(key);
+                alert('API key saved! (Stored in browser localStorage)');
+            } else {
+                alert('AI Level Designer not loaded');
+            }
+        });
+    }
     if (designerElements.saveGenFileBtn) {
         designerElements.saveGenFileBtn.addEventListener('click', saveAllGeneratedLevelsToFile);
     }
@@ -144,6 +223,8 @@ function saveGeneratedLevelsToStorage() {
                     minItems: level.minItems,
                     maxItems: level.maxItems,
                     spawnTurns: level.spawnTurns,
+                    designIntent: level.designIntent || '',
+                    optimalStrategy: level.optimalStrategy || '',
                     layout: level.layout,
                     stats: level.stats
                 };
@@ -420,6 +501,17 @@ function renderLevelParametersList() {
             difficultyClass = 'difficulty-very-hard';
         }
         
+        // Get designIntent and optimalStrategy from LEVEL_DESIGN.LEVELS if available
+        let designIntent = '';
+        let optimalStrategy = '';
+        if (typeof LEVEL_DESIGN !== 'undefined' && LEVEL_DESIGN.LEVELS) {
+            const levelData = LEVEL_DESIGN.LEVELS.find(l => l.level === config.level);
+            if (levelData) {
+                designIntent = levelData.designIntent || '';
+                optimalStrategy = levelData.optimalStrategy || '';
+            }
+        }
+        
         // Generate preview grid for this level (use cached or generate)
         // This will also ensure the level is cached for Save functionality
         const previewLevel = getOrGenerateLevel(config.level, false);
@@ -468,35 +560,35 @@ function renderLevelParametersList() {
                     <div class="level-param-stats-overview">
                         <div class="stat-overview-item">
                             <span class="stat-label">Enemy Power:</span>
-                            <input type="number" class="stat-value-edit" data-level="${config.level}" data-param="totalEnemyPower" value="${config.totalEnemyPower}" min="1" max="50">
+                            <input type="number" class="stat-value-edit read-only" data-level="${config.level}" data-param="totalEnemyPower" value="${config.totalEnemyPower}" min="1" max="50" disabled readonly>
                         </div>
                         <div class="stat-overview-item">
                             <span class="stat-label">Enemies:</span>
-                            <input type="number" class="stat-value-edit" data-level="${config.level}" data-param="enemyCount" value="${config.enemyCount}" min="1" max="15">
+                            <input type="number" class="stat-value-edit read-only" data-level="${config.level}" data-param="enemyCount" value="${config.enemyCount}" min="1" max="15" disabled readonly>
                         </div>
                         <div class="stat-overview-item">
                             <span class="stat-label">Item Value:</span>
-                            <input type="number" class="stat-value-edit" data-level="${config.level}" data-param="totalItemValue" value="${config.totalItemValue}" min="1" max="30">
+                            <input type="number" class="stat-value-edit read-only" data-level="${config.level}" data-param="totalItemValue" value="${config.totalItemValue}" min="1" max="30" disabled readonly>
                         </div>
                         <div class="stat-overview-item">
                             <span class="stat-label">Items:</span>
-                            <input type="number" class="stat-value-edit" data-level="${config.level}" data-param="itemCount" value="${config.itemCount}" min="1" max="15">
+                            <input type="number" class="stat-value-edit read-only" data-level="${config.level}" data-param="itemCount" value="${config.itemCount}" min="1" max="15" disabled readonly>
                         </div>
                         <div class="stat-overview-item">
                             <span class="stat-label">📦 Boxes:</span>
-                            <input type="number" class="stat-value-edit" data-level="${config.level}" data-param="obstacleBox" value="${config.obstacleBox || 0}" min="0" max="30">
+                            <input type="number" class="stat-value-edit read-only" data-level="${config.level}" data-param="obstacleBox" value="${config.obstacleBox || 0}" min="0" max="30" disabled readonly>
                         </div>
                         <div class="stat-overview-item">
                             <span class="stat-label">🌋 Lava:</span>
-                            <input type="number" class="stat-value-edit" data-level="${config.level}" data-param="obstacleLava" value="${config.obstacleLava || 0}" min="0" max="15">
+                            <input type="number" class="stat-value-edit read-only" data-level="${config.level}" data-param="obstacleLava" value="${config.obstacleLava || 0}" min="0" max="15" disabled readonly>
                         </div>
                         <div class="stat-overview-item">
                             <span class="stat-label">🟤 Swamp:</span>
-                            <input type="number" class="stat-value-edit" data-level="${config.level}" data-param="obstacleSwamp" value="${config.obstacleSwamp || 0}" min="0" max="15">
+                            <input type="number" class="stat-value-edit read-only" data-level="${config.level}" data-param="obstacleSwamp" value="${config.obstacleSwamp || 0}" min="0" max="15" disabled readonly>
                         </div>
                         <div class="stat-overview-item">
                             <span class="stat-label">💣 Canon:</span>
-                            <input type="number" class="stat-value-edit" data-level="${config.level}" data-param="obstacleCanon" value="${config.obstacleCanon || 0}" min="0" max="10">
+                            <input type="number" class="stat-value-edit read-only" data-level="${config.level}" data-param="obstacleCanon" value="${config.obstacleCanon || 0}" min="0" max="10" disabled readonly>
                         </div>
                         <div class="stat-overview-item">
                             <span class="stat-label">Walkable:</span>
@@ -513,18 +605,40 @@ function renderLevelParametersList() {
                     </div>
                 </div>
             </div>
+            ${designIntent || optimalStrategy ? `
+            <div class="level-ai-info" data-level="${config.level}">
+                ${designIntent ? `
+                <div class="design-intent-section">
+                    <div class="ai-section-header">
+                        <span class="ai-section-icon">🎯</span>
+                        <span class="ai-section-title">Design Intent</span>
+                    </div>
+                    <div class="ai-section-content">${designIntent}</div>
+                </div>
+                ` : ''}
+                ${optimalStrategy ? `
+                <div class="optimal-strategy-section">
+                    <div class="ai-section-header">
+                        <span class="ai-section-icon">🧠</span>
+                        <span class="ai-section-title">Optimal Strategy</span>
+                    </div>
+                    <div class="ai-section-content">${optimalStrategy}</div>
+                </div>
+                ` : ''}
+            </div>
+            ` : ''}
+            <div class="level-ai-loading" id="aiLoading_${config.level}" style="display: none;">
+                <div class="ai-loading-spinner"></div>
+                <span class="ai-loading-text">AI is generating suggestions...</span>
+            </div>
+            <div class="level-ai-message" id="aiMessage_${config.level}" style="display: none;"></div>
             <div class="level-param-details" id="levelParamDetails${config.level}" style="display: none;">
                 <!-- Detailed form will be inserted here -->
             </div>
         `;
         
-        // Add event listeners for inline editing
-        const statInputs = levelCard.querySelectorAll('.stat-value-edit');
-        statInputs.forEach(input => {
-            input.addEventListener('input', () => {
-                updateLevelStatsFromInline(config.level);
-            });
-        });
+        // Note: Tuning parameters are now read-only (disabled) - stats are auto-calculated from layout
+        // Event listeners removed as inputs are disabled
         
         // Calculate and display initial walkable cells
         setTimeout(() => {
@@ -654,9 +768,21 @@ function getOrGenerateLevel(levelNumber, forceRegenerate = false) {
             }
             return cachedLevel;
         }
+        
+        // If not in cache, check LEVEL_DESIGN.LEVELS (which has AI-generated layouts)
+        if (typeof LEVEL_DESIGN !== 'undefined' && LEVEL_DESIGN.LEVELS) {
+            const levelData = LEVEL_DESIGN.LEVELS.find(l => l.level === levelNumber);
+            if (levelData && levelData.layout && Array.isArray(levelData.layout)) {
+                console.log(`Using level ${levelNumber} from LEVEL_DESIGN.LEVELS (AI-generated layout)`);
+                // Cache it for future use
+                generatedLevelsCache[cacheKey] = levelData;
+                generatedLevelsCache[levelNumber] = levelData;
+                return levelData;
+            }
+        }
     }
     
-    // Generate new level
+    // Generate new level from parameters (fallback)
     const params = getLevelParameters(levelNumber);
     if (!params) {
         console.error('Failed to get parameters for level', levelNumber);
@@ -678,7 +804,7 @@ function getOrGenerateLevel(levelNumber, forceRegenerate = false) {
     generatedLevelsCache[cacheKey] = level;
     // Also cache with number key for backward compatibility
     generatedLevelsCache[levelNumber] = level;
-    console.log(`Generated and cached level ${levelNumber}`);
+    console.log(`Generated and cached level ${levelNumber} from parameters`);
     
     // Save to localStorage as backup
     saveGeneratedLevelsToStorage();
@@ -1278,6 +1404,12 @@ function handleSaveLevel(levelNumber) {
         return;
     }
     
+    // Get existing level from LEVEL_DESIGN.LEVELS to preserve designIntent and optimalStrategy
+    let existingLevel = null;
+    if (typeof LEVEL_DESIGN !== 'undefined' && LEVEL_DESIGN.LEVELS) {
+        existingLevel = LEVEL_DESIGN.LEVELS.find(l => l.level === levelNumber);
+    }
+    
     // Convert generated level to format compatible with LEVEL_DESIGN.LEVELS
     const levelConfig = {
         level: levelNumber,
@@ -1289,6 +1421,8 @@ function handleSaveLevel(levelNumber) {
         minItems: level.minItems,
         maxItems: level.maxItems,
         spawnTurns: level.spawnTurns,
+        designIntent: level.designIntent || existingLevel?.designIntent || '',
+        optimalStrategy: level.optimalStrategy || existingLevel?.optimalStrategy || '',
         layout: level.layout
     };
     
@@ -1355,7 +1489,8 @@ function getLevelParameters(levelNumber) {
     const configs = getLevelConfigs();
     const defaultConfig = configs.find(c => c.level === levelNumber);
     
-    // Get from inline edits if available
+    // Priority: Use config from memory (already updated by AI) > inline edits > form inputs > default
+    // Get from inline edits if available (these are updated by applyAISuggestion)
     const totalEnemyPower = card ? parseInt(card.querySelector(`.stat-value-edit[data-param="totalEnemyPower"]`)?.value) : null;
     const enemyCount = card ? parseInt(card.querySelector(`.stat-value-edit[data-param="enemyCount"]`)?.value) : null;
     const totalItemValue = card ? parseInt(card.querySelector(`.stat-value-edit[data-param="totalItemValue"]`)?.value) : null;
@@ -1365,34 +1500,39 @@ function getLevelParameters(levelNumber) {
     const obstacleSwamp = card ? parseInt(card.querySelector(`.stat-value-edit[data-param="obstacleSwamp"]`)?.value) : null;
     const obstacleCanon = card ? parseInt(card.querySelector(`.stat-value-edit[data-param="obstacleCanon"]`)?.value) : null;
     
+    // Use config from memory as source of truth (already updated by applyAISuggestion)
+    // Priority: inline edits > config in memory > form inputs > defaults
+    // This ensures we use the latest AI-generated parameters
+    
     return {
         level: levelNumber,
-        gridWidth: parseInt(document.getElementById(`${prefix}GridWidth`)?.value) || defaultConfig?.gridWidth || 8,
-        gridHeight: parseInt(document.getElementById(`${prefix}GridHeight`)?.value) || defaultConfig?.gridHeight || 10,
-        totalEnemyPower: totalEnemyPower !== null ? totalEnemyPower : (parseInt(document.getElementById(`${prefix}TotalEnemyPower`)?.value) || defaultConfig?.totalEnemyPower || 10),
-        enemyCount: enemyCount !== null ? enemyCount : (parseInt(document.getElementById(`${prefix}EnemyCount`)?.value) || defaultConfig?.enemyCount || 3),
-        enemyMinDistance: parseInt(document.getElementById(`${prefix}EnemyMinDistance`)?.value) || defaultConfig?.enemyMinDistance || 2,
-        enemyMaxDistance: parseInt(document.getElementById(`${prefix}EnemyMaxDistance`)?.value) || defaultConfig?.enemyMaxDistance || 8,
-        totalItemValue: totalItemValue !== null ? totalItemValue : (parseInt(document.getElementById(`${prefix}TotalItemValue`)?.value) || defaultConfig?.totalItemValue || 5),
-        itemCount: itemCount !== null ? itemCount : (parseInt(document.getElementById(`${prefix}ItemCount`)?.value) || defaultConfig?.itemCount || 3),
-        itemMinDistance: parseInt(document.getElementById(`${prefix}ItemMinDistance`)?.value) || defaultConfig?.itemMinDistance || 1,
-        itemMaxDistance: parseInt(document.getElementById(`${prefix}ItemMaxDistance`)?.value) || defaultConfig?.itemMaxDistance || 6,
-        itemMinDistanceFromEnemy: parseInt(document.getElementById(`${prefix}ItemMinDistanceFromEnemy`)?.value) || defaultConfig?.itemMinDistanceFromEnemy || 0,
-        // Get obstacles from inputs (exact values)
-        obstacleBox: obstacleBox !== null ? obstacleBox : (parseInt(document.getElementById(`${prefix}ObstacleBox`)?.value) || defaultConfig?.obstacleBox || 0),
-        obstacleLava: obstacleLava !== null ? obstacleLava : (parseInt(document.getElementById(`${prefix}ObstacleLava`)?.value) || defaultConfig?.obstacleLava || 0),
-        obstacleSwamp: obstacleSwamp !== null ? obstacleSwamp : (parseInt(document.getElementById(`${prefix}ObstacleSwamp`)?.value) || defaultConfig?.obstacleSwamp || 0),
-        obstacleCanon: obstacleCanon !== null ? obstacleCanon : (parseInt(document.getElementById(`${prefix}ObstacleCanon`)?.value) || defaultConfig?.obstacleCanon || 0),
-        princessDistance: parseInt(document.getElementById(`${prefix}PrincessDistance`)?.value) || defaultConfig?.princessDistance || 5,
-        portalDistance: parseInt(document.getElementById(`${prefix}PortalDistance`)?.value) || defaultConfig?.portalDistance || 3,
-        playerStartValue: parseInt(document.getElementById(`${prefix}PlayerStartValue`)?.value) || defaultConfig?.playerStartValue || 2,
-        goldPerLevel: parseInt(document.getElementById(`${prefix}GoldPerLevel`)?.value) || defaultConfig?.goldPerLevel || 10,
-        goldPerBag: parseInt(document.getElementById(`${prefix}GoldPerBag`)?.value) || defaultConfig?.goldPerBag || 5,
-        minItems: parseInt(document.getElementById(`${prefix}MinItems`)?.value) || defaultConfig?.minItems || 1,
-        maxItems: parseInt(document.getElementById(`${prefix}MaxItems`)?.value) || defaultConfig?.maxItems || 5,
-        spawnTurns: parseInt(document.getElementById(`${prefix}SpawnTurns`)?.value) || defaultConfig?.spawnTurns || 3,
-        name: document.getElementById(`${prefix}Name`)?.value || defaultConfig?.name || 'Generated Level',
-        description: document.getElementById(`${prefix}Description`)?.value || defaultConfig?.description || 'Auto-generated level'
+        gridWidth: defaultConfig?.gridWidth || 8,
+        gridHeight: defaultConfig?.gridHeight || 10,
+        totalEnemyPower: totalEnemyPower !== null ? totalEnemyPower : (defaultConfig?.totalEnemyPower || 10),
+        enemyCount: enemyCount !== null ? enemyCount : (defaultConfig?.enemyCount || 3),
+        enemyMinDistance: defaultConfig?.enemyMinDistance || 2,
+        enemyMaxDistance: defaultConfig?.enemyMaxDistance || 8,
+        totalItemValue: totalItemValue !== null ? totalItemValue : (defaultConfig?.totalItemValue || 5),
+        itemCount: itemCount !== null ? itemCount : (defaultConfig?.itemCount || 3),
+        itemMinDistance: defaultConfig?.itemMinDistance || 1,
+        itemMaxDistance: defaultConfig?.itemMaxDistance || 6,
+        itemMinDistanceFromEnemy: defaultConfig?.itemMinDistanceFromEnemy || 0,
+        // Get obstacles from inline edits or config (exact values)
+        obstacleBox: obstacleBox !== null ? obstacleBox : (defaultConfig?.obstacleBox || 0),
+        obstacleLava: obstacleLava !== null ? obstacleLava : (defaultConfig?.obstacleLava || 0),
+        obstacleSwamp: obstacleSwamp !== null ? obstacleSwamp : (defaultConfig?.obstacleSwamp || 0),
+        obstacleCanon: obstacleCanon !== null ? obstacleCanon : (defaultConfig?.obstacleCanon || 0),
+        princessDistance: defaultConfig?.princessDistance || 5,
+        portalDistance: defaultConfig?.portalDistance || 3,
+        playerStartValue: defaultConfig?.playerStartValue || 2,
+        goldPerLevel: defaultConfig?.goldPerLevel || 10,
+        goldPerBag: defaultConfig?.goldPerBag || 5,
+        minItems: defaultConfig?.minItems || 1,
+        maxItems: defaultConfig?.maxItems || 5,
+        spawnTurns: defaultConfig?.spawnTurns || 3,
+        name: defaultConfig?.name || 'Generated Level',
+        description: defaultConfig?.description || 'Auto-generated level',
+        walkableCells: defaultConfig?.walkableCells || 50
     };
 }
 
@@ -1412,112 +1552,112 @@ function loadLevelParameterDetails(levelNumber, container) {
     container.innerHTML = `
         <div class="level-param-form">
             <div class="form-section">
-                <h4>Layout & Space</h4>
+                <h4>Layout & Space (Read-only)</h4>
                 <div class="form-group">
                     <label>Grid Width:</label>
-                    <input type="number" id="${prefix}GridWidth" value="${config.gridWidth}" min="6" max="12">
+                    <input type="number" id="${prefix}GridWidth" value="${config.gridWidth}" min="6" max="12" disabled readonly class="read-only">
                 </div>
                 <div class="form-group">
                     <label>Grid Height:</label>
-                    <input type="number" id="${prefix}GridHeight" value="${config.gridHeight}" min="6" max="15">
+                    <input type="number" id="${prefix}GridHeight" value="${config.gridHeight}" min="6" max="15" disabled readonly class="read-only">
                 </div>
                 <div class="form-group">
                     <label>Walkable Cells:</label>
-                    <input type="number" id="${prefix}WalkableCells" value="${config.walkableCells}" min="20" max="120">
+                    <input type="number" id="${prefix}WalkableCells" value="${config.walkableCells}" min="20" max="120" disabled readonly class="read-only">
                 </div>
             </div>
             
             <div class="form-section">
-                <h4>Enemies</h4>
+                <h4>Enemies (Read-only)</h4>
                 <div class="form-group">
                     <label>Total Enemy Power:</label>
-                    <input type="number" id="${prefix}TotalEnemyPower" value="${config.totalEnemyPower}" min="1" max="50">
+                    <input type="number" id="${prefix}TotalEnemyPower" value="${config.totalEnemyPower}" min="1" max="50" disabled readonly class="read-only">
                 </div>
                 <div class="form-group">
                     <label>Enemy Count:</label>
-                    <input type="number" id="${prefix}EnemyCount" value="${config.enemyCount}" min="1" max="15">
+                    <input type="number" id="${prefix}EnemyCount" value="${config.enemyCount}" min="1" max="15" disabled readonly class="read-only">
                 </div>
                 <div class="form-group">
                     <label>Min Distance from Player:</label>
-                    <input type="number" id="${prefix}EnemyMinDistance" value="${config.enemyMinDistance}" min="1" max="10">
+                    <input type="number" id="${prefix}EnemyMinDistance" value="${config.enemyMinDistance}" min="1" max="10" disabled readonly class="read-only">
                 </div>
                 <div class="form-group">
                     <label>Max Distance from Player:</label>
-                    <input type="number" id="${prefix}EnemyMaxDistance" value="${config.enemyMaxDistance}" min="2" max="15">
+                    <input type="number" id="${prefix}EnemyMaxDistance" value="${config.enemyMaxDistance}" min="2" max="15" disabled readonly class="read-only">
                 </div>
             </div>
             
             <div class="form-section">
-                <h4>Items</h4>
+                <h4>Items (Read-only)</h4>
                 <div class="form-group">
                     <label>Total Item Value:</label>
-                    <input type="number" id="${prefix}TotalItemValue" value="${config.totalItemValue}" min="1" max="60">
+                    <input type="number" id="${prefix}TotalItemValue" value="${config.totalItemValue}" min="1" max="60" disabled readonly class="read-only">
                 </div>
                 <div class="form-group">
                     <label>Item Count:</label>
-                    <input type="number" id="${prefix}ItemCount" value="${config.itemCount}" min="1" max="15">
+                    <input type="number" id="${prefix}ItemCount" value="${config.itemCount}" min="1" max="15" disabled readonly class="read-only">
                 </div>
                 <div class="form-group">
                     <label>Min Distance from Player:</label>
-                    <input type="number" id="${prefix}ItemMinDistance" value="${config.itemMinDistance}" min="0" max="10">
+                    <input type="number" id="${prefix}ItemMinDistance" value="${config.itemMinDistance}" min="0" max="10" disabled readonly class="read-only">
                 </div>
                 <div class="form-group">
                     <label>Max Distance from Player:</label>
-                    <input type="number" id="${prefix}ItemMaxDistance" value="${config.itemMaxDistance}" min="1" max="15">
+                    <input type="number" id="${prefix}ItemMaxDistance" value="${config.itemMaxDistance}" min="1" max="15" disabled readonly class="read-only">
                 </div>
                 <div class="form-group">
                     <label>Min Distance from Enemies:</label>
-                    <input type="number" id="${prefix}ItemMinDistanceFromEnemy" value="${config.itemMinDistanceFromEnemy}" min="0" max="10">
+                    <input type="number" id="${prefix}ItemMinDistanceFromEnemy" value="${config.itemMinDistanceFromEnemy}" min="0" max="10" disabled readonly class="read-only">
                 </div>
             </div>
             
             <!-- Obstacles are now calculated automatically from walkableCells -->
             
             <div class="form-section">
-                <h4>Princess & Portal</h4>
+                <h4>Princess & Portal (Read-only)</h4>
                 <div class="form-group">
                     <label>Princess Distance from Player:</label>
-                    <input type="number" id="${prefix}PrincessDistance" value="${config.princessDistance}" min="2" max="12">
+                    <input type="number" id="${prefix}PrincessDistance" value="${config.princessDistance}" min="2" max="12" disabled readonly class="read-only">
                 </div>
                 <div class="form-group">
                     <label>Portal Distance from Princess:</label>
-                    <input type="number" id="${prefix}PortalDistance" value="${config.portalDistance}" min="1" max="8">
+                    <input type="number" id="${prefix}PortalDistance" value="${config.portalDistance}" min="1" max="8" disabled readonly class="read-only">
                 </div>
             </div>
             
             <div class="form-section">
-                <h4>Level Config</h4>
+                <h4>Level Config (Read-only)</h4>
                 <div class="form-group">
                     <label>Player Start Value:</label>
-                    <input type="number" id="${prefix}PlayerStartValue" value="${config.playerStartValue}" min="1" max="10">
+                    <input type="number" id="${prefix}PlayerStartValue" value="${config.playerStartValue}" min="1" max="10" disabled readonly class="read-only">
                 </div>
                 <div class="form-group">
                     <label>Gold Per Level:</label>
-                    <input type="number" id="${prefix}GoldPerLevel" value="${config.goldPerLevel}" min="0" max="100">
+                    <input type="number" id="${prefix}GoldPerLevel" value="${config.goldPerLevel}" min="0" max="100" disabled readonly class="read-only">
                 </div>
                 <div class="form-group">
                     <label>Gold Per Bag:</label>
-                    <input type="number" id="${prefix}GoldPerBag" value="${config.goldPerBag}" min="0" max="50">
+                    <input type="number" id="${prefix}GoldPerBag" value="${config.goldPerBag}" min="0" max="50" disabled readonly class="read-only">
                 </div>
                 <div class="form-group">
                     <label>Min Items:</label>
-                    <input type="number" id="${prefix}MinItems" value="${config.minItems}" min="0" max="10">
+                    <input type="number" id="${prefix}MinItems" value="${config.minItems}" min="0" max="10" disabled readonly class="read-only">
                 </div>
                 <div class="form-group">
                     <label>Max Items:</label>
-                    <input type="number" id="${prefix}MaxItems" value="${config.maxItems}" min="1" max="15">
+                    <input type="number" id="${prefix}MaxItems" value="${config.maxItems}" min="1" max="15" disabled readonly class="read-only">
                 </div>
                 <div class="form-group">
                     <label>Spawn Turns:</label>
-                    <input type="number" id="${prefix}SpawnTurns" value="${config.spawnTurns}" min="1" max="10">
+                    <input type="number" id="${prefix}SpawnTurns" value="${config.spawnTurns}" min="1" max="10" disabled readonly class="read-only">
                 </div>
                 <div class="form-group">
                     <label>Level Name:</label>
-                    <input type="text" id="${prefix}Name" value="${config.name}">
+                    <input type="text" id="${prefix}Name" value="${config.name}" disabled readonly class="read-only">
                 </div>
                 <div class="form-group">
                     <label>Description:</label>
-                    <input type="text" id="${prefix}Description" value="${config.description}">
+                    <input type="text" id="${prefix}Description" value="${config.description}" disabled readonly class="read-only">
                 </div>
             </div>
             
@@ -1738,8 +1878,13 @@ function loadLevelParameters(levelNumber) {
 
 // Get level configs (extract from generate10Levels)
 function getLevelConfigs() {
-    // Return the same configs used in generate10Levels
-    return [
+    // If we have cached configs (updated by AI), use those
+    if (levelConfigsCache && Array.isArray(levelConfigsCache)) {
+        return levelConfigsCache;
+    }
+    
+    // Otherwise return default configs
+    const defaultConfigs = [
         // Cụm 1: Level 1-3 (Intro → Upgrade → Climax)
         {
             level: 1,
@@ -2035,6 +2180,13 @@ function getLevelConfigs() {
             spawnTurns: 3
         }
     ];
+    
+    // Cache default configs for first time
+    if (!levelConfigsCache) {
+        levelConfigsCache = [...defaultConfigs];
+    }
+    
+    return levelConfigsCache;
 }
 
 // Get parameters from form
@@ -2340,9 +2492,104 @@ function handleSaveToFile() {
     URL.revokeObjectURL(url);
 }
 
-// Handle Generate All 10 Levels
+// Handle Save AI Levels to level-design.js
 function handleGenerateAll10() {
-    console.log('Generating all 10 levels...');
+    console.log('Saving AI-generated levels to level-design.js...');
+    
+    // Get levels from LEVEL_DESIGN.LEVELS (which has AI-generated layouts) or cache
+    const levelsToSave = [];
+    
+    // First, try to get from LEVEL_DESIGN.LEVELS (preferred - has AI layouts)
+    if (typeof LEVEL_DESIGN !== 'undefined' && LEVEL_DESIGN.LEVELS) {
+        for (let levelNum = 1; levelNum <= 10; levelNum++) {
+            const level = LEVEL_DESIGN.LEVELS.find(l => l.level === levelNum);
+            if (level && level.layout) {
+                levelsToSave.push(level);
+            } else {
+                // Fallback to cache
+                const cachedLevel = generatedLevelsCache[levelNum] || generatedLevelsCache[String(levelNum)];
+                if (cachedLevel && cachedLevel.layout) {
+                    levelsToSave.push(cachedLevel);
+                }
+            }
+        }
+    } else {
+        // Fallback to cache only
+        for (let levelNum = 1; levelNum <= 10; levelNum++) {
+            const cachedLevel = generatedLevelsCache[levelNum] || generatedLevelsCache[String(levelNum)];
+            if (cachedLevel && cachedLevel.layout) {
+                levelsToSave.push(cachedLevel);
+            }
+        }
+    }
+    
+    if (levelsToSave.length === 0) {
+        alert('No AI-generated levels found!\n\nPlease:\n1. Load AI result from ai-result.json, OR\n2. Generate levels with AI first');
+        return;
+    }
+    
+    if (levelsToSave.length < 10) {
+        if (!confirm(`Only ${levelsToSave.length} levels found. Save these ${levelsToSave.length} levels to level-design.js?`)) {
+            return;
+        }
+    } else {
+        if (!confirm(`Save all ${levelsToSave.length} AI-generated levels to level-design.js?\n\nThis will create a downloadable file that you can use to replace the current level-design.js.`)) {
+            return;
+        }
+    }
+    
+    // Sort by level number
+    levelsToSave.sort((a, b) => a.level - b.level);
+    
+    // Format all levels for file
+    const levelsArray = levelsToSave.map(level => formatLevelForFile(level, level.level));
+    
+    const allLevelsCode = levelsArray.join(',\n\n');
+    const fullCode = `// DiceQuest Level Design Configuration
+// Level Design Format:
+// - 'P' = Player starting position
+// - Negative numbers (-1, -3, -5, -8, etc.) = Enemy (value = abs(number), icon auto-assigned)
+// - Positive numbers (1, 2, 3, 5, etc.) = Item (value = number, icon auto-assigned)
+// - 'B' = Box (obstacle)
+// - 'L' = Lava
+// - 'S' = Swamp
+// - 'C' = Canon
+// - 'R' = Princess (must be rescued to spawn portal)
+// - '.' or ' ' or 0 = Empty cell
+
+const LEVEL_DESIGN = {
+    LEVELS: [
+${allLevelsCode}
+        
+    ]
+};
+
+// Attach LEVELS to CONFIG for backward compatibility
+if (typeof CONFIG !== 'undefined') {
+    CONFIG.LEVELS = LEVEL_DESIGN.LEVELS;
+}`;
+
+    // Create download link
+    const blob = new Blob([fullCode], { type: 'text/javascript' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'level-design.js';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    alert(`✅ Successfully saved ${levelsToSave.length} levels to level-design.js!\n\nFile downloaded. To use:\n1. Replace your current level-design.js with the downloaded file\n2. Refresh the game to see the new levels`);
+    
+    // Also copy to clipboard as backup
+    navigator.clipboard.writeText(fullCode).then(() => {
+        console.log('Level design code also copied to clipboard');
+    }).catch(err => {
+        console.log('Could not copy to clipboard:', err);
+    });
+    
+    console.log(`Saved ${levelsToSave.length} levels to level-design.js`);
     
     // Get parameters from all level forms
     const allLevels = [];
@@ -2979,6 +3226,9 @@ function formatLevelForFile(level, levelNumber) {
         return `                [${rowStr}]`;
     }).join(',\n');
     
+    const designIntentStr = level.designIntent ? `            designIntent: '${level.designIntent.replace(/'/g, "\\'").replace(/\n/g, '\\n')}',\n` : '';
+    const optimalStrategyStr = level.optimalStrategy ? `            optimalStrategy: '${level.optimalStrategy.replace(/'/g, "\\'").replace(/\n/g, '\\n')}',\n` : '';
+    
     return `        {
             level: ${levelNumber},
             name: '${level.name.replace(/'/g, "\\'")}',
@@ -2988,8 +3238,7 @@ function formatLevelForFile(level, levelNumber) {
             goldPerBag: ${level.goldPerBag},
             minItems: ${level.minItems},
             maxItems: ${level.maxItems},
-            spawnTurns: ${level.spawnTurns},
-            layout: [
+            spawnTurns: ${level.spawnTurns},${designIntentStr}${optimalStrategyStr}            layout: [
 ${layoutStr}
             ]            
         }`;
@@ -3004,6 +3253,665 @@ function initializeLevelDesigner() {
         });
     } else {
         setTimeout(initLevelDesigner, 100);
+    }
+}
+
+// ========== AI Level Design Functions ==========
+
+/**
+ * Count stats from layout array
+ * @param {Array<Array>} layout - 2D layout array
+ * @returns {Object} - Stats object with enemyCount, totalEnemyPower, itemCount, totalItemValue, obstacles, walkableCells
+ */
+function countStatsFromLayout(layout) {
+    if (!layout || !Array.isArray(layout) || layout.length === 0) {
+        return {
+            enemyCount: 0,
+            totalEnemyPower: 0,
+            itemCount: 0,
+            totalItemValue: 0,
+            obstacleBox: 0,
+            obstacleLava: 0,
+            obstacleSwamp: 0,
+            obstacleCanon: 0,
+            walkableCells: 0
+        };
+    }
+    
+    let enemyCount = 0;
+    let totalEnemyPower = 0;
+    let itemCount = 0;
+    let totalItemValue = 0;
+    let obstacleBox = 0;
+    let obstacleLava = 0;
+    let obstacleSwamp = 0;
+    let obstacleCanon = 0;
+    let walkableCells = 0;
+    
+    layout.forEach(row => {
+        if (!Array.isArray(row)) return;
+        
+        row.forEach(cell => {
+            // Handle number cells
+            if (typeof cell === 'number') {
+                if (cell < 0) {
+                    // Enemy (negative number)
+                    enemyCount++;
+                    totalEnemyPower += Math.abs(cell);
+                } else if (cell > 0) {
+                    // Item (positive number)
+                    itemCount++;
+                    totalItemValue += cell;
+                } else {
+                    // Zero = empty walkable cell
+                    walkableCells++;
+                }
+            } else if (typeof cell === 'string') {
+                // Handle string cells
+                if (cell === 'B') {
+                    obstacleBox++;
+                } else if (cell === 'L') {
+                    obstacleLava++;
+                    walkableCells++; // Lava is walkable (just deals damage)
+                } else if (cell === 'S') {
+                    obstacleSwamp++;
+                    walkableCells++; // Swamp is walkable (just deals damage)
+                } else if (cell === 'C') {
+                    obstacleCanon++;
+                    walkableCells++; // Canon is walkable
+                } else if (cell === 'P' || cell === 'R') {
+                    // Player and Princess positions are walkable
+                    walkableCells++;
+                } else if (cell === '0' || cell === '.' || cell === ' ' || cell === '') {
+                    // Empty cell
+                    walkableCells++;
+                }
+            } else if (cell === 0 || cell === null || cell === undefined) {
+                // Empty cell
+                walkableCells++;
+            }
+        });
+    });
+    
+    return {
+        enemyCount,
+        totalEnemyPower,
+        itemCount,
+        totalItemValue,
+        obstacleBox,
+        obstacleLava,
+        obstacleSwamp,
+        obstacleCanon,
+        walkableCells
+    };
+}
+
+/**
+ * Validate layout array
+ * @param {Array<Array>} layout - 2D layout array
+ * @param {number} levelNumber - Level number (for error messages)
+ * @returns {Object} - { valid: boolean, errors: string[] }
+ */
+function validateLayout(layout, levelNumber) {
+    const errors = [];
+    
+    if (!layout || !Array.isArray(layout)) {
+        errors.push(`Level ${levelNumber}: Layout is not an array`);
+        return { valid: false, errors };
+    }
+    
+    if (layout.length !== 10) {
+        errors.push(`Level ${levelNumber}: Layout must have exactly 10 rows, got ${layout.length}`);
+    }
+    
+    let playerCount = 0;
+    let princessCount = 0;
+    const rowWidths = [];
+    
+    layout.forEach((row, rowIndex) => {
+        if (!Array.isArray(row)) {
+            errors.push(`Level ${levelNumber}: Row ${rowIndex} is not an array`);
+            return;
+        }
+        
+        rowWidths.push(row.length);
+        
+        if (row.length !== 8) {
+            errors.push(`Level ${levelNumber}: Row ${rowIndex} must have exactly 8 columns, got ${row.length}`);
+        }
+        
+        row.forEach(cell => {
+            if (cell === 'P') {
+                playerCount++;
+            } else if (cell === 'R') {
+                princessCount++;
+            }
+        });
+    });
+    
+    if (playerCount !== 1) {
+        errors.push(`Level ${levelNumber}: Must have exactly 1 'P' (player), found ${playerCount}`);
+    }
+    
+    if (princessCount !== 1) {
+        errors.push(`Level ${levelNumber}: Must have exactly 1 'R' (princess), found ${princessCount}`);
+    }
+    
+    // Check if all rows have same width
+    if (rowWidths.length > 0) {
+        const firstWidth = rowWidths[0];
+        const inconsistentRows = rowWidths.filter((width, index) => width !== firstWidth);
+        if (inconsistentRows.length > 0) {
+            errors.push(`Level ${levelNumber}: Rows have inconsistent widths (expected ${firstWidth}, found different widths)`);
+        }
+    }
+    
+    return {
+        valid: errors.length === 0,
+        errors
+    };
+}
+
+/**
+ * Apply AI suggestion to UI (auto-apply, doesn't save to file)
+ * @param {number} levelNumber - Level number
+ * @param {Object} suggestion - AI suggestion with parameters, layout, designIntent, optimalStrategy
+ */
+function applyAISuggestion(levelNumber, suggestion) {
+    const { parameters, layout, designIntent, optimalStrategy } = suggestion;
+    
+    // Get level configs (this will use cache if available)
+    const configs = getLevelConfigs();
+    let config = configs.find(c => c.level === levelNumber);
+    
+    // If config not found, create new one
+    if (!config) {
+        config = {
+            level: levelNumber,
+            gridWidth: 8,
+            gridHeight: 10,
+            walkableCells: 50,
+            totalEnemyPower: 10,
+            enemyCount: 3,
+            enemyMinDistance: 2,
+            enemyMaxDistance: 8,
+            totalItemValue: 5,
+            itemCount: 3,
+            itemMinDistance: 1,
+            itemMaxDistance: 6,
+            itemMinDistanceFromEnemy: 0,
+            obstacleBox: 5,
+            obstacleLava: 0,
+            obstacleSwamp: 0,
+            obstacleCanon: 0,
+            princessDistance: 5,
+            portalDistance: 3,
+            playerStartValue: 2,
+            goldPerLevel: 10,
+            goldPerBag: 5,
+            minItems: 1,
+            maxItems: 5,
+            spawnTurns: 3,
+            name: 'Generated Level',
+            description: 'Auto-generated level'
+        };
+        configs.push(config);
+    }
+    
+    // If layout is provided, use it directly (new workflow)
+    if (layout && Array.isArray(layout) && layout.length > 0) {
+        // Validate layout
+        const validation = validateLayout(layout, levelNumber);
+        if (!validation.valid) {
+            console.error(`Level ${levelNumber} layout validation failed:`, validation.errors);
+            alert(`Level ${levelNumber} layout validation failed:\n${validation.errors.join('\n')}`);
+            return;
+        }
+        
+        // Count stats from layout
+        const stats = countStatsFromLayout(layout);
+        
+        // Update config with stats from layout
+        config.totalEnemyPower = stats.totalEnemyPower;
+        config.enemyCount = stats.enemyCount;
+        config.totalItemValue = stats.totalItemValue;
+        config.itemCount = stats.itemCount;
+        config.obstacleBox = stats.obstacleBox;
+        config.obstacleLava = stats.obstacleLava;
+        config.obstacleSwamp = stats.obstacleSwamp;
+        config.obstacleCanon = stats.obstacleCanon;
+        config.walkableCells = stats.walkableCells;
+        
+        // Update config with parameters (for name, description, etc.)
+        if (parameters) {
+            if (parameters.name) config.name = parameters.name;
+            if (parameters.description) config.description = parameters.description;
+            if (parameters.goldPerLevel !== undefined) config.goldPerLevel = parameters.goldPerLevel;
+            if (parameters.goldPerBag !== undefined) config.goldPerBag = parameters.goldPerBag;
+            if (parameters.minItems !== undefined) config.minItems = parameters.minItems;
+            if (parameters.maxItems !== undefined) config.maxItems = parameters.maxItems;
+            if (parameters.playerStartValue !== undefined) config.playerStartValue = parameters.playerStartValue;
+            if (parameters.spawnTurns !== undefined) config.spawnTurns = parameters.spawnTurns;
+        }
+        
+        // Update UI inputs with stats from layout
+        const card = document.querySelector(`.level-param-card[data-level="${levelNumber}"]`);
+        if (card) {
+            const updateInput = (param, value) => {
+                const input = card.querySelector(`.stat-value-edit[data-param="${param}"]`);
+                if (input && value !== undefined) {
+                    input.value = value;
+                }
+            };
+            
+            updateInput('totalEnemyPower', stats.totalEnemyPower);
+            updateInput('enemyCount', stats.enemyCount);
+            updateInput('totalItemValue', stats.totalItemValue);
+            updateInput('itemCount', stats.itemCount);
+            updateInput('obstacleBox', stats.obstacleBox);
+            updateInput('obstacleLava', stats.obstacleLava);
+            updateInput('obstacleSwamp', stats.obstacleSwamp);
+            updateInput('obstacleCanon', stats.obstacleCanon);
+            
+            // Trigger update to recalculate difficulty
+            updateLevelStatsFromInline(levelNumber);
+        }
+        
+        // Create complete level object with layout from AI
+        const completeLevel = {
+            level: levelNumber,
+            name: config.name,
+            description: config.description,
+            playerStartValue: config.playerStartValue || 2,
+            goldPerLevel: config.goldPerLevel || 10,
+            goldPerBag: config.goldPerBag || 5,
+            minItems: config.minItems || 1,
+            maxItems: config.maxItems || 5,
+            spawnTurns: config.spawnTurns || 3,
+            layout: layout, // Use layout directly from AI
+            designIntent: designIntent || '',
+            optimalStrategy: optimalStrategy || ''
+        };
+        
+        // Update cache with complete level (both string and number keys)
+        const cacheKey = String(levelNumber);
+        generatedLevelsCache[cacheKey] = completeLevel;
+        generatedLevelsCache[levelNumber] = completeLevel;
+        
+        // Save to localStorage
+        saveGeneratedLevelsToStorage();
+        
+        // Update LEVEL_DESIGN.LEVELS in memory (not file yet)
+        if (typeof LEVEL_DESIGN !== 'undefined' && LEVEL_DESIGN.LEVELS) {
+            const existingIndex = LEVEL_DESIGN.LEVELS.findIndex(l => l.level === levelNumber);
+            if (existingIndex !== -1) {
+                // Replace entire level with new one (including layout)
+                LEVEL_DESIGN.LEVELS[existingIndex] = completeLevel;
+            } else {
+                // Add new level if not found
+                LEVEL_DESIGN.LEVELS.push(completeLevel);
+                LEVEL_DESIGN.LEVELS.sort((a, b) => a.level - b.level);
+            }
+        }
+        
+        // Update preview grid immediately
+        updatePreviewGrid(levelNumber);
+        
+        // Re-render level card to show new layout and AI info
+        renderLevelParametersList();
+        
+        console.log(`Level ${levelNumber} updated with AI layout. Stats counted from layout.`);
+        return;
+    }
+    
+    // Fallback: If no layout, use old workflow (generate from parameters)
+    if (!parameters) {
+        console.error('No parameters or layout in AI suggestion');
+        return;
+    }
+    
+    // Update config with AI parameters (this updates the cached config)
+    if (parameters.totalEnemyPower !== undefined) config.totalEnemyPower = parameters.totalEnemyPower;
+    if (parameters.enemyCount !== undefined) config.enemyCount = parameters.enemyCount;
+    if (parameters.totalItemValue !== undefined) config.totalItemValue = parameters.totalItemValue;
+    if (parameters.itemCount !== undefined) config.itemCount = parameters.itemCount;
+    if (parameters.obstacleBox !== undefined) config.obstacleBox = parameters.obstacleBox;
+    if (parameters.obstacleLava !== undefined) config.obstacleLava = parameters.obstacleLava;
+    if (parameters.obstacleSwamp !== undefined) config.obstacleSwamp = parameters.obstacleSwamp;
+    if (parameters.obstacleCanon !== undefined) config.obstacleCanon = parameters.obstacleCanon;
+    if (parameters.walkableCells !== undefined) config.walkableCells = parameters.walkableCells;
+    if (parameters.name) config.name = parameters.name;
+    if (parameters.description) config.description = parameters.description;
+    if (parameters.goldPerLevel !== undefined) config.goldPerLevel = parameters.goldPerLevel;
+    if (parameters.goldPerBag !== undefined) config.goldPerBag = parameters.goldPerBag;
+    if (parameters.minItems !== undefined) config.minItems = parameters.minItems;
+    if (parameters.maxItems !== undefined) config.maxItems = parameters.maxItems;
+    if (parameters.enemyMinDistance !== undefined) config.enemyMinDistance = parameters.enemyMinDistance;
+    if (parameters.enemyMaxDistance !== undefined) config.enemyMaxDistance = parameters.enemyMaxDistance;
+    if (parameters.itemMinDistance !== undefined) config.itemMinDistance = parameters.itemMinDistance;
+    if (parameters.itemMaxDistance !== undefined) config.itemMaxDistance = parameters.itemMaxDistance;
+    if (parameters.itemMinDistanceFromEnemy !== undefined) config.itemMinDistanceFromEnemy = parameters.itemMinDistanceFromEnemy;
+    if (parameters.princessDistance !== undefined) config.princessDistance = parameters.princessDistance;
+    if (parameters.portalDistance !== undefined) config.portalDistance = parameters.portalDistance;
+    if (parameters.playerStartValue !== undefined) config.playerStartValue = parameters.playerStartValue;
+    if (parameters.spawnTurns !== undefined) config.spawnTurns = parameters.spawnTurns;
+    
+    // Update UI inputs
+    const card = document.querySelector(`.level-param-card[data-level="${levelNumber}"]`);
+    if (card) {
+        // Update inline inputs
+        const updateInput = (param, value) => {
+            const input = card.querySelector(`.stat-value-edit[data-param="${param}"]`);
+            if (input && value !== undefined) {
+                input.value = value;
+            }
+        };
+        
+        updateInput('totalEnemyPower', parameters.totalEnemyPower);
+        updateInput('enemyCount', parameters.enemyCount);
+        updateInput('totalItemValue', parameters.totalItemValue);
+        updateInput('itemCount', parameters.itemCount);
+        updateInput('obstacleBox', parameters.obstacleBox);
+        updateInput('obstacleLava', parameters.obstacleLava);
+        updateInput('obstacleSwamp', parameters.obstacleSwamp);
+        updateInput('obstacleCanon', parameters.obstacleCanon);
+        
+        // Trigger update to recalculate difficulty
+        updateLevelStatsFromInline(levelNumber);
+    }
+    
+    // Clear cache to force regeneration with new parameters
+    const cacheKey = String(levelNumber);
+    delete generatedLevelsCache[cacheKey];
+    delete generatedLevelsCache[levelNumber];
+    
+    // Regenerate level layout with new parameters (force regenerate)
+    const newLevel = getOrGenerateLevel(levelNumber, true);
+    if (newLevel && newLevel.layout) {
+        // Create complete level object with AI metadata
+        const completeLevel = {
+            ...newLevel,
+            level: levelNumber,
+            name: parameters.name || config.name,
+            description: parameters.description || config.description,
+            playerStartValue: parameters.playerStartValue || config.playerStartValue || 2,
+            goldPerLevel: parameters.goldPerLevel !== undefined ? parameters.goldPerLevel : config.goldPerLevel,
+            goldPerBag: parameters.goldPerBag !== undefined ? parameters.goldPerBag : config.goldPerBag,
+            minItems: parameters.minItems !== undefined ? parameters.minItems : config.minItems,
+            maxItems: parameters.maxItems !== undefined ? parameters.maxItems : config.maxItems,
+            spawnTurns: parameters.spawnTurns !== undefined ? parameters.spawnTurns : config.spawnTurns || 3,
+            designIntent: designIntent || '',
+            optimalStrategy: optimalStrategy || ''
+        };
+        
+        // Update cache with complete level (both string and number keys)
+        generatedLevelsCache[cacheKey] = completeLevel;
+        generatedLevelsCache[levelNumber] = completeLevel;
+        
+        // Save to localStorage
+        saveGeneratedLevelsToStorage();
+        
+        // Update LEVEL_DESIGN.LEVELS in memory (not file yet)
+        if (typeof LEVEL_DESIGN !== 'undefined' && LEVEL_DESIGN.LEVELS) {
+            const existingIndex = LEVEL_DESIGN.LEVELS.findIndex(l => l.level === levelNumber);
+            if (existingIndex !== -1) {
+                // Replace entire level with new one (including layout)
+                LEVEL_DESIGN.LEVELS[existingIndex] = completeLevel;
+            } else {
+                // Add new level if not found
+                LEVEL_DESIGN.LEVELS.push(completeLevel);
+                LEVEL_DESIGN.LEVELS.sort((a, b) => a.level - b.level);
+            }
+        }
+        
+        // Update preview grid immediately
+        updatePreviewGrid(levelNumber);
+        
+        // Re-render level card to show new layout and AI info
+        renderLevelParametersList();
+        
+        console.log(`Level ${levelNumber} updated with AI design. Layout regenerated from new parameters.`);
+    } else {
+        console.error(`Failed to generate level ${levelNumber} with new parameters`);
+    }
+}
+
+/**
+ * Handle AI Generate All - generate all 10 levels with AI in a single call
+ */
+async function handleAIGenerateAll() {
+    if (typeof AI_LEVEL_DESIGNER === 'undefined') {
+        alert('AI Level Designer module not loaded');
+        return;
+    }
+    
+    // Check API key
+    const apiKey = AI_LEVEL_DESIGNER.getAPIKey();
+    if (!apiKey) {
+        const userKey = prompt('Please enter your OpenAI API key:');
+        if (!userKey || !userKey.trim()) {
+            alert('API key is required to generate levels with AI.');
+            return;
+        }
+        AI_LEVEL_DESIGNER.setAPIKey(userKey);
+    }
+    
+    if (!confirm('Generate all 10 levels with AI? This will update all level parameters and may take 30-60 seconds.')) {
+        return;
+    }
+    
+    // Show loading for all levels
+    for (let i = 1; i <= 10; i++) {
+        showAILoading(i, true);
+        hideAIMessage(i);
+    }
+    
+    try {
+        // Generate all 10 levels in a single API call
+        const levels = await AI_LEVEL_DESIGNER.generateAll10Levels();
+        
+        // Apply all level designs
+        let successCount = 0;
+        for (let i = 0; i < levels.length; i++) {
+            const levelData = levels[i];
+            const levelNumber = levelData.level || (i + 1);
+            
+            // Skip if level number is out of range
+            if (levelNumber < 1 || levelNumber > 10) {
+                console.warn(`Skipping level ${levelNumber} - out of range`);
+                showAILoading(levelNumber, false);
+                continue;
+            }
+            
+            try {
+                applyAISuggestion(levelNumber, {
+                    parameters: levelData.parameters,
+                    layout: levelData.layout || null, // Include layout if present
+                    designIntent: levelData.designIntent || '',
+                    optimalStrategy: levelData.optimalStrategy || ''
+                });
+                showAISuccess(levelNumber, 'AI design applied successfully!');
+                successCount++;
+            } catch (error) {
+                console.error(`Error applying level ${levelNumber}:`, error);
+                showAIError(levelNumber, error.message || 'Failed to apply design');
+            }
+            
+            // Hide loading for this level
+            showAILoading(levelNumber, false);
+        }
+        
+        // Hide loading for any levels that weren't generated
+        for (let i = levels.length; i < 10; i++) {
+            showAILoading(i + 1, false);
+        }
+        
+        // Re-render to show all updates
+        renderLevelParametersList();
+        
+        if (successCount === 10) {
+            alert('All 10 levels generated successfully! Review and save if satisfied.');
+        } else {
+            alert(`${successCount} out of ${levels.length} levels generated successfully. Some levels may have failed. Please review and try again if needed.`);
+        }
+        
+    } catch (error) {
+        console.error('AI generation error:', error);
+        
+        // Show error for all levels
+        for (let i = 1; i <= 10; i++) {
+            showAILoading(i, false);
+            showAIError(i, error.message || 'Failed to generate levels');
+        }
+        
+        alert(`AI generation failed: ${error.message}\n\nPlease check:\n1. Your OpenAI API key is correct\n2. You have sufficient API credits\n3. Your internet connection is stable`);
+    }
+}
+
+/**
+ * Load AI result from JSON file
+ * @param {Object} data - JSON data with levels array
+ */
+function handleLoadAIResult(data) {
+    if (!data || !data.levels || !Array.isArray(data.levels)) {
+        alert('Invalid format: Expected JSON with "levels" array');
+        return;
+    }
+    
+    if (data.levels.length === 0) {
+        alert('No levels found in file');
+        return;
+    }
+    
+    if (!confirm(`Load ${data.levels.length} levels from AI result? This will update all level parameters.`)) {
+        return;
+    }
+    
+    // Show loading for all levels
+    for (let i = 1; i <= 10; i++) {
+        showAILoading(i, true);
+        hideAIMessage(i);
+    }
+    
+    let successCount = 0;
+    
+    // Apply all level designs
+    for (let i = 0; i < data.levels.length; i++) {
+        const levelData = data.levels[i];
+        const levelNumber = levelData.level || (i + 1);
+        
+        // Skip if level number is out of range
+        if (levelNumber < 1 || levelNumber > 10) {
+            console.warn(`Skipping level ${levelNumber} - out of range`);
+            showAILoading(levelNumber, false);
+            continue;
+        }
+        
+        try {
+            // Parse layout if it's a string (JSON stringified)
+            let layout = levelData.layout;
+            if (typeof layout === 'string') {
+                try {
+                    layout = JSON.parse(layout);
+                } catch (e) {
+                    console.warn(`Level ${levelNumber}: Failed to parse layout string, using as is`);
+                }
+            }
+            
+            // Ensure layout is a valid 2D array
+            if (layout && !Array.isArray(layout)) {
+                console.warn(`Level ${levelNumber}: Layout is not an array, skipping layout`);
+                layout = null;
+            } else if (layout && (!Array.isArray(layout[0]) || layout.length !== 10 || layout[0].length !== 8)) {
+                console.warn(`Level ${levelNumber}: Layout has wrong dimensions (${layout.length}x${layout[0]?.length || 0}), expected 10x8`);
+                // Still use it, but warn
+            }
+            
+            applyAISuggestion(levelNumber, {
+                parameters: levelData.parameters || {},
+                layout: layout, // Include layout if present and valid
+                designIntent: levelData.designIntent || '',
+                optimalStrategy: levelData.optimalStrategy || ''
+            });
+            showAISuccess(levelNumber, 'AI design loaded successfully!');
+            successCount++;
+        } catch (error) {
+            console.error(`Error applying level ${levelNumber}:`, error);
+            showAIError(levelNumber, error.message || 'Failed to apply design');
+        }
+        
+        // Hide loading for this level
+        showAILoading(levelNumber, false);
+    }
+    
+    // Hide loading for any levels that weren't in the file
+    for (let i = data.levels.length; i < 10; i++) {
+        showAILoading(i + 1, false);
+    }
+    
+    // Re-render to show all updates
+    renderLevelParametersList();
+    
+    if (successCount === data.levels.length) {
+        alert(`Successfully loaded ${successCount} levels! Review and save if satisfied.`);
+    } else {
+        alert(`Loaded ${successCount} out of ${data.levels.length} levels. Some levels may have failed.`);
+    }
+}
+
+/**
+ * Show/hide AI loading state
+ * @param {number} levelNumber - Level number
+ * @param {boolean} show - Whether to show loading
+ */
+function showAILoading(levelNumber, show) {
+    const loadingEl = document.getElementById(`aiLoading_${levelNumber}`);
+    if (loadingEl) {
+        loadingEl.style.display = show ? 'block' : 'none';
+    }
+}
+
+/**
+ * Show AI success message
+ * @param {number} levelNumber - Level number
+ * @param {string} message - Success message
+ */
+function showAISuccess(levelNumber, message) {
+    const messageEl = document.getElementById(`aiMessage_${levelNumber}`);
+    if (messageEl) {
+        messageEl.className = 'level-ai-message ai-success';
+        messageEl.textContent = message;
+        messageEl.style.display = 'block';
+        
+        // Auto-hide after 3 seconds
+        setTimeout(() => {
+            messageEl.style.display = 'none';
+        }, 3000);
+    }
+}
+
+/**
+ * Show AI error message
+ * @param {number} levelNumber - Level number
+ * @param {string} message - Error message
+ */
+function showAIError(levelNumber, message) {
+    const messageEl = document.getElementById(`aiMessage_${levelNumber}`);
+    if (messageEl) {
+        messageEl.className = 'level-ai-message ai-error';
+        messageEl.textContent = message;
+        messageEl.style.display = 'block';
+    }
+}
+
+/**
+ * Hide AI message
+ * @param {number} levelNumber - Level number
+ */
+function hideAIMessage(levelNumber) {
+    const messageEl = document.getElementById(`aiMessage_${levelNumber}`);
+    if (messageEl) {
+        messageEl.style.display = 'none';
     }
 }
 

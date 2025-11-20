@@ -3086,6 +3086,38 @@ body {
     background: rgba(255, 255, 255, 0.15);
 }
 
+/* Read-only styles for disabled inputs */
+.stat-value-edit.read-only,
+.stat-value-edit:disabled,
+input.read-only,
+input:disabled,
+textarea.read-only,
+textarea:disabled {
+    background-color: #2a2a2a !important;
+    color: #888 !important;
+    cursor: not-allowed !important;
+    opacity: 0.6;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.stat-value-edit.read-only:focus,
+.stat-value-edit:disabled:focus,
+input.read-only:focus,
+input:disabled:focus,
+textarea.read-only:focus,
+textarea:disabled:focus {
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    background-color: #2a2a2a !important;
+}
+
+/* Disabled button styles */
+.generate-all-btn:disabled,
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed !important;
+    pointer-events: none;
+}
+
 .level-param-details {
     padding: 20px;
     background: rgba(0, 0, 0, 0.2);
@@ -3569,6 +3601,164 @@ body {
     font-size: 11px;
     white-space: nowrap;
     border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* ========== AI Level Design Styles ========== */
+
+/* API Key Input Group */
+.api-key-input-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background: rgba(155, 89, 182, 0.1);
+    border: 1px solid rgba(155, 89, 182, 0.3);
+    border-radius: 8px;
+    margin-bottom: 10px;
+}
+
+.api-key-input-group label {
+    color: #fff;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.api-key-input {
+    flex: 1;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    color: #fff;
+    font-size: 14px;
+    font-family: 'Courier New', monospace;
+}
+
+.api-key-input:focus {
+    outline: none;
+    border-color: #9b59b6;
+    box-shadow: 0 0 0 2px rgba(155, 89, 182, 0.3);
+}
+
+.save-api-key-btn {
+    padding: 8px 16px;
+    background: linear-gradient(45deg, #27ae60, #229954);
+    border: none;
+    border-radius: 6px;
+    color: #fff;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.save-api-key-btn:hover {
+    background: linear-gradient(45deg, #229954, #1e8449);
+    transform: translateY(-1px);
+}
+
+/* AI Info Sections */
+.level-ai-info {
+    padding: 15px 20px;
+    background: rgba(155, 89, 182, 0.1);
+    border-top: 2px solid rgba(155, 89, 182, 0.3);
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.design-intent-section,
+.optimal-strategy-section {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 12px 15px;
+    transition: all 0.3s ease;
+}
+
+.design-intent-section:hover,
+.optimal-strategy-section:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.ai-section-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ai-section-icon {
+    font-size: 18px;
+}
+
+.ai-section-title {
+    font-size: 14px;
+    font-weight: bold;
+    color: #9b59b6;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.ai-section-content {
+    font-size: 13px;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.9);
+    white-space: pre-wrap;
+}
+
+/* AI Loading State */
+.level-ai-loading {
+    padding: 15px 20px;
+    background: rgba(155, 89, 182, 0.1);
+    border-top: 2px solid rgba(155, 89, 182, 0.3);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    justify-content: center;
+}
+
+.ai-loading-spinner {
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(155, 89, 182, 0.3);
+    border-top-color: #9b59b6;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.ai-loading-text {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 14px;
+    font-style: italic;
+}
+
+/* AI Messages */
+.level-ai-message {
+    padding: 12px 20px;
+    margin: 0;
+    border-top: 2px solid;
+    font-size: 13px;
+    font-weight: 500;
+    text-align: center;
+}
+
+.level-ai-message.ai-success {
+    background: rgba(46, 204, 113, 0.15);
+    border-top-color: #2ecc71;
+    color: #2ecc71;
+}
+
+.level-ai-message.ai-error {
+    background: rgba(231, 76, 60, 0.15);
+    border-top-color: #e74c3c;
+    color: #e74c3c;
 }
 
 @media (max-width: 1200px) {

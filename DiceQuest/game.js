@@ -3368,314 +3368,32 @@ function spawnPortal() {
     console.log(`Portal spawned at (${randomCell.x}, ${randomCell.y})`);
 }
 
-// Item Spawn System
+// Item Spawn System - DISABLED
+// Auto-spawn system has been removed - items are now only placed in layout
 
-// Check if items need to be spawned
+// Check if items need to be spawned - DISABLED
 function checkItemSpawn() {
-    if (!gameState.gameRunning) return;
-    
-    const levelConfig = getLevelConfig(gameState.level);
-    const minItems = levelConfig.minItems || 3;
-    const maxItems = levelConfig.maxItems || gameState.level; // Default to level number
-    
-    // Count both existing items and pending spawns (items that are already in spawn process)
-    const currentItemCount = gameState.items.length + gameState.pendingSpawns.length;
-    
-    // Check if we need to spawn more items
-    // IMPORTANT: Check totalItemsSpawned (total items ever spawned in this level) against maxItems
-    // This prevents spawning too many items even if items are collected
-    if (currentItemCount < minItems && gameState.totalItemsSpawned < maxItems) {
-        // Calculate how many items we can still spawn (limited by maxItems)
-        const remainingSpawnSlots = maxItems - gameState.totalItemsSpawned;
-        const itemsNeeded = minItems - currentItemCount;
-        const itemsToSpawn = Math.min(itemsNeeded, remainingSpawnSlots);
-        
-        for (let i = 0; i < itemsToSpawn; i++) {
-            // Double check before each spawn to ensure we don't exceed maxItems
-            if (gameState.totalItemsSpawned < maxItems) {
-                initiateItemSpawn(levelConfig);
-            }
-        }
-    }
+    // Auto-spawn system disabled - items are only from layout
+    return;
 }
 
-// Initiate item spawn - find empty cell and create preview
+// Initiate item spawn - DISABLED
 function initiateItemSpawn(levelConfig) {
-    // Check if we've reached maxItems limit
-    const maxItems = levelConfig.maxItems || gameState.level;
-    if (gameState.totalItemsSpawned >= maxItems) {
-        console.log(`Max items limit reached (${maxItems}). Cannot spawn more items.`);
-        return;
-    }
-    
-    const spawnTurns = levelConfig.spawnTurns || 3;
-    
-    // Find all empty cells
-    const emptyCells = [];
-    for (let y = 0; y < gameState.gridHeight; y++) {
-        for (let x = 0; x < gameState.gridWidth; x++) {
-            const cell = gameState.grid[y][x];
-            // Check if cell is empty (no player, enemy, item, special grid, gold, or pending spawn)
-            if (!cell.player && 
-                cell.enemy === null && 
-                cell.item === null && 
-                cell.specialGrid === null &&
-                !cell.gold &&
-                !gameState.pendingSpawns.find(spawn => spawn.x === x && spawn.y === y)) {
-                emptyCells.push({ x, y });
-            }
-        }
-    }
-    
-    if (emptyCells.length === 0) {
-        console.log('No empty cells available for item spawn');
-        return;
-    }
-    
-    // Random select an empty cell
-    const randomCell = emptyCells[Math.floor(Math.random() * emptyCells.length)];
-    
-    // Filter item types by current level - item value must not exceed level
-    const currentLevel = gameState.level;
-    const availableItemTypes = CONFIG.ITEM_TYPES.filter(itemType => itemType.value <= currentLevel);
-    
-    if (availableItemTypes.length === 0) {
-        console.log(`No available item types for level ${currentLevel} - using smallest item`);
-        // Fallback to smallest item if no items available for this level
-        const smallestItem = CONFIG.ITEM_TYPES[0];
-        // Continue with spawn using smallest item
-        const spawnValue = smallestItem.value;
-        // Create preview element
-        const cell = elements.gameGrid.querySelector(`[data-x="${randomCell.x}"][data-y="${randomCell.y}"]`);
-        if (!cell) return;
-        
-        const previewContainer = document.createElement('div');
-        previewContainer.className = 'item-spawn-preview';
-        previewContainer.style.cssText = `
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 5;
-            pointer-events: none;
-        `;
-        
-        const emoji = document.createElement('div');
-        emoji.className = 'item-spawn-emoji';
-        emoji.textContent = smallestItem.emoji;
-        
-        const countdown = document.createElement('div');
-        countdown.className = 'item-spawn-countdown';
-        const clockIcon = document.createElement('span');
-        clockIcon.textContent = '⏰';
-        const turnsText = document.createElement('span');
-        turnsText.className = 'item-spawn-turns';
-        turnsText.textContent = spawnTurns;
-        countdown.appendChild(clockIcon);
-        countdown.appendChild(turnsText);
-        
-        previewContainer.appendChild(emoji);
-        previewContainer.appendChild(countdown);
-        cell.appendChild(previewContainer);
-        
-        // Add to pending spawns
-        gameState.pendingSpawns.push({
-            x: randomCell.x,
-            y: randomCell.y,
-            value: spawnValue,
-            turnsRemaining: spawnTurns,
-            previewElement: previewContainer,
-            countdownText: turnsText
-        });
-        
-        console.log(`Item spawn initiated at (${randomCell.x}, ${randomCell.y}), will spawn in ${spawnTurns} turns (fallback to smallest item)`);
-        return;
-    }
-    
-    // Random select item value (weighted towards smaller items)
-    const weights = [0.4, 0.3, 0.2, 0.1].slice(0, availableItemTypes.length); // Adjust weights to match available items
-    // Normalize weights
-    const totalWeight = weights.reduce((sum, w) => sum + w, 0);
-    const normalizedWeights = weights.map(w => w / totalWeight);
-    
-    let random = Math.random();
-    let selectedItem = availableItemTypes[0];
-    let cumulativeWeight = 0;
-    for (let i = 0; i < availableItemTypes.length; i++) {
-        cumulativeWeight += normalizedWeights[i];
-        if (random <= cumulativeWeight) {
-            selectedItem = availableItemTypes[i];
-            break;
-        }
-    }
-    
-    // Create preview element
-    const cell = elements.gameGrid.querySelector(`[data-x="${randomCell.x}"][data-y="${randomCell.y}"]`);
-    if (!cell) return;
-    
-    const previewContainer = document.createElement('div');
-    previewContainer.className = 'item-spawn-preview';
-    previewContainer.style.cssText = `
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        z-index: 5;
-        pointer-events: none;
-    `;
-    
-    const itemEmoji = document.createElement('div');
-    itemEmoji.className = 'item-spawn-emoji';
-    itemEmoji.textContent = selectedItem.emoji;
-    itemEmoji.style.cssText = `
-        font-size: 32px;
-        opacity: 0.4;
-        filter: blur(1px);
-        animation: itemSpawnPulse 1.5s ease-in-out infinite;
-    `;
-    
-    const countdownContainer = document.createElement('div');
-    countdownContainer.className = 'item-spawn-countdown';
-    countdownContainer.style.cssText = `
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        margin-top: 4px;
-        font-size: 14px;
-        color: rgba(255, 255, 255, 0.8);
-        font-weight: bold;
-    `;
-    
-    const clockIcon = document.createElement('span');
-    clockIcon.textContent = '⏱️';
-    clockIcon.style.fontSize = '12px';
-    
-    const countdownText = document.createElement('span');
-    countdownText.className = 'item-spawn-turns';
-    countdownText.textContent = spawnTurns;
-    
-    countdownContainer.appendChild(clockIcon);
-    countdownContainer.appendChild(countdownText);
-    
-    previewContainer.appendChild(itemEmoji);
-    previewContainer.appendChild(countdownContainer);
-    
-    cell.style.position = 'relative';
-    cell.appendChild(previewContainer);
-    
-    // Add to pending spawns
-    gameState.pendingSpawns.push({
-        x: randomCell.x,
-        y: randomCell.y,
-        value: selectedItem.value,
-        turnsRemaining: spawnTurns,
-        previewElement: previewContainer,
-        countdownText: countdownText
-    });
-    
-    console.log(`Item spawn initiated at (${randomCell.x}, ${randomCell.y}), will spawn in ${spawnTurns} turns`);
+    // Auto-spawn system disabled - items are only from layout
+    return;
 }
 
-// Update pending spawns - decrease turns and spawn when ready
+// Update pending spawns - DISABLED
 // This should only be called at the START of player turn (not enemy turn)
 async function updatePendingSpawns() {
-    if (!gameState.gameRunning) return;
-    
-    let needsRender = false;
-    const spawnsToProcess = [...gameState.pendingSpawns];
-    
-    for (const spawn of spawnsToProcess) {
-        spawn.turnsRemaining--;
-        
-        // If turns reached 0, spawn the item
-        if (spawn.turnsRemaining <= 0) {
-            await spawnItemAtPosition(spawn.x, spawn.y, spawn.value);
-            
-            // Remove preview if it still exists
-            if (spawn.previewElement && spawn.previewElement.parentNode) {
-                spawn.previewElement.parentNode.removeChild(spawn.previewElement);
-            }
-            
-            // Clear references
-            spawn.previewElement = null;
-            spawn.countdownText = null;
-            
-            // Remove from pending spawns
-            gameState.pendingSpawns = gameState.pendingSpawns.filter(s => s !== spawn);
-            
-            needsRender = true; // Item was spawned, need to render
-        } else {
-            // Countdown updated, need to re-render to update preview display
-            needsRender = true;
-        }
-    }
-    
-    // Re-render grid to ensure previews are visible with updated countdown
-    // This will recreate all previews with the new turnsRemaining values
-    if (needsRender) {
-        renderGrid();
-    }
+    // Auto-spawn system disabled - items are only from layout
+    return;
 }
 
-// Spawn item at position
+// Spawn item at position - DISABLED
 async function spawnItemAtPosition(x, y, value) {
-    // Check if cell is still empty (except player/enemy - they can collect immediately)
-    const cell = gameState.grid[y][x];
-    if (cell.item !== null || cell.specialGrid !== null) {
-        console.log(`Cannot spawn item at (${x}, ${y}) - cell is not empty`);
-        return;
-    }
-    
-    // Find item type
-    const itemType = findItemTypeByValue(value);
-    
-    // Create item
-    const item = {
-        id: gameState.items.length,
-        x: x,
-        y: y,
-        value: value,
-        type: itemType.name,
-        emoji: itemType.emoji
-    };
-    
-    // Add to game state
-    gameState.items.push(item);
-    gameState.grid[y][x].item = item.id;
-    
-    // Increment total items spawned counter (for maxItems limit)
-    gameState.totalItemsSpawned++;
-    
-    // Check if player or enemy is on this cell - collect immediately
-    if (cell.player) {
-        // Player is on this cell - collect immediately
-        console.log(`Item spawned at (${x}, ${y}) and player immediately collects it!`);
-        await collectItem(x, y);
-        return;
-    }
-    
-    if (cell.enemy !== null) {
-        // Enemy is on this cell - enemy collects immediately
-        const enemy = gameState.enemies.find(e => e.id === cell.enemy);
-        if (enemy) {
-            console.log(`Item spawned at (${x}, ${y}) and enemy ${enemy.id} immediately collects it!`);
-            await enemyCollectItem(enemy, x, y);
-            return;
-        }
-    }
-    
-    // Don't render here - renderGrid() will be called by updatePendingSpawns() after spawning
-    console.log(`Item spawned at (${x}, ${y}) with value ${value}`);
+    // Auto-spawn system disabled - items are only from layout
+    return;
 }
 
 // Show Value Gain Animation

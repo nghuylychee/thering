@@ -268,10 +268,10 @@ function initGame(levelNumber = 1) {
         loadLevelFromLayout(levelConfig);
     } else {
         // Fallback to old random spawn system
-        spawnPlayer();
-        spawnEnemies();
-        spawnItems();
-        spawnSpecialGrids();
+    spawnPlayer();
+    spawnEnemies();
+    spawnItems();
+    spawnSpecialGrids();
     }
     
     // Render grid
@@ -523,18 +523,18 @@ function spawnEnemies() {
             // Enemy stats based on value - HP equals value, DMG and SPD roll from 1 to value (like player)
             const enemyHP = enemyType.value; // HP always equals value
             
-            const enemy = {
-                id: gameState.enemies.length,
-                x: x,
-                y: y,
-                value: enemyType.value,
+        const enemy = {
+            id: gameState.enemies.length,
+            x: x,
+            y: y,
+            value: enemyType.value,
                 initialValue: enemyType.value, // Store initial value for dice rolling
-                type: enemyType.name,
+            type: enemyType.name,
                 emoji: enemyType.emoji,
                 hp: { current: enemyHP, max: enemyHP },
                 dmg: { min: 1, max: enemyType.value }, // DMG rolls from 1 to value (like player)
                 spd: { min: 1, max: enemyType.value } // SPD rolls from 1 to value (like player)
-            };
+        };
         
         gameState.enemies.push(enemy);
         gameState.grid[y][x].enemy = enemy.id;
@@ -840,14 +840,14 @@ function renderGrid() {
                 const item = gameState.items.find(i => i.id === cellData.item);
                 // Only show value badge if item exists and has a valid value
                 if (item && item.value !== undefined && item.value !== null) {
-                    const valueBadge = document.createElement('div');
-                    valueBadge.className = 'value-badge item-value';
+                const valueBadge = document.createElement('div');
+                valueBadge.className = 'value-badge item-value';
                     valueBadge.textContent = item.value;
-                    // Ensure value badge doesn't block pointer events for reachable cells
-                    if (isReachableCell) {
-                        valueBadge.style.pointerEvents = 'none';
-                    }
-                    cell.appendChild(valueBadge);
+                // Ensure value badge doesn't block pointer events for reachable cells
+                if (isReachableCell) {
+                    valueBadge.style.pointerEvents = 'none';
+                }
+                cell.appendChild(valueBadge);
                 } else {
                     // Item reference exists in grid but item not found in items array - clean up
                     console.warn(`Item ${cellData.item} referenced in grid but not found in items array. Cleaning up.`);
@@ -2226,29 +2226,29 @@ async function resolveCombatResult(playerWon) {
             for (let y = 0; y < gameState.gridHeight; y++) {
                 for (let x = 0; x < gameState.gridWidth; x++) {
                     if (gameState.grid[y][x].enemy === enemyId) {
-                        gameState.grid[y][x].enemy = null;
+        gameState.grid[y][x].enemy = null;
                     }
                 }
             }
             
             // Remove enemy from array
-            gameState.enemies = gameState.enemies.filter(e => e.id !== enemyId);
-            
+        gameState.enemies = gameState.enemies.filter(e => e.id !== enemyId);
+        
             // Re-render grid
-            renderGrid();
-            await sleep(100);
-            
-            updateUI();
-            await sleep(300);
-            
+        renderGrid();
+        await sleep(100);
+        
+        updateUI();
+        await sleep(300);
+        
             console.log(`Player won combat! Enemy defeated.`);
-            
-            // Check win condition
-            if (gameState.enemies.length === 0) {
-                checkLevelComplete();
-                return;
-            }
-            
+        
+        // Check win condition
+        if (gameState.enemies.length === 0) {
+            checkLevelComplete();
+            return;
+        }
+        
             // Check item spawn after defeating enemy
             checkItemSpawn();
         }
@@ -2971,8 +2971,8 @@ function initiateItemSpawn(levelConfig) {
             align-items: center;
             justify-content: center;
             z-index: 5;
-            pointer-events: none;
-        `;
+        pointer-events: none;
+    `;
         
         const emoji = document.createElement('div');
         emoji.className = 'item-spawn-emoji';
@@ -3030,7 +3030,7 @@ function initiateItemSpawn(levelConfig) {
     const previewContainer = document.createElement('div');
     previewContainer.className = 'item-spawn-preview';
     previewContainer.style.cssText = `
-        position: absolute;
+                position: absolute;
         top: 0;
         left: 0;
         width: 100%;
@@ -3040,8 +3040,8 @@ function initiateItemSpawn(levelConfig) {
         align-items: center;
         justify-content: center;
         z-index: 5;
-        pointer-events: none;
-    `;
+                pointer-events: none;
+            `;
     
     const itemEmoji = document.createElement('div');
     itemEmoji.className = 'item-spawn-emoji';

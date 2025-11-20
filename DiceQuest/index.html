@@ -503,7 +503,7 @@
             
             <!-- Tabs -->
             <div class="designer-tabs">
-                <button class="designer-tab active" data-tab="tuning">Tuning Parameters</button>
+                <button class="designer-tab active" data-tab="tuning">Level Design</button>
                 <button class="designer-tab" data-tab="overview">Progress Overview</button>
             </div>
             
@@ -513,7 +513,15 @@
                     <div class="tuning-list-header">
                         <h3>Level Parameters</h3>
                         <div class="tuning-list-actions">
-                            <button id="generateAll10LevelsBtn" class="generate-all-btn">Generate All 10 Levels</button>
+                            <div class="api-key-input-group">
+                                <label for="openaiApiKeyInput">OpenAI API Key:</label>
+                                <input type="password" id="openaiApiKeyInput" class="api-key-input" placeholder="sk-..." />
+                                <button id="saveApiKeyBtn" class="save-api-key-btn">Save Key</button>
+                            </div>
+                            <button id="generateAll10LevelsBtn" class="generate-all-btn" style="background: linear-gradient(45deg, #e74c3c, #c0392b);">💾 Save AI Levels to level-design.js</button>
+                            <button id="generateAllWithAIBtn" class="generate-all-btn" style="background: linear-gradient(45deg, #9b59b6, #8e44ad);" disabled>🤖 Generate All 10 Levels with AI</button>
+                            <button id="loadAIResultBtn" class="generate-all-btn" style="background: linear-gradient(45deg, #27ae60, #229954);">📁 Load AI Result (ai-result.json)</button>
+                            <input type="file" id="aiResultFileInput" accept=".json" style="display: none;" />
                             <button id="saveGenFileBtn" class="save-all-btn" style="display: none; background: linear-gradient(45deg, #9b59b6, #8e44ad);">Save to level-design-gen.js</button>
                         </div>
                     </div>
@@ -578,6 +586,7 @@
     <script src="home-manager.js"></script>
     <script src="level-generator.js"></script>
     <script src="game.js"></script>
+    <script src="ai-level-designer.js"></script>
     <script src="level-designer.js"></script>
 </body>
 </html>
