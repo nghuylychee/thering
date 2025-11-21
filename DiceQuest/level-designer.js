@@ -1313,8 +1313,14 @@ window.exitPlaytestMode = function exitPlaytestMode() {
 
 // Helper function to render a cell to emoji (shared logic for preview)
 function renderCellToEmoji(cell) {
+    // Handle special cell types first
     if (cell === 'P') return '🧙';
     else if (cell === 'R') return '👸';
+    else if (cell === 'B') return '🧱';
+    else if (cell === 'L') return '🔥';
+    else if (cell === 'S') return '🌊';
+    else if (cell === 'C') return '⚡';
+    // Handle numbers (enemies are negative, items are positive)
     else if (typeof cell === 'number') {
         if (cell < 0) {
             const enemyValue = Math.abs(cell);
@@ -1324,10 +1330,21 @@ function renderCellToEmoji(cell) {
             const itemType = CONFIG.ITEM_TYPES.find(i => i.value === cell);
             return itemType ? itemType.emoji : '💎';
         }
-    } else if (cell === 'B') return '🧱';
-    else if (cell === 'L') return '🔥';
-    else if (cell === 'S') return '🌊';
-    else if (cell === 'C') return '⚡';
+    }
+    // Handle string representations of numbers (from JSON parsing or AI-generated layouts)
+    else if (typeof cell === 'string') {
+        const numValue = Number(cell);
+        if (!isNaN(numValue) && numValue !== 0) {
+            if (numValue < 0) {
+                const enemyValue = Math.abs(numValue);
+                const enemyType = CONFIG.ENEMY_TYPES.find(e => e.value === enemyValue);
+                return enemyType ? enemyType.emoji : '👹';
+            } else if (numValue > 0) {
+                const itemType = CONFIG.ITEM_TYPES.find(i => i.value === numValue);
+                return itemType ? itemType.emoji : '💎';
+            }
+        }
+    }
     return '';
 }
 

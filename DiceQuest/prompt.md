@@ -161,6 +161,6 @@ Return a JSON object with this exact structure:
 
 CRITICAL: Each level MUST include a "layout" field with a complete 8x10 2D array. The layout must have exactly 1 'P' and exactly 1 'R'.
 
-Remember: Make thoughtful decisions based on game design principles. Each level should have a clear purpose and teach/challenge specific skills. Ensure smooth difficulty progression from level 1 (tutorial) to level 10 (climax).
+Remember: Make thoughtful decisions based on game design principles. Each level should have a clear purpose and teach/challenge specific skills. Ensure smooth difficulty progression from level 1 (tutorial) to level 10 (climax). Make sure that all of map is different with others to keep the freshness in every single level
 
 CRITICAL REMINDER: Return ONLY valid JSON. No markdown formatting, no code blocks, no explanations. Start with { and end with }. Ensure all arrays and objects are properly closed. All strings must be properly quoted and escaped.`;
