@@ -1,0 +1,13 @@
+Place your art assets here!
+
+Cấu trúc thư mục:
+- player/ - Player character sprites
+- enemies/ - Enemy sprites  
+- items/ - Item sprites
+- grid/ - Special grid tiles
+- ui/ - UI elements (dice, icons)
+- backgrounds/ - Background images
+
+Xem README.md trong thư mục assets/ để biết chi tiết về kích thước và format.
+
+Game sẽ tự động fallback về emoji nếu images không có.

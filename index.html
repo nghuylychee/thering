@@ -4,139 +4,50 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TheRing - Game Hub</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Arial', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-
-        .hub-container {
-            width: 100%;
-            max-width: 600px;
-            text-align: center;
-        }
-
-        .hub-header {
-            margin-bottom: 40px;
-        }
-
-        .hub-title {
-            font-size: 48px;
-            font-weight: bold;
-            color: white;
-            text-shadow: 2px 2px 8px rgba(0,0,0,0.5);
-            margin-bottom: 10px;
-        }
-
-        .hub-subtitle {
-            font-size: 18px;
-            color: rgba(255, 255, 255, 0.9);
-            text-shadow: 1px 1px 4px rgba(0,0,0,0.3);
-        }
-
-        .games-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-top: 30px;
-        }
-
-        .game-card {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 30px;
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            transition: all 0.3s ease;
-            cursor: pointer;
-            text-decoration: none;
-            display: block;
-            color: white;
-        }
-
-        .game-card:hover {
-            transform: translateY(-5px);
-            background: rgba(255, 255, 255, 0.2);
-            border-color: rgba(255, 255, 255, 0.4);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-        }
-
-        .game-icon {
-            font-size: 64px;
-            margin-bottom: 15px;
-        }
-
-        .game-name {
-            font-size: 24px;
-            font-weight: bold;
-            margin-bottom: 10px;
-        }
-
-        .game-description {
-            font-size: 14px;
-            color: rgba(255, 255, 255, 0.8);
-            line-height: 1.5;
-        }
-
-        @media (max-width: 768px) {
-            .hub-title {
-                font-size: 36px;
-            }
-
-            .games-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .game-card {
-                padding: 25px;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="hub-style.css">
 </head>
 <body>
-    <div class="hub-container">
-        <div class="hub-header">
-            <h1 class="hub-title">🎮 TheRing</h1>
-            <p class="hub-subtitle">Game Hub - Chọn game để chơi</p>
-        </div>
+    <div class="hub-wrapper">
+        <!-- Header -->
+        <header class="hub-header">
+            <div class="hub-header-content">
+                <h1 class="hub-title">
+                    <span class="title-icon">🎮</span>
+                    <span class="title-text">TheRing</span>
+                </h1>
+                <p class="hub-subtitle">Game Hub - Quản lý và chơi tất cả các game</p>
+            </div>
+        </header>
 
-        <div class="games-grid">
-            <a href="DiceDefend/index.html" class="game-card">
-                <div class="game-icon">🎲</div>
-                <div class="game-name">DiceDefend</div>
-                <div class="game-description">
-                    Tower defense kết hợp với cơ chế xúc xắc. Bảo vệ lâu đài khỏi các làn sóng quái vật!
+        <!-- Main Content -->
+        <main class="hub-main">
+            <div class="hub-container">
+                <!-- Games Grid -->
+                <div id="gamesGrid" class="games-grid">
+                    <!-- Games will be loaded dynamically -->
                 </div>
-            </a>
-            
-            <a href="DiceBound/index.html" class="game-card">
-                <div class="game-icon">🎯</div>
-                <div class="game-name">DiceBound</div>
-                <div class="game-description">
-                    Turn-based grid game với xúc xắc. Di chuyển, combat và thu thập items trên grid 8x8!
+
+                <!-- Loading State -->
+                <div id="loadingState" class="loading-state">
+                    <div class="spinner"></div>
+                    <p>Đang tải danh sách game...</p>
                 </div>
-            </a>
-            
-            <a href="DiceQuest/index.html" class="game-card">
-                <div class="game-icon">👸</div>
-                <div class="game-name">DiceQuest</div>
-                <div class="game-description">
-                    Cứu công chúa và đến cổng dịch chuyển để hoàn thành màn chơi. Turn-based grid game với xúc xắc!
+
+                <!-- Empty State -->
+                <div id="emptyState" class="empty-state" style="display: none;">
+                    <div class="empty-icon">🎲</div>
+                    <h2>Chưa có game nào</h2>
+                    <p>Thêm game vào thư mục để hiển thị tại đây</p>
                 </div>
-            </a>
-        </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="hub-footer">
+            <p>&copy; 2024 TheRing Game Hub. Tất cả các game đều miễn phí.</p>
+        </footer>
     </div>
+
+    <script src="hub-manager.js"></script>
 </body>
 </html>
-

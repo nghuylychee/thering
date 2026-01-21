@@ -1,0 +1,23 @@
+{
+  "name": "thering-game-hub",
+  "version": "1.0.0",
+  "description": "TheRing Game Hub - Collection of dice-based games",
+  "main": "index.html",
+  "scripts": {
+    "start": "node server.js",
+    "serve": "node server.js",
+    "http-server": "http-server . -p 8000",
+    "check": "node -e \"const fs=require('fs');const p=require('path');const root=p.join(__dirname,'index.html');console.log('Root dir:',__dirname);console.log('Index.html exists:',fs.existsSync(root)?'YES':'NO');console.log('Path:',root);\""
+  },
+  "keywords": [
+    "game",
+    "hub",
+    "dice",
+    "games"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}

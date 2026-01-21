@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asset Helper Tool - DiceRogue</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a2332 0%, #0f1419 50%, #1a2332 100%);
+            color: white;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #ffd700;
+        }
+        
+        .section {
+            background: rgba(15, 20, 25, 0.8);
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 15px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .section h2 {
+            color: #3498db;
+            margin-bottom: 15px;
+            border-bottom: 2px solid rgba(52, 152, 219, 0.3);
+            padding-bottom: 10px;
+        }
+        
+        .asset-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .asset-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .asset-item h3 {
+            color: #ffd700;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        
+        .file-info {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.7);
+            margin: 5px 0;
+            font-family: 'Courier New', monospace;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 5px 8px;
+            border-radius: 4px;
+        }
+        
+        .file-path {
+            color: #2ecc71;
+        }
+        
+        .emoji-fallback {
+            color: #f39c12;
+        }
+        
+        .instructions {
+            background: rgba(52, 152, 219, 0.1);
+            border-left: 4px solid #3498db;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+        
+        .instructions h3 {
+            color: #3498db;
+            margin-bottom: 10px;
+        }
+        
+        .instructions ol {
+            margin-left: 20px;
+            line-height: 1.8;
+        }
+        
+        .instructions li {
+            margin: 8px 0;
+        }
+        
+        .code-block {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            margin: 10px 0;
+            overflow-x: auto;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        
+        .status-exists {
+            background: rgba(46, 204, 113, 0.3);
+            color: #2ecc71;
+        }
+        
+        .status-missing {
+            background: rgba(231, 76, 60, 0.3);
+            color: #e74c3c;
+        }
+        
+        .quick-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            padding: 10px 20px;
+            background: linear-gradient(45deg, #3498db, #2980b9);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.4);
+        }
+        
+        .copy-btn {
+            background: linear-gradient(45deg, #2ecc71, #27ae60);
+            font-size: 12px;
+            padding: 5px 10px;
+        }
+        
+        .warning {
+            background: rgba(241, 196, 15, 0.1);
+            border-left: 4px solid #f1c40f;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+            color: #f1c40f;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 Asset Helper Tool - DiceRogue</h1>
+        
+        <div class="instructions">
+            <h3>📋 Hướng dẫn nhanh:</h3>
+            <ol>
+                <li><strong>Copy file images</strong> vào thư mục tương ứng với <strong>tên file đúng</strong></li>
+                <li><strong>Reload game</strong> (Ctrl+F5) để xem kết quả</li>
+                <li>Game tự động fallback về emoji nếu file không có</li>
+            </ol>
+        </div>
+        
+        <div class="section">
+            <h2>👤 Player Assets</h2>
+            <div class="asset-list" id="playerAssets"></div>
+        </div>
+        
+        <div class="section">
+            <h2>👹 Enemy Assets</h2>
+            <div class="asset-list" id="enemyAssets"></div>
+        </div>
+        
+        <div class="section">
+            <h2>💎 Item Assets</h2>
+            <div class="asset-list" id="itemAssets"></div>
+        </div>
+        
+        <div class="section">
+            <h2>🗺️ Special Grid Assets</h2>
+            <div class="asset-list" id="gridAssets"></div>
+        </div>
+        
+        <div class="section">
+            <h2>🎮 UI Assets</h2>
+            <div class="asset-list" id="uiAssets"></div>
+        </div>
+        
+        <div class="warning">
+            <strong>⚠️ Lưu ý:</strong> Đảm bảo file images có format PNG với background trong suốt. 
+            Kích thước khuyến nghị: 64x64px cho characters, 32x32px cho items.
+        </div>
+    </div>
+
+    <script src="assets-config.js"></script>
+    <script>
+        // Check if file exists (async check)
+        async function checkFileExists(path) {
+            try {
+                const response = await fetch(path, { method: 'HEAD' });
+                return response.ok;
+            } catch {
+                return false;
+            }
+        }
+        
+        // Create asset item display
+        function createAssetItem(name, config, type) {
+            const item = document.createElement('div');
+            item.className = 'asset-item';
+            
+            let html = `<h3>${name}`;
+            
+            if (type === 'enemy' || type === 'player') {
+                // Single image
+                const path = config.image;
+                const fullPath = ASSETS_CONFIG.basePath + path;
+                html += `</h3>`;
+                html += `
+                    <div class="file-info">
+                        <span class="file-path">${path}</span>
+                        <span class="status-badge status-missing" id="status-${path.replace(/\//g, '-')}">Checking...</span>
+                    </div>
+                `;
+                
+                if (config.emoji) {
+                    html += `<div class="file-info emoji-fallback">Fallback: ${config.emoji}</div>`;
+                }
+                
+                // Check file existence
+                checkFileExists(fullPath).then(exists => {
+                    const statusEl = document.getElementById(`status-${path.replace(/\//g, '-')}`);
+                    if (statusEl) {
+                        statusEl.textContent = exists ? '✓ Exists' : '✗ Missing';
+                        statusEl.className = `status-badge ${exists ? 'status-exists' : 'status-missing'}`;
+                    }
+                });
+            } else if (type === 'item' || type === 'grid') {
+                // Single image
+                const path = config.image;
+                const fullPath = ASSETS_CONFIG.basePath + path;
+                html += `</h3>`;
+                html += `
+                    <div class="file-info">
+                        <span class="file-path">${path}</span>
+                        <span class="status-badge status-missing" id="status-${path.replace(/\//g, '-')}">Checking...</span>
+                    </div>
+                `;
+                
+                if (config.emoji) {
+                    html += `<div class="file-info emoji-fallback">Fallback: ${config.emoji}</div>`;
+                }
+                
+                // Check file existence
+                checkFileExists(fullPath).then(exists => {
+                    const statusEl = document.getElementById(`status-${path.replace(/\//g, '-')}`);
+                    if (statusEl) {
+                        statusEl.textContent = exists ? '✓ Exists' : '✗ Missing';
+                        statusEl.className = `status-badge ${exists ? 'status-exists' : 'status-missing'}`;
+                    }
+                });
+            } else if (type === 'ui') {
+                // UI elements
+                if (name === 'Dice') {
+                    html += `</h3>`;
+                    for (let i = 1; i <= 6; i++) {
+                        const path = config[`face${i}`];
+                        const fullPath = ASSETS_CONFIG.basePath + path;
+                        html += `
+                            <div class="file-info">
+                                <span class="file-path">${path}</span>
+                                <span class="status-badge status-missing" id="status-${path.replace(/\//g, '-')}">Checking...</span>
+                            </div>
+                        `;
+                        
+                        checkFileExists(fullPath).then(exists => {
+                            const statusEl = document.getElementById(`status-${path.replace(/\//g, '-')}`);
+                            if (statusEl) {
+                                statusEl.textContent = exists ? '✓ Exists' : '✗ Missing';
+                                statusEl.className = `status-badge ${exists ? 'status-exists' : 'status-missing'}`;
+                            }
+                        });
+                    }
+                    if (config.rolling) {
+                        const path = config.rolling;
+                        const fullPath = ASSETS_CONFIG.basePath + path;
+                        html += `
+                            <div class="file-info">
+                                <span class="file-path">${path}</span>
+                                <span class="status-badge status-missing" id="status-${path.replace(/\//g, '-')}">Checking...</span>
+                            </div>
+                        `;
+                        checkFileExists(fullPath).then(exists => {
+                            const statusEl = document.getElementById(`status-${path.replace(/\//g, '-')}`);
+                            if (statusEl) {
+                                statusEl.textContent = exists ? '✓ Exists' : '✗ Missing';
+                                statusEl.className = `status-badge ${exists ? 'status-exists' : 'status-missing'}`;
+                            }
+                        });
+                    }
+                } else {
+                    const path = config;
+                    const fullPath = ASSETS_CONFIG.basePath + path;
+                    html += `</h3>`;
+                    html += `
+                        <div class="file-info">
+                            <span class="file-path">${path}</span>
+                            <span class="status-badge status-missing" id="status-${path.replace(/\//g, '-')}">Checking...</span>
+                        </div>
+                    `;
+                    checkFileExists(fullPath).then(exists => {
+                        const statusEl = document.getElementById(`status-${path.replace(/\//g, '-')}`);
+                        if (statusEl) {
+                            statusEl.textContent = exists ? '✓ Exists' : '✗ Missing';
+                            statusEl.className = `status-badge ${exists ? 'status-exists' : 'status-missing'}`;
+                        }
+                    });
+                }
+            }
+            
+            item.innerHTML = html;
+            return item;
+        }
+        
+        // Render all assets
+        function renderAssets() {
+            // Player
+            const playerContainer = document.getElementById('playerAssets');
+            const playerItem = createAssetItem('Player', ASSETS_CONFIG.player, 'player');
+            playerContainer.appendChild(playerItem);
+            
+            // Enemies
+            const enemyContainer = document.getElementById('enemyAssets');
+            Object.entries(ASSETS_CONFIG.enemies).forEach(([name, config]) => {
+                const item = createAssetItem(name, config, 'enemy');
+                enemyContainer.appendChild(item);
+            });
+            
+            // Items
+            const itemContainer = document.getElementById('itemAssets');
+            Object.entries(ASSETS_CONFIG.items).forEach(([name, config]) => {
+                const item = createAssetItem(name, config, 'item');
+                itemContainer.appendChild(item);
+            });
+            
+            // Grid
+            const gridContainer = document.getElementById('gridAssets');
+            Object.entries(ASSETS_CONFIG.specialGrids).forEach(([name, config]) => {
+                const item = createAssetItem(name, config, 'grid');
+                gridContainer.appendChild(item);
+            });
+            
+            // UI
+            const uiContainer = document.getElementById('uiAssets');
+            const diceItem = createAssetItem('Dice', ASSETS_CONFIG.ui.dice, 'ui');
+            uiContainer.appendChild(diceItem);
+            
+            Object.entries(ASSETS_CONFIG.ui).forEach(([name, path]) => {
+                if (name !== 'dice' && typeof path === 'string') {
+                    const item = createAssetItem(name, path, 'ui');
+                    uiContainer.appendChild(item);
+                }
+            });
+        }
+        
+        // Initialize
+        renderAssets();
+    </script>
+</body>
+</html>

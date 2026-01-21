@@ -1,4 +1,4 @@
-// Home Screen Manager for DiceQuest
+// Home Screen Manager for DiceRogue
 
 const HOME_MANAGER = {
     // Player persistent data
@@ -115,10 +115,6 @@ const HOME_MANAGER = {
 
     // Setup event listeners
     setupEventListeners: function() {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/72d01b73-5bc1-450d-83a0-8265b323fa87',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'home-manager.js:117',message:'setupEventListeners called',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
-        
         // Home screen buttons
         document.getElementById('startGameBtn').addEventListener('click', () => {
             this.startGame();
@@ -132,12 +128,9 @@ const HOME_MANAGER = {
             this.resetProgress();
         });
 
-        const backToHubBtn = document.getElementById('backToHubBtn');
-        if (backToHubBtn) {
-            backToHubBtn.addEventListener('click', () => {
-                this.backToHub();
-            });
-        }
+        document.getElementById('backToHubBtn').addEventListener('click', () => {
+            this.backToHub();
+        });
 
         // Asset Helper button
         const assetHelperBtn = document.getElementById('assetHelperBtn');
@@ -557,10 +550,7 @@ const HOME_MANAGER = {
 
     // Back to main hub
     backToHub: function() {
-        // Navigate to root index.html (game hub)
-        // Use absolute path from server root
-        const baseUrl = window.location.origin;
-        window.location.href = baseUrl + '/index.html';
+        window.location.href = '../index.html';
     },
 
     // Reset progress

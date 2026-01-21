@@ -1,4 +1,4 @@
-// DiceQuest Game Logic
+// DiceRogue Game Logic
 
 // Objective Types Configuration
 const OBJECTIVE_TYPES = {
@@ -69,7 +69,30 @@ let gameState = {
     // Princess Rescue system
     princessRescued: false,
     princess: { x: -1, y: -1, rescued: false },
-    portal: { x: -1, y: -1, active: false }
+    portal: { x: -1, y: -1, active: false },
+    // Cheat mode (for debugging/viewing full map)
+    cheatMode: false,
+    // Day/Night Cycle system
+    dayNightCycle: {
+        currentDay: 1,           // Current day (1-3)
+        currentNight: 0,         // Current night (0-3)
+        isDay: true,             // true = day, false = night
+        dayTurnCount: 0,         // Turns in current day
+        nightTurnCount: 0,       // Turns in current night
+        maxDayTurns: 50,         // Max moves per day (configurable)
+        maxNightTurns: 30,       // Max moves per night (configurable)
+        visionRadius: 5,         // Day vision (5 cells)
+        nightVisionRadius: 3,    // Night vision (3 cells)
+        currentWeek: 1           // Current week (1 week = 3 days + 3 nights)
+    },
+    // Boss System
+    bossState: {
+        currentBossIndex: 0,          // Which boss in the run (0, 1, 2...)
+        bossesDefeated: 0,            // Number of bosses defeated
+        bossActive: false,            // Is boss fight currently active
+        currentBoss: null,            // Current boss data
+        bossSpawnWeek: 1              // Week when boss should spawn
+    }
 };
 
 // DOM Elements
@@ -115,14 +138,32 @@ const elements = {
 
 // Initialize Game
 function initGame(levelNumber = 1) {
-    console.log(`Initializing DiceQuest - Level ${levelNumber}...`);
+    console.log(`Initializing DiceRogue - Level ${levelNumber}...`);
     
-    // Get level config
-    const levelConfig = getLevelConfig(levelNumber);
+    // Generate procedural dungeon
+    const dungeonConfig = CONFIG.DUNGEON_CONFIG;
+    const roomCount = Math.floor(Math.random() * (dungeonConfig.roomCountMax - dungeonConfig.roomCountMin + 1)) + dungeonConfig.roomCountMin;
+    const dungeon = generateDungeon(
+        dungeonConfig.mapWidth,
+        dungeonConfig.mapHeight,
+        roomCount,
+        dungeonConfig.minRoomSize,
+        dungeonConfig.maxRoomSize
+    );
     
-    // Get grid dimensions from layout if available, otherwise use default
-    const gridWidth = levelConfig.layout ? levelConfig.layout[0].length : CONFIG.GRID_W;
-    const gridHeight = levelConfig.layout ? levelConfig.layout.length : CONFIG.GRID_H;
+    const gridWidth = dungeonConfig.mapWidth;
+    const gridHeight = dungeonConfig.mapHeight;
+    
+    // Create a minimal levelConfig for compatibility
+    const levelConfig = {
+        level: levelNumber,
+        name: `Dungeon Floor ${levelNumber}`,
+        playerStartValue: 2,
+        description: 'Procedurally generated dungeon',
+        enemyCount: Math.floor((gridWidth * gridHeight) / 15),
+        itemCount: Math.floor((gridWidth * gridHeight) / 20),
+        specialGridCount: Math.floor((gridWidth * gridHeight) / 25)
+    };
     
     // Reset runStats if starting a new run (level 1)
     let currentRunStats;
@@ -259,7 +300,9 @@ function initGame(levelNumber = 1) {
             currentCombatTurn: 'player',
             enemyId: null,
             enemyEmoji: '👹',
-            enemyName: 'Enemy'
+            enemyName: 'Enemy',
+            isBoss: false,
+            bossData: null
         },
         // Item Spawn system
         pendingSpawns: [],
@@ -267,27 +310,77 @@ function initGame(levelNumber = 1) {
         // Princess Rescue system
         princessRescued: false,
         princess: { x: -1, y: -1, rescued: false },
-        portal: { x: -1, y: -1, active: false }
+        portal: { x: -1, y: -1, active: false },
+        // Fog of War system
+        discoveredCells: new Set(), // Set of cell keys "x,y" that have been seen
+        visibleCells: new Set(), // Set of cell keys "x,y" currently in vision range
+        // Day/Night Cycle system
+        dayNightCycle: (levelNumber === 1) ? {
+            currentDay: 1,
+            currentNight: 0,
+            isDay: true,
+            dayTurnCount: 0,
+            nightTurnCount: 0,
+            maxDayTurns: CONFIG.DAY_NIGHT_CONFIG.maxDayTurns,
+            maxNightTurns: CONFIG.DAY_NIGHT_CONFIG.maxNightTurns,
+            visionRadius: CONFIG.DAY_NIGHT_CONFIG.dayVisionRadius,
+            nightVisionRadius: CONFIG.DAY_NIGHT_CONFIG.nightVisionRadius,
+            currentWeek: 1
+        } : (gameState.dayNightCycle || {
+            currentDay: 1,
+            currentNight: 0,
+            isDay: true,
+            dayTurnCount: 0,
+            nightTurnCount: 0,
+            maxDayTurns: CONFIG.DAY_NIGHT_CONFIG.maxDayTurns,
+            maxNightTurns: CONFIG.DAY_NIGHT_CONFIG.maxNightTurns,
+            visionRadius: CONFIG.DAY_NIGHT_CONFIG.dayVisionRadius,
+            nightVisionRadius: CONFIG.DAY_NIGHT_CONFIG.nightVisionRadius,
+            currentWeek: 1
+        }),
+        // Boss System
+        bossState: (levelNumber === 1) ? {
+            currentBossIndex: 0,
+            bossesDefeated: 0,
+            bossActive: false,
+            currentBoss: null,
+            bossSpawnWeek: CONFIG.BOSS_CONFIG.spawnAfterWeeks
+        } : (gameState.bossState || {
+            currentBossIndex: 0,
+            bossesDefeated: 0,
+            bossActive: false,
+            currentBoss: null,
+            bossSpawnWeek: CONFIG.BOSS_CONFIG.spawnAfterWeeks
+        })
     };
 
-    // Initialize grid
-    initializeGrid();
+    // Initialize grid from dungeon
+    initializeGridFromDungeon(dungeon, gridWidth, gridHeight);
     
     // Initialize camera system
     if (typeof CAMERA !== 'undefined') {
         CAMERA.init();
     }
     
-    // Load level from layout if available, otherwise use old random spawn
-    if (levelConfig.layout) {
-        loadLevelFromLayout(levelConfig);
-    } else {
-        // Fallback to old random spawn system
-        spawnPlayer();
-        spawnEnemies();
-        spawnItems();
-        spawnSpecialGrids();
+    // Initialize day/night cycle
+    initDayNightCycle();
+    
+    // Place entities from dungeon
+    const entities = placeEntities(dungeon, levelConfig);
+    loadDungeonEntities(entities, dungeon.playerStart);
+    
+    // Initialize fog of war - discover starting room
+    // updateFogOfWar(); // TEMPORARILY DISABLED
+    
+    // Show cheat button when game starts
+    if (cheatViewMapBtn) {
+        cheatViewMapBtn.style.display = 'flex';
     }
+    if (cheatNormalViewBtn) {
+        cheatNormalViewBtn.style.display = 'flex'; // Show button to open full map view
+    }
+    // Reset cheat mode when starting new game
+    gameState.cheatMode = false;
     
     // Render grid
     renderGrid();
@@ -338,6 +431,122 @@ function initializeGrid() {
     }
 }
 
+// Initialize Grid from Dungeon
+function initializeGridFromDungeon(dungeon, gridWidth, gridHeight) {
+    gameState.grid = [];
+    const dungeonGrid = dungeon.grid;
+    
+    for (let y = 0; y < gridHeight; y++) {
+        gameState.grid[y] = [];
+        for (let x = 0; x < gridWidth; x++) {
+            const cellValue = dungeonGrid[y] && dungeonGrid[y][x];
+            
+            // 0 = wall, 1 = floor (obstacles are now handled as specialGrids, not grid values)
+            const isFloor = cellValue === 1;
+            
+            // Random grid asset variant for this cell (0-3 for 4 variants)
+            const gridAssetIndex = isFloor && typeof assetManager !== 'undefined' 
+                ? assetManager.getRandomGridVariantIndex() 
+                : -1;
+            
+            gameState.grid[y][x] = {
+                player: false,
+                enemy: null,
+                item: null,
+                specialGrid: null,
+                gold: false,
+                princess: false,
+                portal: false,
+                goldAmount: 0,
+                goldCollected: false,
+                isFloor: isFloor, // Mark if cell is walkable (floor)
+                gridAssetIndex: gridAssetIndex // Random grid asset variant (0-3)
+            };
+        }
+    }
+}
+
+// Load Dungeon Entities into Grid
+function loadDungeonEntities(entities, playerStart) {
+    // Place player - MUST be on a walkable cell (isFloor === true)
+    // Verify playerStart is walkable
+    const playerCell = gameState.grid[playerStart.y] && gameState.grid[playerStart.y][playerStart.x];
+    if (!playerCell || playerCell.isFloor !== true) {
+        // Find nearest walkable cell if playerStart is not walkable
+        console.warn(`Player start position (${playerStart.x}, ${playerStart.y}) is not walkable! Finding nearest walkable cell...`);
+        let foundWalkable = false;
+        for (let radius = 1; radius < Math.max(gameState.gridWidth, gameState.gridHeight) && !foundWalkable; radius++) {
+            for (let dy = -radius; dy <= radius && !foundWalkable; dy++) {
+                for (let dx = -radius; dx <= radius && !foundWalkable; dx++) {
+                    const checkX = playerStart.x + dx;
+                    const checkY = playerStart.y + dy;
+                    if (checkX >= 0 && checkX < gameState.gridWidth && 
+                        checkY >= 0 && checkY < gameState.gridHeight) {
+                        const cell = gameState.grid[checkY] && gameState.grid[checkY][checkX];
+                        if (cell && cell.isFloor === true) {
+                            playerStart.x = checkX;
+                            playerStart.y = checkY;
+                            foundWalkable = true;
+                            console.log(`Found walkable cell at (${checkX}, ${checkY})`);
+                        }
+                    }
+                }
+            }
+        }
+        if (!foundWalkable) {
+            console.error('ERROR: Could not find any walkable cell for player spawn!');
+        }
+    }
+    
+    gameState.player.x = playerStart.x;
+    gameState.player.y = playerStart.y;
+    gameState.grid[playerStart.y][playerStart.x].player = true;
+    
+    // Place enemies
+    entities.enemies.forEach((enemyData, index) => {
+        const enemy = {
+            id: gameState.enemies.length,
+            x: enemyData.x,
+            y: enemyData.y,
+            value: enemyData.value,
+            type: enemyData.type,
+            emoji: enemyData.emoji
+        };
+        gameState.enemies.push(enemy);
+        gameState.grid[enemyData.y][enemyData.x].enemy = enemy.id;
+    });
+    gameState.initialEnemyCount = gameState.enemies.length;
+    
+    // Place items
+    entities.items.forEach((itemData, index) => {
+        const item = {
+            id: gameState.items.length,
+            x: itemData.x,
+            y: itemData.y,
+            value: itemData.value,
+            type: itemData.type,
+            emoji: itemData.emoji
+        };
+        gameState.items.push(item);
+        gameState.grid[itemData.y][itemData.x].item = item.id;
+    });
+    gameState.totalItemsSpawned = gameState.items.length;
+    
+    // Place special grids
+    entities.specialGrids.forEach(specialData => {
+        gameState.grid[specialData.y][specialData.x].specialGrid = specialData.type;
+    });
+    
+    // Place princess
+    if (entities.princess) {
+        gameState.princess.x = entities.princess.x;
+        gameState.princess.y = entities.princess.y;
+        gameState.grid[entities.princess.y][entities.princess.x].princess = true;
+    }
+    
+    // Portal will be spawned after princess rescue (handled elsewhere)
+}
+
 // Find Enemy Type by Value
 function findEnemyTypeByValue(value) {
     // Find exact match first
@@ -368,6 +577,637 @@ function findItemTypeByValue(value) {
     
     // Fallback to first type if still not found
     return itemType || CONFIG.ITEM_TYPES[0];
+}
+
+// ==================== DAY/NIGHT CYCLE SYSTEM ====================
+
+// Initialize Day/Night Cycle
+function initDayNightCycle() {
+    if (!gameState.dayNightCycle) {
+        gameState.dayNightCycle = {
+            currentDay: 1,
+            currentNight: 0,
+            isDay: true,
+            dayTurnCount: 0,
+            nightTurnCount: 0,
+            maxDayTurns: CONFIG.DAY_NIGHT_CONFIG.maxDayTurns,
+            maxNightTurns: CONFIG.DAY_NIGHT_CONFIG.maxNightTurns,
+            visionRadius: CONFIG.DAY_NIGHT_CONFIG.dayVisionRadius,
+            nightVisionRadius: CONFIG.DAY_NIGHT_CONFIG.nightVisionRadius,
+            currentWeek: 1
+        };
+    }
+    updateDayNightUI();
+}
+
+// Get current vision radius based on day/night
+function getVisionRadius() {
+    if (!gameState.dayNightCycle) return 5; // Default day vision
+    return gameState.dayNightCycle.isDay 
+        ? gameState.dayNightCycle.visionRadius 
+        : gameState.dayNightCycle.nightVisionRadius;
+}
+
+// Update Day/Night Cycle (called after each player turn)
+function updateDayNightCycle() {
+    if (!gameState.dayNightCycle) {
+        initDayNightCycle();
+        return;
+    }
+    
+    const cycle = gameState.dayNightCycle;
+    
+    if (cycle.isDay) {
+        cycle.dayTurnCount++;
+        
+        // Check if day is complete
+        if (cycle.dayTurnCount >= cycle.maxDayTurns) {
+            transitionToNight();
+        }
+    } else {
+        cycle.nightTurnCount++;
+        
+        // Check if night is complete
+        if (cycle.nightTurnCount >= cycle.maxNightTurns) {
+            transitionToDay();
+        }
+    }
+    
+    updateDayNightUI();
+}
+
+// Transition from Day to Night
+function transitionToNight() {
+    const cycle = gameState.dayNightCycle;
+    cycle.isDay = false;
+    cycle.dayTurnCount = 0;
+    // Night number equals current day number (Day 1 → Night 1, Day 2 → Night 2, etc.)
+    cycle.currentNight = cycle.currentDay;
+    
+    console.log(`Night ${cycle.currentNight} (of Day ${cycle.currentDay}) begins! Vision radius: ${cycle.nightVisionRadius}`);
+    
+    updateDayNightUI();
+    renderGrid(); // Update vision
+    
+    // Check if week is complete (3 days + 3 nights) after transition
+    if (cycle.currentDay >= CONFIG.DAY_NIGHT_CONFIG.daysPerWeek && 
+        cycle.currentNight >= CONFIG.DAY_NIGHT_CONFIG.nightsPerWeek) {
+        completeWeek();
+    }
+}
+
+// Transition from Night to Day
+function transitionToDay() {
+    const cycle = gameState.dayNightCycle;
+    cycle.isDay = true;
+    cycle.nightTurnCount = 0;
+    cycle.currentDay++;
+    
+    console.log(`Day ${cycle.currentDay} begins! Vision radius: ${cycle.visionRadius}`);
+    
+    updateDayNightUI();
+    renderGrid(); // Update vision
+    
+    // Check if week is complete (3 days + 3 nights) after transition
+    if (cycle.currentDay >= CONFIG.DAY_NIGHT_CONFIG.daysPerWeek && 
+        cycle.currentNight >= CONFIG.DAY_NIGHT_CONFIG.nightsPerWeek) {
+        completeWeek();
+    }
+}
+
+// Complete Week (3 days + 3 nights)
+function completeWeek() {
+    const cycle = gameState.dayNightCycle;
+    
+    // Only complete week if we've finished both 3 days and 3 nights
+    if (cycle.currentDay >= CONFIG.DAY_NIGHT_CONFIG.daysPerWeek && 
+        cycle.currentNight >= CONFIG.DAY_NIGHT_CONFIG.nightsPerWeek) {
+        cycle.currentWeek++;
+        cycle.currentDay = 1;
+        cycle.currentNight = 0;
+        cycle.isDay = true;
+        cycle.dayTurnCount = 0;
+        cycle.nightTurnCount = 0;
+        
+        console.log(`Week ${cycle.currentWeek} begins!`);
+        
+        // Check if boss should spawn
+        if (shouldSpawnBoss()) {
+            spawnBoss();
+        }
+        
+        updateDayNightUI();
+    }
+}
+
+// Update Day/Night UI
+function updateDayNightUI() {
+    if (!gameState.dayNightCycle) return;
+    
+    const cycle = gameState.dayNightCycle;
+    const weekIndicator = document.getElementById('weekIndicator');
+    const progressSegments = document.getElementById('progressSegments');
+    const progressMarker = document.getElementById('progressMarker');
+    
+    // Update week indicator
+    if (weekIndicator) {
+        weekIndicator.textContent = `Week ${cycle.currentWeek}`;
+    }
+    
+    // Calculate total segments (3 days + 3 nights = 6 segments)
+    const totalSegments = CONFIG.DAY_NIGHT_CONFIG.daysPerWeek + CONFIG.DAY_NIGHT_CONFIG.nightsPerWeek;
+    const segmentsPerDay = cycle.maxDayTurns;
+    const segmentsPerNight = cycle.maxNightTurns;
+    const totalTurns = (CONFIG.DAY_NIGHT_CONFIG.daysPerWeek * segmentsPerDay) + 
+                       (CONFIG.DAY_NIGHT_CONFIG.nightsPerWeek * segmentsPerNight);
+    
+    // Calculate current progress
+    let currentTurn = 0;
+    let currentSegment = 0;
+    
+    // Count completed days
+    for (let d = 1; d < cycle.currentDay; d++) {
+        currentTurn += segmentsPerDay;
+        currentSegment++;
+    }
+    
+    // Count current day progress
+    if (cycle.isDay) {
+        currentTurn += cycle.dayTurnCount;
+        // Calculate segment position within current day
+        const dayProgress = cycle.dayTurnCount / segmentsPerDay;
+        currentSegment += dayProgress;
+    } else {
+        // Day is complete
+        currentTurn += segmentsPerDay;
+        currentSegment++;
+        
+        // Count completed nights
+        for (let n = 1; n < cycle.currentNight; n++) {
+            currentTurn += segmentsPerNight;
+            currentSegment++;
+        }
+        
+        // Count current night progress
+        const nightProgress = cycle.nightTurnCount / segmentsPerNight;
+        currentSegment += nightProgress;
+    }
+    
+    // Update progress bar
+    // Structure: Day1-Night1-Day2-Night2-Day3-Night3 (alternating)
+    if (progressSegments) {
+        progressSegments.innerHTML = '';
+        
+        // Create segments alternating: day-night-day-night-day-night
+        for (let day = 1; day <= CONFIG.DAY_NIGHT_CONFIG.daysPerWeek; day++) {
+            // Day segment
+            const daySegment = document.createElement('div');
+            daySegment.className = 'progress-segment day-segment';
+            
+            if (day < cycle.currentDay) {
+                // Day is completed
+                daySegment.classList.add('completed');
+            } else if (day === cycle.currentDay && cycle.isDay) {
+                // Current day (active)
+                daySegment.classList.add('active');
+            }
+            
+            progressSegments.appendChild(daySegment);
+            
+            // Night segment (for this day)
+            const nightSegment = document.createElement('div');
+            nightSegment.className = 'progress-segment night-segment';
+            
+            if (day < cycle.currentDay) {
+                // Night is completed (day is done, so night is done)
+                nightSegment.classList.add('completed');
+            } else if (day === cycle.currentDay && !cycle.isDay) {
+                // Current night (active) - night number equals day number
+                nightSegment.classList.add('active');
+            }
+            // If still in day, night segment remains empty/inactive
+            
+            progressSegments.appendChild(nightSegment);
+        }
+    }
+    
+    // Update progress marker position
+    // Structure: Day1-Night1-Day2-Night2-Day3-Night3
+    if (progressMarker) {
+        let currentSegmentProgress = 0;
+        
+        // Calculate current segment progress (0 to totalSegments)
+        // Each day has 2 segments: day + night
+        if (cycle.isDay) {
+            // In a day: (completed day-night pairs * 2) + day progress
+            const completedPairs = cycle.currentDay - 1;
+            currentSegmentProgress = (completedPairs * 2) + (cycle.dayTurnCount / cycle.maxDayTurns);
+        } else {
+            // In a night: (completed day-night pairs * 2) + 1 (day done) + night progress
+            const completedPairs = cycle.currentDay - 1;
+            currentSegmentProgress = (completedPairs * 2) + 1 + (cycle.nightTurnCount / cycle.maxNightTurns);
+        }
+        
+        // Calculate percentage (0 to 100%)
+        const progressPercent = Math.min((currentSegmentProgress / totalSegments) * 100, 100);
+        progressMarker.style.left = `${progressPercent}%`;
+        
+        // Show marker if we have progress and haven't completed the week
+        if (currentSegmentProgress > 0 && currentSegmentProgress < totalSegments) {
+            progressMarker.style.display = 'block';
+        } else {
+            progressMarker.style.display = 'none';
+        }
+    }
+    
+    // Update icon states
+    updateDayNightIcons();
+}
+
+// Update Day/Night Icons
+// Icons are positioned above segments: Day1-Night1-Day2-Night2-Day3-Night3-Boss
+function updateDayNightIcons() {
+    if (!gameState.dayNightCycle) return;
+    
+    const cycle = gameState.dayNightCycle;
+    
+    // Update day icons (Day1, Day2, Day3)
+    for (let i = 1; i <= CONFIG.DAY_NIGHT_CONFIG.daysPerWeek; i++) {
+        const icon = document.getElementById(`dayIcon${i}`);
+        if (icon) {
+            if (i < cycle.currentDay) {
+                icon.classList.add('completed');
+                icon.classList.remove('active');
+            } else if (i === cycle.currentDay && cycle.isDay) {
+                icon.classList.add('active');
+                icon.classList.remove('completed');
+            } else {
+                icon.classList.remove('completed', 'active');
+            }
+        }
+    }
+    
+    // Update night icons (Night1, Night2, Night3)
+    for (let i = 1; i <= CONFIG.DAY_NIGHT_CONFIG.nightsPerWeek; i++) {
+        const icon = document.getElementById(`nightIcon${i}`);
+        if (icon) {
+            // Night is completed if its corresponding day is completed
+            // Night number equals day number (Day 1 → Night 1, Day 2 → Night 2, etc.)
+            if (i < cycle.currentDay) {
+                icon.classList.add('completed');
+                icon.classList.remove('active');
+            } else if (i === cycle.currentDay && !cycle.isDay) {
+                // Current night (active) - night number equals day number
+                icon.classList.add('active');
+                icon.classList.remove('completed');
+            } else {
+                icon.classList.remove('completed', 'active');
+            }
+        }
+    }
+    
+    // Update boss icon (show if boss should spawn this week)
+    const bossIcon = document.getElementById('bossIcon');
+    if (bossIcon) {
+        if (shouldSpawnBoss()) {
+            bossIcon.classList.add('ready');
+        } else {
+            bossIcon.classList.remove('ready');
+        }
+    }
+}
+
+// ==================== BOSS SYSTEM ====================
+
+// Generate Boss Data with Scaling
+function generateBossData(bossIndex, week) {
+    const bossConfig = CONFIG.BOSS_CONFIG;
+    
+    // Calculate scaled boss value
+    const bossValue = Math.floor(
+        bossConfig.baseBossValue * 
+        Math.pow(bossConfig.bossScalingFactor, bossIndex)
+    );
+    
+    // Calculate boss stats
+    const bossHP = bossValue * bossConfig.bossHPMultiplier;
+    const bossDMGMax = Math.floor(bossValue * bossConfig.bossDamageMultiplier);
+    const bossSPDMax = Math.floor(bossValue * bossConfig.bossSpeedMultiplier);
+    
+    // Boss names (can be expanded)
+    const bossNames = [
+        'Ancient Dragon',
+        'Shadow Lord',
+        'Chaos Demon',
+        'Void Titan',
+        'Eternal Guardian'
+    ];
+    
+    const bossName = bossNames[Math.min(bossIndex, bossNames.length - 1)] || `Boss ${bossIndex + 1}`;
+    
+    return {
+        id: `boss_${bossIndex + 1}`,
+        name: bossName,
+        emoji: '🐉',
+        value: bossValue,
+        initialValue: bossValue,
+        hp: { current: bossHP, max: bossHP },
+        dmg: { min: 1, max: bossDMGMax },
+        spd: { min: 1, max: bossSPDMax },
+        week: week,
+        bossIndex: bossIndex,
+        isBoss: true
+    };
+}
+
+// Check if boss should spawn
+function shouldSpawnBoss() {
+    const bossState = gameState.bossState;
+    const cycle = gameState.dayNightCycle;
+    
+    // Check if we've defeated all bosses
+    if (bossState.bossesDefeated >= CONFIG.BOSS_CONFIG.bossesPerRun) {
+        return false;
+    }
+    
+    // Check if boss should spawn this week
+    if (cycle.currentWeek >= bossState.bossSpawnWeek) {
+        return true;
+    }
+    
+    return false;
+}
+
+// Spawn Boss (enter combat mode directly)
+async function spawnBoss() {
+    if (gameState.bossState.bossActive) {
+        console.log('Boss fight already active!');
+        return;
+    }
+    
+    const bossState = gameState.bossState;
+    const cycle = gameState.dayNightCycle;
+    
+    // Generate boss data
+    const bossData = generateBossData(bossState.currentBossIndex, cycle.currentWeek);
+    
+    // Set boss as active
+    bossState.bossActive = true;
+    bossState.currentBoss = bossData;
+    
+    console.log(`Boss ${bossData.name} (Value: ${bossData.value}, HP: ${bossData.hp.max}) appears!`);
+    
+    // Show boss notification
+    showBossNotification(bossData);
+    
+    // Wait a bit for notification
+    await sleep(2000);
+    
+    // Enter boss combat mode directly
+    enterBossCombat(bossData);
+}
+
+// Show Boss Notification
+function showBossNotification(bossData) {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = 'boss-notification';
+    notification.innerHTML = `
+        <div class="boss-notification-content">
+            <div class="boss-notification-icon">${bossData.emoji}</div>
+            <div class="boss-notification-title">BOSS APPEARS!</div>
+            <div class="boss-notification-name">${bossData.name}</div>
+            <div class="boss-notification-stats">
+                <span>HP: ${bossData.hp.max}</span>
+                <span>DMG: ${bossData.dmg.min}-${bossData.dmg.max}</span>
+                <span>SPD: ${bossData.spd.min}-${bossData.spd.max}</span>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Animate in
+    setTimeout(() => {
+        notification.classList.add('show');
+    }, 100);
+    
+    // Remove after animation
+    setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 500);
+    }, 3000);
+}
+
+// Enter Boss Combat Mode
+async function enterBossCombat(bossData) {
+    // Stop any ongoing movement
+    gameState.isMoving = false;
+    gameState.playerRemainingSteps = 0;
+    
+    // Hide game grid
+    if (elements.gameGrid) {
+        elements.gameGrid.style.display = 'none';
+    }
+    
+    // Set boss data in combat state BEFORE showing combat screen
+    gameState.combatState.enemyId = null; // Boss doesn't have enemy ID
+    gameState.combatState.enemyHP = bossData.hp.current;
+    gameState.combatState.maxEnemyHP = bossData.hp.max;
+    gameState.combatState.isBoss = true;
+    gameState.combatState.bossData = bossData;
+    
+    // Show combat screen with boss data
+    showCombatScreen(
+        gameState.playerStats ? gameState.playerStats.hp.max : gameState.player.value,
+        bossData.value,
+        bossData.emoji,
+        bossData.name,
+        null // No enemy ID for boss (boss is not in enemies array)
+    );
+    
+    // Ensure boss data is still set (showCombatScreen might reset some fields)
+    gameState.combatState.isBoss = true;
+    gameState.combatState.bossData = bossData;
+    gameState.combatState.enemyHP = bossData.hp.current;
+    gameState.combatState.maxEnemyHP = bossData.hp.max;
+    
+    // Start combat with player turn
+    await performCombatTurn('player');
+}
+
+// Handle Boss Defeat
+async function handleBossDefeat(bossData) {
+    const bossState = gameState.bossState;
+    
+    // Update boss state
+    bossState.bossesDefeated++;
+    bossState.currentBossIndex++;
+    bossState.bossActive = false;
+    bossState.currentBoss = null;
+    
+    // Calculate next boss spawn week
+    bossState.bossSpawnWeek = gameState.dayNightCycle.currentWeek + CONFIG.BOSS_CONFIG.spawnAfterWeeks;
+    
+    console.log(`Boss ${bossData.name} defeated! Bosses defeated: ${bossState.bossesDefeated}/${CONFIG.BOSS_CONFIG.bossesPerRun}`);
+    
+    // Show reward notification
+    showBossRewardNotification(bossData);
+    
+    // Wait a bit
+    await sleep(2000);
+    
+    // Return to map (hide combat screen, show game grid)
+    if (elements.combatScreen) {
+        elements.combatScreen.style.display = 'none';
+    }
+    if (elements.gameGrid) {
+        elements.gameGrid.style.display = 'grid';
+    }
+    
+    // Clear boss data from combat state
+    if (gameState.combatState) {
+        gameState.combatState.isBoss = false;
+        gameState.combatState.bossData = null;
+    }
+    
+    // Render grid
+    renderGrid();
+    
+    // Continue game (don't end run)
+    console.log('Returning to map after boss defeat...');
+}
+
+// Show Boss Reward Notification
+function showBossRewardNotification(bossData) {
+    const notification = document.createElement('div');
+    notification.className = 'boss-reward-notification';
+    notification.innerHTML = `
+        <div class="boss-reward-content">
+            <div class="boss-reward-icon">🎉</div>
+            <div class="boss-reward-title">BOSS DEFEATED!</div>
+            <div class="boss-reward-name">${bossData.name}</div>
+            <div class="boss-reward-message">Continue your journey...</div>
+        </div>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.classList.add('show');
+    }, 100);
+    
+    setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 500);
+    }, 3000);
+}
+
+// ==================== FOG OF WAR SYSTEM ====================
+
+/**
+ * Calculate vision range based on INT stat
+ * @returns {number} Vision range (INT.max)
+ */
+function calculateVisionRange() {
+    if (gameState.playerStats && gameState.playerStats.int) {
+        return gameState.playerStats.int.max;
+    }
+    return 2; // Default fallback
+}
+
+/**
+ * Get all visible cells from player position using Chebyshev distance
+ * @param {number} playerX - Player X position
+ * @param {number} playerY - Player Y position
+ * @param {number} visionRange - Vision range
+ * @returns {Set<string>} Set of visible cell keys "x,y"
+ */
+function getVisibleCells(playerX, playerY, visionRange) {
+    const visible = new Set();
+    
+    // Use Chebyshev distance (square vision range)
+    for (let y = playerY - visionRange; y <= playerY + visionRange; y++) {
+        for (let x = playerX - visionRange; x <= playerX + visionRange; x++) {
+            // Check bounds
+            if (x >= 0 && x < gameState.gridWidth && y >= 0 && y < gameState.gridHeight) {
+                // Check if cell exists and is walkable (floor)
+                if (gameState.grid[y] && gameState.grid[y][x]) {
+                    const cell = gameState.grid[y][x];
+                    // Only show floor cells (skip walls)
+                    // In dungeon system, isFloor indicates walkable cells
+                    // For backward compatibility, if isFloor is undefined, assume all cells are walkable
+                    if (cell.isFloor !== false) {
+                        const cellKey = `${x},${y}`;
+                        visible.add(cellKey);
+                    }
+                }
+            }
+        }
+    }
+    
+    return visible;
+}
+
+/**
+ * Update fog of war - mark discovered cells and update visible cells
+ */
+function updateFogOfWar() {
+    if (!gameState.player) return;
+    
+    const visionRange = calculateVisionRange();
+    const newVisibleCells = getVisibleCells(gameState.player.x, gameState.player.y, visionRange);
+    
+    // Mark all visible cells as discovered
+    newVisibleCells.forEach(cellKey => {
+        gameState.discoveredCells.add(cellKey);
+    });
+    
+    // Update visible cells
+    gameState.visibleCells = newVisibleCells;
+}
+
+/**
+ * Check if a cell is currently visible
+ * @param {number} x - Cell X position
+ * @param {number} y - Cell Y position
+ * @returns {boolean} True if cell is visible
+ */
+function isCellVisible(x, y) {
+    // TEMPORARILY DISABLED - All cells are always visible
+    // But use day/night vision radius for future fog of war
+    if (gameState.cheatMode) return true;
+    
+    // Use day/night vision radius
+    const visionRadius = getVisionRadius();
+    const playerX = gameState.player.x;
+    const playerY = gameState.player.y;
+    const distance = Math.abs(x - playerX) + Math.abs(y - playerY);
+    
+    return distance <= visionRadius;
+}
+
+/**
+ * Check if a cell has been discovered (ever seen)
+ * @param {number} x - Cell X position
+ * @param {number} y - Cell Y position
+ * @returns {boolean} True if cell has been discovered
+ */
+function isCellDiscovered(x, y) {
+    // TEMPORARILY DISABLED - All cells are always discovered
+    return true;
+    // In cheat mode, all cells are discovered
+    // if (gameState.cheatMode) return true;
+    // const cellKey = `${x},${y}`;
+    // return gameState.discoveredCells.has(cellKey);
 }
 
 // Load Level from Layout Matrix
@@ -676,6 +1516,9 @@ function renderGrid() {
         CAMERA.updateCameraPosition();
     }
     
+    // Update fog of war before rendering
+    // updateFogOfWar(); // TEMPORARILY DISABLED
+    
     // Calculate reachable cells if player has remaining steps
     // Disable normal reachable cells when in canon selection mode
     const showReachableCells = gameState.playerRemainingSteps > 0 && !gameState.isMoving && 
@@ -684,7 +1527,7 @@ function renderGrid() {
     
     // Get viewport bounds if camera system is available
     let viewportBounds = null;
-    if (typeof CAMERA !== 'undefined' && CAMERA.viewportWidth < gameState.gridWidth || CAMERA.viewportHeight < gameState.gridHeight) {
+    if (typeof CAMERA !== 'undefined' && (CAMERA.viewportWidth < gameState.gridWidth || CAMERA.viewportHeight < gameState.gridHeight)) {
         viewportBounds = CAMERA.getViewportBounds();
     }
     
@@ -694,22 +1537,80 @@ function renderGrid() {
     const startX = viewportBounds ? viewportBounds.startX : 0;
     const endX = viewportBounds ? viewportBounds.endX : gameState.gridWidth;
     
-    for (let y = startY; y < endY; y++) {
-        for (let x = startX; x < endX; x++) {
+    // Always create a full 8x10 grid structure to prevent layout issues
+    // Create cells in row-major order (top to bottom, left to right)
+    const viewportWidth = endX - startX;
+    const viewportHeight = endY - startY;
+    
+    for (let viewportY = 0; viewportY < viewportHeight; viewportY++) {
+        for (let viewportX = 0; viewportX < viewportWidth; viewportX++) {
+            // Convert viewport coordinates to world coordinates
+            const worldX = startX + viewportX;
+            const worldY = startY + viewportY;
+            
+            // Get cell data from world coordinates
+            const cellData = gameState.grid[worldY] && gameState.grid[worldY][worldX];
+            
+            // Create cell element (always create, even for walls)
             const cell = document.createElement('div');
             cell.className = 'grid-cell';
-            cell.dataset.x = x;
-            cell.dataset.y = y;
+            cell.dataset.x = worldX;
+            cell.dataset.y = worldY;
             
-            const cellData = gameState.grid[y][x];
+            // If cell doesn't exist or is a wall, display as river and skip to next
+            if (!cellData || cellData.isFloor === false) {
+                // Display river for all wall cells (non-walkable areas)
+                if (typeof assetManager !== 'undefined') {
+                    const riverImage = assetManager.getRiverImage();
+                    if (riverImage) {
+                        cell.style.backgroundImage = `url(${riverImage.src})`;
+                        cell.style.backgroundSize = 'cover';
+                        cell.style.backgroundPosition = 'center';
+                        cell.style.backgroundRepeat = 'no-repeat';
+                    } else if (assetManager.config.settings.fallbackToEmoji) {
+                        // Fallback to emoji if image not available
+                        cell.textContent = assetManager.getRiverEmoji();
+                    }
+                }
+                // Wall cells are displayed as rivers
+                cell.classList.add('wall-cell');
+                elements.gameGrid.appendChild(cell);
+                continue;
+            }
+            
+            // Apply fog of war classes
+            const isVisible = isCellVisible(worldX, worldY);
+            const isDiscovered = isCellDiscovered(worldX, worldY);
+            
+            if (isVisible) {
+                cell.classList.add('cell-visible');
+            } else if (isDiscovered) {
+                cell.classList.add('cell-discovered');
+            } else {
+                cell.classList.add('cell-undiscovered');
+            }
+            
+            // Set random grid asset background for floor cells
+            if (cellData.isFloor && typeof assetManager !== 'undefined' && cellData.gridAssetIndex >= 0) {
+                const gridImage = assetManager.getGridCellImage(cellData.gridAssetIndex);
+                if (gridImage) {
+                    cell.style.backgroundImage = `url(${gridImage.src})`;
+                    cell.style.backgroundSize = 'cover';
+                    cell.style.backgroundPosition = 'center';
+                    cell.style.backgroundRepeat = 'no-repeat';
+                }
+            }
             let content = '';
             let isReachableCell = false;
             let hasReachableEnemy = false;
             let hasReachableItem = false;
             
+            // Only show content for visible or discovered cells
+            const shouldShowContent = isVisible || isDiscovered;
+            
             // Check if this cell is reachable
             if (showReachableCells && !cellData.player) {
-                const cellKey = `${x},${y}`;
+                const cellKey = `${worldX},${worldY}`;
                 if (reachableCells.has(cellKey)) {
                     isReachableCell = true;
                     cell.classList.add('reachable-cell');
@@ -754,7 +1655,7 @@ function renderGrid() {
                         e.preventDefault();
                         
                         if (!gameState.isMoving && gameState.playerRemainingSteps > 0) {
-                            movePlayerToCell(x, y);
+                            movePlayerToCell(worldX, worldY);
                         }
                     });
                 }
@@ -779,8 +1680,8 @@ function renderGrid() {
                 }
             }
             
-            // Add enemy (always show, even if reachable)
-            if (cellData.enemy !== null) {
+            // Add enemy (only show if visible or discovered)
+            if (cellData.enemy !== null && shouldShowContent) {
                 const enemy = gameState.enemies.find(e => e.id === cellData.enemy);
                 if (enemy) {
                     cell.classList.add('enemy');
@@ -799,8 +1700,8 @@ function renderGrid() {
                 }
             }
             
-            // Add item (always show, even if reachable)
-            if (cellData.item !== null) {
+            // Add item (only show if visible or discovered)
+            if (cellData.item !== null && shouldShowContent) {
                 cell.classList.add('item');
                 const item = gameState.items.find(i => i.id === cellData.item);
                 // Use asset system if available, otherwise fallback to emoji
@@ -814,27 +1715,57 @@ function renderGrid() {
                 }
             }
             
-            // Add special grid (always show)
-            if (cellData.specialGrid !== null) {
+            // Add special grid (only show if visible or discovered)
+            if (cellData.specialGrid !== null && shouldShowContent) {
                 const specialGridType = CONFIG.SPECIAL_GRID_TYPES[cellData.specialGrid];
                 if (specialGridType) {
                     cell.classList.add('special-grid');
                     cell.classList.add(`special-grid-${cellData.specialGrid}`);
-                    // Add special grid icon as overlay - centered and larger
-                    // Always show icon, even if there's player/enemy/item on the cell
+                    // Add special grid asset as overlay - centered and larger
+                    // Always show asset, even if there's player/enemy/item on the cell
                     const specialGridIcon = document.createElement('div');
                     specialGridIcon.className = 'special-grid-icon';
-                    specialGridIcon.textContent = specialGridType.emoji;
                     specialGridIcon.style.cssText = `
                         position: absolute;
                         top: 50%;
                         left: 50%;
                         transform: translate(-50%, -50%);
-                        font-size: 32px;
                         z-index: 1;
                         pointer-events: none;
-                        line-height: 1;
+                        width: 100%;
+                        height: 100%;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
                     `;
+                    // Use asset helper to render special grid with image/emoji fallback
+                    if (typeof renderSpecialGrid !== 'undefined') {
+                        renderSpecialGrid(specialGridIcon, cellData.specialGrid, true);
+                    } else {
+                        // Fallback: use asset manager directly
+                        if (typeof assetManager !== 'undefined') {
+                            const image = assetManager.getSpecialGridImage(cellData.specialGrid);
+                            const emoji = assetManager.getSpecialGridEmoji(cellData.specialGrid);
+                            if (image) {
+                                const img = document.createElement('img');
+                                img.src = image.src;
+                                img.className = 'special-grid-asset';
+                                img.style.maxWidth = '70%';
+                                img.style.maxHeight = '70%';
+                                img.style.objectFit = 'contain';
+                                specialGridIcon.appendChild(img);
+                            } else {
+                                specialGridIcon.textContent = emoji;
+                                specialGridIcon.style.fontSize = '32px';
+                                specialGridIcon.style.lineHeight = '1';
+                            }
+                        } else {
+                            // Ultimate fallback: use emoji
+                            specialGridIcon.textContent = specialGridType.emoji;
+                            specialGridIcon.style.fontSize = '32px';
+                            specialGridIcon.style.lineHeight = '1';
+                        }
+                    }
                     cell.appendChild(specialGridIcon);
                     
                     // If player is on this special grid cell and it's a canon, make it clickable
@@ -850,7 +1781,7 @@ function renderGrid() {
                             e.preventDefault();
                             
                             if (!gameState.isMoving) {
-                                await handleSpecialGrid('canon', x, y);
+                                await handleSpecialGrid('canon', worldX, worldY);
                             }
                         });
                     }
@@ -858,7 +1789,7 @@ function renderGrid() {
             }
             
             // Add gold bag (always show if not collected)
-            if (cellData.gold && !cellData.goldCollected) {
+            if (cellData.gold && !cellData.goldCollected && shouldShowContent) {
                 cell.classList.add('gold-bag');
                 cell.classList.add('special-grid');
                 
@@ -899,9 +1830,9 @@ function renderGrid() {
                 cell.appendChild(goldAmountDisplay);
             }
             
-            // Add princess (always show if not rescued)
+            // Add princess (only show if visible or discovered and not rescued)
             // If enemy is on same cell, adjust positioning to avoid overlap
-            if (cellData.princess && !gameState.princessRescued) {
+            if (cellData.princess && !gameState.princessRescued && shouldShowContent) {
                 cell.classList.add('princess');
                 const princessContainer = document.createElement('div');
                 princessContainer.className = 'princess-on-grid';
@@ -953,8 +1884,8 @@ function renderGrid() {
                 cell.appendChild(princessContainer);
             }
             
-            // Add portal (always show if active)
-            if (cellData.portal && gameState.portal.active) {
+            // Add portal (only show if visible or discovered and active)
+            if (cellData.portal && gameState.portal.active && shouldShowContent) {
                 cell.classList.add('portal');
                 const portalIcon = document.createElement('span');
                 portalIcon.className = 'portal-icon';
@@ -1011,7 +1942,7 @@ function renderGrid() {
                 }
             }
             
-            if (cellData.enemy !== null) {
+            if (cellData.enemy !== null && shouldShowContent) {
                 const enemy = gameState.enemies.find(e => e.id === cellData.enemy);
                 if (enemy) {
                     const valueBadge = document.createElement('div');
@@ -1026,7 +1957,7 @@ function renderGrid() {
                 // If enemy not found, grid cell will be cleaned up above
             }
             
-            if (cellData.item !== null) {
+            if (cellData.item !== null && shouldShowContent) {
                 const item = gameState.items.find(i => i.id === cellData.item);
                 // Only show value badge if item exists and has a valid value
                 if (item && item.value !== undefined && item.value !== null) {
@@ -1060,6 +1991,7 @@ function renderGrid() {
                 }
             }
             
+            // Append cell directly (cells are already in correct order: row by row, left to right)
             elements.gameGrid.appendChild(cell);
         }
     }
@@ -1349,6 +2281,10 @@ function calculateReachableCells(startX, startY, maxSteps) {
             // Skip if already visited
             if (!visited.has(key)) {
                 const cellData = gameState.grid[newPos.y][newPos.x];
+                // Check if cell is walkable (isFloor)
+                if (!cellData || cellData.isFloor === false) {
+                    continue; // Skip wall cells
+                }
                 // Check if cell has box (obstacle) - cannot walk through
                 if (cellData.specialGrid === 'box') {
                     continue; // Skip box cells
@@ -1418,9 +2354,13 @@ function findPath(startX, startY, targetX, targetY, maxSteps) {
             
             if (!visited.has(key)) {
                 const cellData = gameState.grid[newPos.y][newPos.x];
+                // Cannot move through wall cells (isFloor === false)
+                if (!cellData || cellData.isFloor === false) {
+                    continue; // Skip wall cells
+                }
                 // Cannot move through box (obstacle)
                 if (cellData.specialGrid === 'box') {
-                    continue;
+                    continue; // Skip box cells
                 }
                 // Canon cells are walkable for player (they can enter to activate teleport)
                 // Note: Enemies are blocked from canon in their movement logic
@@ -1550,6 +2490,9 @@ async function movePlayerToCell(targetX, targetY) {
             }
         }
         
+        // Update fog of war after movement
+        // updateFogOfWar(); // TEMPORARILY DISABLED
+        
         // Render and wait
         renderGrid();
         await sleep(300);
@@ -1560,11 +2503,14 @@ async function movePlayerToCell(targetX, targetY) {
     
     gameState.isMoving = false;
     
+    // Final fog update
+    updateFogOfWar();
+    
     // If no more steps, end turn
     if (gameState.playerRemainingSteps <= 0 && gameState.gameRunning) {
         endPlayerTurn();
     } else if (gameState.gameRunning) {
-        // Re-render to update reachable cells
+        // Re-render to update reachable cells and fog
         renderGrid();
     }
 }
@@ -2392,10 +3338,19 @@ function showCombatScreen(playerValue, enemyValue, enemyEmoji, enemyName, enemyI
     const playerHP = gameState.playerStats ? gameState.playerStats.hp.current : playerValue;
     const maxPlayerHP = gameState.playerStats ? gameState.playerStats.hp.max : playerValue;
     
-    // Get enemy stats
-    const enemy = gameState.enemies.find(e => e.id === enemyId);
-    const enemyHP = enemy && enemy.hp ? enemy.hp.current : enemyValue;
-    const maxEnemyHP = enemy && enemy.hp ? enemy.hp.max : enemyValue;
+    // Get enemy/boss stats
+    let enemyHP, maxEnemyHP;
+    if (gameState.combatState.isBoss && gameState.combatState.bossData) {
+        // Boss combat - use boss stats
+        const bossData = gameState.combatState.bossData;
+        enemyHP = bossData.hp.current;
+        maxEnemyHP = bossData.hp.max;
+    } else {
+        // Regular enemy combat
+        const enemy = gameState.enemies.find(e => e.id === enemyId);
+        enemyHP = enemy && enemy.hp ? enemy.hp.current : enemyValue;
+        maxEnemyHP = enemy && enemy.hp ? enemy.hp.max : enemyValue;
+    }
     
     gameState.combatState.active = true;
     gameState.combatState.playerHP = playerHP; // Use current HP
@@ -2406,6 +3361,11 @@ function showCombatScreen(playerValue, enemyValue, enemyEmoji, enemyName, enemyI
     gameState.combatState.enemyId = enemyId;
     gameState.combatState.enemyEmoji = enemyEmoji;
     gameState.combatState.enemyName = enemyName || 'Enemy';
+    // Initialize boss flags (will be set by enterBossCombat if boss)
+    if (!gameState.combatState.isBoss) {
+        gameState.combatState.isBoss = false;
+        gameState.combatState.bossData = null;
+    }
     
     // Update UI - Use asset system if available
     if (elements.combatPlayerEmoji) {
@@ -2436,8 +3396,15 @@ function showCombatScreen(playerValue, enemyValue, enemyEmoji, enemyName, enemyI
         }
     }
     if (elements.combatEnemyDiceRange) {
-        // Enemy damage range is 1 to enemy.value
-        elements.combatEnemyDiceRange.textContent = `1-${enemyValue}`;
+        // Enemy/Boss damage range
+        if (gameState.combatState.isBoss && gameState.combatState.bossData) {
+            // Boss combat - use boss stats
+            const bossData = gameState.combatState.bossData;
+            elements.combatEnemyDiceRange.textContent = `${bossData.dmg.min}-${bossData.dmg.max}`;
+        } else {
+            // Regular enemy - damage range is 1 to enemy.value
+            elements.combatEnemyDiceRange.textContent = `1-${enemyValue}`;
+        }
     }
     
     // Update HP bars
@@ -2631,16 +3598,24 @@ async function performCombatTurn(turn) {
             diceValue = Math.floor(Math.random() * maxPlayerRoll) + 1;
         }
     } else {
-        // Enemy rolls from enemy.dmg.min to enemy.dmg.max (like player)
-        const enemy = gameState.enemies.find(e => e.id === state.enemyId);
-        if (enemy && enemy.dmg) {
-            const dmgMin = enemy.dmg.min;
-            const dmgMax = enemy.dmg.max;
-            diceValue = Math.floor(Math.random() * (dmgMax - dmgMin + 1)) + dmgMin;
+        // Enemy/Boss rolls
+        // Check if this is a boss fight
+        if (state.isBoss && state.bossData) {
+            // Boss combat - use boss stats
+            const bossData = state.bossData;
+            diceValue = Math.floor(Math.random() * (bossData.dmg.max - bossData.dmg.min + 1)) + bossData.dmg.min;
         } else {
-            // Fallback to old system
-            const maxEnemyRoll = enemy ? enemy.value : state.maxEnemyHP;
-            diceValue = Math.floor(Math.random() * maxEnemyRoll) + 1;
+            // Regular enemy combat
+            const enemy = gameState.enemies.find(e => e.id === state.enemyId);
+            if (enemy && enemy.dmg) {
+                const dmgMin = enemy.dmg.min;
+                const dmgMax = enemy.dmg.max;
+                diceValue = Math.floor(Math.random() * (dmgMax - dmgMin + 1)) + dmgMin;
+            } else {
+                // Fallback to old system
+                const maxEnemyRoll = enemy ? enemy.value : state.maxEnemyHP;
+                diceValue = Math.floor(Math.random() * maxEnemyRoll) + 1;
+            }
         }
     }
     
@@ -2654,10 +3629,16 @@ async function performCombatTurn(turn) {
     // Apply damage
     if (turn === 'player') {
         state.enemyHP = Math.max(0, state.enemyHP - diceValue);
-        // Update enemy hp.current if enemy exists
-        const enemy = gameState.enemies.find(e => e.id === state.enemyId);
-        if (enemy && enemy.hp) {
-            enemy.hp.current = state.enemyHP;
+        // Update enemy/boss hp.current
+        if (state.isBoss && state.bossData) {
+            // Boss combat - update boss HP
+            state.bossData.hp.current = state.enemyHP;
+        } else {
+            // Regular enemy combat
+            const enemy = gameState.enemies.find(e => e.id === state.enemyId);
+            if (enemy && enemy.hp) {
+                enemy.hp.current = state.enemyHP;
+            }
         }
     } else {
         state.playerHP = Math.max(0, state.playerHP - diceValue);
@@ -2713,6 +3694,20 @@ async function checkCombatEnd() {
 async function resolveCombatResult(playerWon) {
     const state = gameState.combatState;
     const enemyId = state.enemyId;
+    
+    // Check if this is a boss fight
+    if (state.isBoss && state.bossData) {
+        if (playerWon) {
+            // Boss defeated
+            await handleBossDefeat(state.bossData);
+        } else {
+            // Player lost to boss - Game Over
+            console.log(`Player lost to boss! Game Over.`);
+            hideCombatScreen();
+            gameOver(false);
+        }
+        return;
+    }
     
     // Hide combat screen
     hideCombatScreen();
@@ -2818,14 +3813,20 @@ function calculateFinalPosition(startX, startY, direction, maxSteps) {
             break; // Hit wall
         }
         
+        // Check if cell is walkable (isFloor)
+        const cellData = gameState.grid[newPos.y][newPos.x];
+        if (!cellData || cellData.isFloor === false) {
+            break; // Hit wall (not walkable)
+        }
+        
         // Check for box (obstacle)
-        if (gameState.grid[newPos.y][newPos.x].specialGrid === 'box') {
+        if (cellData.specialGrid === 'box') {
             break; // Hit box
         }
         
         // Check for other enemies (but allow player position)
-        if (gameState.grid[newPos.y][newPos.x].enemy !== null &&
-            !gameState.grid[newPos.y][newPos.x].player) {
+        if (cellData.enemy !== null &&
+            !cellData.player) {
             break; // Hit another enemy
         }
         
@@ -2858,14 +3859,20 @@ function findPathToPlayer(enemy, direction, maxSteps) {
             break; // Hit wall
         }
         
+        // Check if cell is walkable (isFloor)
+        const cellData = gameState.grid[newPos.y][newPos.x];
+        if (!cellData || cellData.isFloor === false) {
+            break; // Hit wall (not walkable)
+        }
+        
         // Check for box (obstacle)
-        if (gameState.grid[newPos.y][newPos.x].specialGrid === 'box') {
+        if (cellData.specialGrid === 'box') {
             break; // Hit box
         }
         
         // Check for other enemies (but allow player position)
-        if (gameState.grid[newPos.y][newPos.x].enemy !== null &&
-            !gameState.grid[newPos.y][newPos.x].player) {
+        if (cellData.enemy !== null &&
+            !cellData.player) {
             break; // Hit another enemy
         }
         
@@ -3102,6 +4109,9 @@ function endPlayerTurn() {
     elements.diceLabel.textContent = 'Enemy turn...';
     elements.diceFace.textContent = '...';
     
+    // Update day/night cycle (track player turn)
+    updateDayNightCycle();
+    
     // Check item spawn after player turn (updatePendingSpawns is now called at start of turn)
     checkItemSpawn();
     
@@ -3145,12 +4155,36 @@ async function enemyTurn() {
     
     console.log('Enemy turn started');
     
-    // Process each enemy one by one (sequentially)
+    // Update camera position to get current viewport
+    if (typeof CAMERA !== 'undefined') {
+        CAMERA.updateCameraPosition();
+    }
+    
+    // Only process enemies within the viewport (8x10 around player)
+    const enemiesInViewport = [];
+    
     for (const enemy of [...gameState.enemies]) {
         if (!gameState.gameRunning) break;
         
         // Skip if enemy was removed
         if (!gameState.enemies.find(e => e.id === enemy.id)) continue;
+        
+        // Check if enemy is in viewport (8x10 around player)
+        if (typeof CAMERA !== 'undefined' && CAMERA.isInViewport(enemy.x, enemy.y)) {
+            enemiesInViewport.push(enemy);
+        }
+    }
+    
+    console.log(`Processing ${enemiesInViewport.length} enemies in viewport (out of ${gameState.enemies.length} total)`);
+    
+    // Process enemies in viewport one by one (with roll dice animation)
+    for (const enemy of enemiesInViewport) {
+        if (!gameState.gameRunning) break;
+        
+        // Skip if enemy was removed
+        if (!gameState.enemies.find(e => e.id === enemy.id)) continue;
+        
+        console.log(`Processing visible enemy ${enemy.id} at (${enemy.x}, ${enemy.y})`);
         
         // Check if enemy value equals player value - if so, attack immediately
         const playerValue = gameState.playerStats ? gameState.playerStats.hp.max : gameState.player.value;
@@ -3215,8 +4249,14 @@ async function enemyTurn() {
                 break; // Hit wall
             }
             
+            // Check if cell is walkable (isFloor)
+            const cellData = gameState.grid[newPos.y][newPos.x];
+            if (!cellData || cellData.isFloor === false) {
+                break; // Hit wall (not walkable)
+            }
+            
             // Check for box (obstacle)
-            if (gameState.grid[newPos.y][newPos.x].specialGrid === 'box') {
+            if (cellData.specialGrid === 'box') {
                 break; // Hit box
             }
             
@@ -4012,6 +5052,207 @@ const exitGameBtn = document.getElementById('exitGameBtn');
 if (exitGameBtn) {
     exitGameBtn.addEventListener('click', () => {
         exitGame();
+    });
+}
+
+// Cheat buttons (View Full Map)
+const cheatViewMapBtn = document.getElementById('cheatViewMapBtn');
+const cheatNormalViewBtn = document.getElementById('cheatNormalViewBtn');
+
+if (cheatViewMapBtn) {
+    cheatViewMapBtn.addEventListener('click', () => {
+        // Enable cheat mode
+        gameState.cheatMode = true;
+        // Show normal view button, hide view map button
+        cheatViewMapBtn.style.display = 'none';
+        if (cheatNormalViewBtn) {
+            cheatNormalViewBtn.style.display = 'flex';
+        }
+        // Re-render grid to show full map
+        renderGrid();
+    });
+}
+
+if (cheatNormalViewBtn) {
+    cheatNormalViewBtn.addEventListener('click', () => {
+        // Open full map view screen
+        openFullMapView();
+    });
+}
+
+// Full Map View Functions
+function openFullMapView() {
+    const fullMapScreen = document.getElementById('fullMapViewScreen');
+    if (!fullMapScreen) return;
+    
+    // Show the screen
+    fullMapScreen.style.display = 'flex';
+    
+    // Render full map
+    renderFullMap();
+    
+    // Setup mouse drag to pan
+    setupMapPanning();
+}
+
+function closeFullMapView() {
+    const fullMapScreen = document.getElementById('fullMapViewScreen');
+    if (fullMapScreen) {
+        fullMapScreen.style.display = 'none';
+    }
+}
+
+function renderFullMap() {
+    const fullMapGrid = document.getElementById('fullMapGrid');
+    if (!fullMapGrid || !gameState.grid) return;
+    
+    // Clear existing content
+    fullMapGrid.innerHTML = '';
+    
+    // Set grid dimensions
+    fullMapGrid.style.gridTemplateColumns = `repeat(${gameState.gridWidth}, 1fr)`;
+    fullMapGrid.style.gridTemplateRows = `repeat(${gameState.gridHeight}, 1fr)`;
+    
+    // Create a map of entities by position
+    const entityMap = new Map();
+    
+    // Add player
+    if (gameState.player) {
+        const key = `${gameState.player.x},${gameState.player.y}`;
+        entityMap.set(key, { type: 'player', emoji: '👤' });
+    }
+    
+    // Add enemies
+    if (gameState.enemies) {
+        gameState.enemies.forEach(enemy => {
+            const key = `${enemy.x},${enemy.y}`;
+            entityMap.set(key, { type: 'enemy', emoji: enemy.emoji || '👹' });
+        });
+    }
+    
+    // Add items
+    if (gameState.items) {
+        gameState.items.forEach(item => {
+            const key = `${item.x},${item.y}`;
+            entityMap.set(key, { type: 'item', emoji: item.emoji || '💎' });
+        });
+    }
+    
+    // Add princess
+    if (gameState.princess && gameState.princess.x >= 0 && gameState.princess.y >= 0) {
+        const key = `${gameState.princess.x},${gameState.princess.y}`;
+        entityMap.set(key, { type: 'princess', emoji: '👸' });
+    }
+    
+    // Add portal
+    if (gameState.portal && gameState.portal.x >= 0 && gameState.portal.y >= 0) {
+        const key = `${gameState.portal.x},${gameState.portal.y}`;
+        entityMap.set(key, { type: 'portal', emoji: '🌀' });
+    }
+    
+    // Render all cells
+    for (let y = 0; y < gameState.gridHeight; y++) {
+        for (let x = 0; x < gameState.gridWidth; x++) {
+            const cell = document.createElement('div');
+            cell.className = 'map-cell';
+            cell.dataset.x = x;
+            cell.dataset.y = y;
+            
+            const cellData = gameState.grid[y] && gameState.grid[y][x];
+            
+            // Check if it's a wall
+            if (!cellData || cellData.isFloor === false) {
+                cell.classList.add('wall');
+                fullMapGrid.appendChild(cell);
+                continue;
+            }
+            
+            // It's a floor
+            cell.classList.add('floor');
+            
+            // Check for entities at this position
+            const key = `${x},${y}`;
+            const entity = entityMap.get(key);
+            
+            if (entity) {
+                cell.classList.add(entity.type);
+                cell.textContent = entity.emoji;
+            }
+            
+            fullMapGrid.appendChild(cell);
+        }
+    }
+    
+    // Update info
+    updateFullMapInfo();
+}
+
+function updateFullMapInfo() {
+    const mapSizeInfo = document.getElementById('mapSizeInfo');
+    const mapEnemyCount = document.getElementById('mapEnemyCount');
+    const mapItemCount = document.getElementById('mapItemCount');
+    const mapPlayerPos = document.getElementById('mapPlayerPos');
+    
+    if (mapSizeInfo) {
+        mapSizeInfo.textContent = `${gameState.gridWidth} × ${gameState.gridHeight}`;
+    }
+    
+    if (mapEnemyCount) {
+        mapEnemyCount.textContent = gameState.enemies ? gameState.enemies.length : 0;
+    }
+    
+    if (mapItemCount) {
+        mapItemCount.textContent = gameState.items ? gameState.items.length : 0;
+    }
+    
+    if (mapPlayerPos && gameState.player) {
+        mapPlayerPos.textContent = `(${gameState.player.x}, ${gameState.player.y})`;
+    }
+}
+
+function setupMapPanning() {
+    const scrollContainer = document.getElementById('fullMapScrollContainer');
+    if (!scrollContainer) return;
+    
+    let isDragging = false;
+    let startX, startY, scrollLeft, scrollTop;
+    
+    scrollContainer.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        startX = e.pageX - scrollContainer.offsetLeft;
+        startY = e.pageY - scrollContainer.offsetTop;
+        scrollLeft = scrollContainer.scrollLeft;
+        scrollTop = scrollContainer.scrollTop;
+        scrollContainer.style.cursor = 'grabbing';
+    });
+    
+    scrollContainer.addEventListener('mouseleave', () => {
+        isDragging = false;
+        scrollContainer.style.cursor = 'grab';
+    });
+    
+    scrollContainer.addEventListener('mouseup', () => {
+        isDragging = false;
+        scrollContainer.style.cursor = 'grab';
+    });
+    
+    scrollContainer.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        e.preventDefault();
+        const x = e.pageX - scrollContainer.offsetLeft;
+        const y = e.pageY - scrollContainer.offsetTop;
+        const walkX = (x - startX);
+        const walkY = (y - startY);
+        scrollContainer.scrollLeft = scrollLeft - walkX;
+        scrollContainer.scrollTop = scrollTop - walkY;
+    });
+}
+
+// Close full map view button
+const closeFullMapViewBtn = document.getElementById('closeFullMapViewBtn');
+if (closeFullMapViewBtn) {
+    closeFullMapViewBtn.addEventListener('click', () => {
+        closeFullMapView();
     });
 }
 

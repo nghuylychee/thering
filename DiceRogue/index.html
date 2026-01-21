@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DiceRogue</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Home Screen -->
+    <div id="homeScreen" class="home-screen">
+        <div class="home-container">
+            <div class="home-header">
+                <h1 class="game-title">🗡️ DiceRogue</h1>
+                <div class="home-gold-display">
+                    <span class="gold-icon">🪙</span>
+                    <span class="gold-label">Gold:</span>
+                    <span class="gold-value" id="homeTotalGold">0</span>
+                </div>
+            </div>
+
+            <div class="main-menu">
+                <button id="startGameBtn" class="menu-button primary">
+                    <span class="button-icon">⚔️</span>
+                    <span class="button-text">Play</span>
+                </button>
+                
+                <button id="upgradesBtn" class="menu-button secondary">
+                    <span class="button-icon">📜</span>
+                    <span class="button-text">Upgrades</span>
+                </button>
+                
+                <button id="resetProgressBtn" class="menu-button reset-button">
+                    <span class="button-icon">📜</span>
+                    <span class="button-text">Reset Progress</span>
+                </button>
+                
+                <button id="backToHubBtn" class="menu-button hub-button">
+                    <span class="button-icon">🏰</span>
+                    <span class="button-text">Quay về Hub</span>
+                </button>
+                
+                <button id="levelDesignerBtn" class="menu-button secondary">
+                    <span class="button-icon">🎨</span>
+                    <span class="button-text">Level Designer</span>
+                </button>
+                
+                <button id="assetHelperBtn" class="menu-button secondary">
+                    <span class="button-icon">🖼️</span>
+                    <span class="button-text">Asset Helper</span>
+                </button>
+            </div>
+            
+            <!-- Home Stats Section -->
+            <div class="home-stats-section">
+                <div class="home-stat-item">
+                    <span class="stat-icon">❤️</span>
+                    <span class="stat-label">HP:</span>
+                    <span class="stat-value" id="homeHP">2</span>
+                </div>
+                <div class="home-stat-item">
+                    <span class="stat-icon">⚔️</span>
+                    <span class="stat-label">DMG:</span>
+                    <span class="stat-value" id="homeDMG">1-2</span>
+                </div>
+                <div class="home-stat-item">
+                    <span class="stat-icon">🏃</span>
+                    <span class="stat-label">SPD:</span>
+                    <span class="stat-value" id="homeSPD">1-2</span>
+                </div>
+                <div class="home-stat-item">
+                    <span class="stat-icon">📜</span>
+                    <span class="stat-label">INT:</span>
+                    <span class="stat-value" id="homeINT">1-2</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upgrades Screen -->
+    <div id="upgradesScreen" class="upgrades-screen" style="display: none;">
+        <div class="upgrades-container">
+            <!-- Header -->
+            <div class="upgrades-header">
+                <button id="backToHomeBtn" class="back-button-small">←</button>
+                <h2>⚡ Upgrades</h2>
+                <div class="gold-display">
+                    <span class="gold-icon">🪙</span>
+                    <span class="gold-value" id="upgradeGold">0</span>
+                </div>
+            </div>
+
+            <!-- Player Stats Display -->
+            <div class="upgrades-stats-section">
+                <h3 class="stats-section-title">Your Stats</h3>
+                <div class="upgrades-stats-grid">
+                    <div class="upgrade-stat-item">
+                        <div class="stat-icon">❤️</div>
+                        <div class="stat-info">
+                            <div class="stat-label">HP</div>
+                            <div class="stat-value">
+                                <span class="stat-number" id="upgradeHP">2</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="upgrade-stat-item">
+                        <div class="stat-icon">⚔️</div>
+                        <div class="stat-info">
+                            <div class="stat-label">DMG</div>
+                            <div class="stat-value" id="upgradeDMG">
+                                <span class="stat-number" id="upgradeDMGMin">1</span>
+                                <span class="stat-separator">-</span>
+                                <span class="stat-number" id="upgradeDMGMax">2</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="upgrade-stat-item">
+                        <div class="stat-icon">🏃</div>
+                        <div class="stat-info">
+                            <div class="stat-label">SPD</div>
+                            <div class="stat-value" id="upgradeSPD">
+                                <span class="stat-number" id="upgradeSPDMin">1</span>
+                                <span class="stat-separator">-</span>
+                                <span class="stat-number" id="upgradeSPDMax">2</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="upgrade-stat-item">
+                        <div class="stat-icon">🧠</div>
+                        <div class="stat-info">
+                            <div class="stat-label">INT</div>
+                            <div class="stat-value" id="upgradeINT">
+                                <span class="stat-number" id="upgradeINTMin">1</span>
+                                <span class="stat-separator">-</span>
+                                <span class="stat-number" id="upgradeINTMax">2</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="upgrades-grid">
+                <!-- HP Upgrade -->
+                <div class="upgrade-card">
+                    <div class="upgrade-left">
+                        <div class="upgrade-icon">❤️</div>
+                        <div class="upgrade-info">
+                            <div class="upgrade-name">HP</div>
+                            <div class="upgrade-description">Increase max HP</div>
+                            <div class="upgrade-level">Level: <span id="hpLevel">0</span></div>
+                        </div>
+                    </div>
+                    <div class="upgrade-right">
+                        <div class="upgrade-cost">
+                            <span class="cost-icon">🪙</span>
+                            <span id="hpCost">75</span>
+                        </div>
+                        <button class="upgrade-btn" data-upgrade="hp">Upgrade</button>
+                    </div>
+                </div>
+
+                <!-- DMG Min Upgrade -->
+                <div class="upgrade-card">
+                    <div class="upgrade-left">
+                        <div class="upgrade-icon">⚔️</div>
+                        <div class="upgrade-info">
+                            <div class="upgrade-name">DMG Min</div>
+                            <div class="upgrade-description">Increase minimum damage</div>
+                            <div class="upgrade-level">Level: <span id="dmgMinLevel">0</span></div>
+                        </div>
+                    </div>
+                    <div class="upgrade-right">
+                        <div class="upgrade-cost">
+                            <span class="cost-icon">🪙</span>
+                            <span id="dmgMinCost">50</span>
+                        </div>
+                        <button class="upgrade-btn" data-upgrade="dmgMin">Upgrade</button>
+                    </div>
+                </div>
+
+                <!-- DMG Max Upgrade -->
+                <div class="upgrade-card">
+                    <div class="upgrade-left">
+                        <div class="upgrade-icon">⚔️</div>
+                        <div class="upgrade-info">
+                            <div class="upgrade-name">DMG Max</div>
+                            <div class="upgrade-description">Increase maximum damage</div>
+                            <div class="upgrade-level">Level: <span id="dmgMaxLevel">0</span></div>
+                        </div>
+                    </div>
+                    <div class="upgrade-right">
+                        <div class="upgrade-cost">
+                            <span class="cost-icon">🪙</span>
+                            <span id="dmgMaxCost">50</span>
+                        </div>
+                        <button class="upgrade-btn" data-upgrade="dmgMax">Upgrade</button>
+                    </div>
+                </div>
+
+                <!-- SPD Min Upgrade -->
+                <div class="upgrade-card">
+                    <div class="upgrade-left">
+                        <div class="upgrade-icon">🏃</div>
+                        <div class="upgrade-info">
+                            <div class="upgrade-name">SPD Min</div>
+                            <div class="upgrade-description">Increase minimum movement steps</div>
+                            <div class="upgrade-level">Level: <span id="spdMinLevel">0</span></div>
+                        </div>
+                    </div>
+                    <div class="upgrade-right">
+                        <div class="upgrade-cost">
+                            <span class="cost-icon">🪙</span>
+                            <span id="spdMinCost">50</span>
+                        </div>
+                        <button class="upgrade-btn" data-upgrade="spdMin">Upgrade</button>
+                    </div>
+                </div>
+
+                <!-- SPD Max Upgrade -->
+                <div class="upgrade-card">
+                    <div class="upgrade-left">
+                        <div class="upgrade-icon">🏃</div>
+                        <div class="upgrade-info">
+                            <div class="upgrade-name">SPD Max</div>
+                            <div class="upgrade-description">Increase maximum movement steps</div>
+                            <div class="upgrade-level">Level: <span id="spdMaxLevel">0</span></div>
+                        </div>
+                    </div>
+                    <div class="upgrade-right">
+                        <div class="upgrade-cost">
+                            <span class="cost-icon">🪙</span>
+                            <span id="spdMaxCost">50</span>
+                        </div>
+                        <button class="upgrade-btn" data-upgrade="spdMax">Upgrade</button>
+                    </div>
+                </div>
+
+                <!-- INT Min Upgrade -->
+                <div class="upgrade-card">
+                    <div class="upgrade-left">
+                        <div class="upgrade-icon">🧠</div>
+                        <div class="upgrade-info">
+                            <div class="upgrade-name">INT Min</div>
+                            <div class="upgrade-description">Increase minimum intelligence</div>
+                            <div class="upgrade-level">Level: <span id="intMinLevel">0</span></div>
+                        </div>
+                    </div>
+                    <div class="upgrade-right">
+                        <div class="upgrade-cost">
+                            <span class="cost-icon">🪙</span>
+                            <span id="intMinCost">50</span>
+                        </div>
+                        <button class="upgrade-btn" data-upgrade="intMin">Upgrade</button>
+                    </div>
+                </div>
+
+                <!-- INT Max Upgrade -->
+                <div class="upgrade-card">
+                    <div class="upgrade-left">
+                        <div class="upgrade-icon">🧠</div>
+                        <div class="upgrade-info">
+                            <div class="upgrade-name">INT Max</div>
+                            <div class="upgrade-description">Increase maximum intelligence</div>
+                            <div class="upgrade-level">Level: <span id="intMaxLevel">0</span></div>
+                        </div>
+                    </div>
+                    <div class="upgrade-right">
+                        <div class="upgrade-cost">
+                            <span class="cost-icon">🪙</span>
+                            <span id="intMaxCost">50</span>
+                        </div>
+                        <button class="upgrade-btn" data-upgrade="intMax">Upgrade</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Full Map View Screen (Debug) -->
+    <div id="fullMapViewScreen" class="full-map-view-screen" style="display: none;">
+        <div class="full-map-container">
+            <div class="full-map-header">
+                <h2>🗺️ Full Map View (Debug Mode)</h2>
+                <button id="closeFullMapViewBtn" class="close-map-btn">✕ Close</button>
+            </div>
+            <div class="full-map-scroll-container" id="fullMapScrollContainer">
+                <div class="full-map-grid" id="fullMapGrid">
+                    <!-- Full map will be rendered here -->
+                </div>
+            </div>
+            <div class="full-map-info">
+                <div class="map-info-item">
+                    <span>Map Size:</span>
+                    <span id="mapSizeInfo">-</span>
+                </div>
+                <div class="map-info-item">
+                    <span>Enemies:</span>
+                    <span id="mapEnemyCount">-</span>
+                </div>
+                <div class="map-info-item">
+                    <span>Items:</span>
+                    <span id="mapItemCount">-</span>
+                </div>
+                <div class="map-info-item">
+                    <span>Player:</span>
+                    <span id="mapPlayerPos">-</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="gameScreen" class="game-screen" style="display: none;">
+        <div class="game-container">
+            <!-- Back to Home Button -->
+            <button id="exitGameBtn" class="exit-game-btn" title="Exit Game (No rewards)">
+                ←
+            </button>
+            
+            <!-- Cheat Button (View Full Map) -->
+            <button id="cheatViewMapBtn" class="cheat-btn" title="Cheat: View Full Map" style="display: none;">
+                👁️
+            </button>
+            
+            <!-- Back to Normal View Button (hidden by default) -->
+            <button id="cheatNormalViewBtn" class="cheat-btn" title="Back to Normal View" style="display: none;">
+                🔒
+            </button>
+            
+            <!-- Game Header -->
+            <div class="game-header">
+                <div class="level-info">
+                    <div class="level-display">
+                        <span class="level-label">Level</span>
+                        <span class="level-value" id="levelValue">1</span>
+                    </div>
+                    <div class="objective-display">
+                        <span class="objective-icon" id="objectiveIcon">🎯</span>
+                        <span class="objective-text" id="objectiveText">Defeat all enemies</span>
+                    </div>
+                    <div class="gold-display">
+                        <span class="gold-icon">🪙</span>
+                        <span class="gold-value" id="goldValue">0</span>
+                    </div>
+                </div>
+                <!-- Day/Night Cycle Display -->
+                <div class="day-night-info">
+                    <div class="day-night-progress-container">
+                        <div class="day-night-icons">
+                            <!-- Icons positioned above segments: Day1-Night1-Day2-Night2-Day3-Night3-Boss -->
+                            <div class="day-night-icon day-icon" id="dayIcon1">☀️</div>
+                            <div class="day-night-icon night-icon" id="nightIcon1">🌙</div>
+                            <div class="day-night-icon day-icon" id="dayIcon2">☀️</div>
+                            <div class="day-night-icon night-icon" id="nightIcon2">🌙</div>
+                            <div class="day-night-icon day-icon" id="dayIcon3">☀️</div>
+                            <div class="day-night-icon night-icon" id="nightIcon3">🌙</div>
+                            <div class="day-night-icon boss-icon" id="bossIcon">💀</div>
+                        </div>
+                        <div class="day-night-progress-bar">
+                            <div class="progress-segments" id="progressSegments">
+                                <!-- Segments will be generated by JavaScript: Day1-Night1-Day2-Night2-Day3-Night3 -->
+                            </div>
+                            <div class="progress-marker" id="progressMarker"></div>
+                        </div>
+                    </div>
+                    <div class="week-indicator" id="weekIndicator">Week 1</div>
+                </div>
+            </div>
+
+            <!-- Game Grid -->
+            <div class="grid-container">
+                <div class="game-grid" id="gameGrid">
+                    <!-- Grid cells will be generated by JavaScript -->
+                </div>
+            </div>
+
+            <!-- Control Panel -->
+            <div class="control-panel">
+                <div class="dice-container">
+                    <div class="dice-visual" id="diceVisual">
+                        <div class="dice-face" id="diceFace">?</div>
+                    </div>
+                    <button id="rollButton" class="roll-button" disabled>🎲 Roll</button>
+                    <button id="endTurnButton" class="roll-button" style="display: none; background: linear-gradient(45deg, #e74c3c, #c0392b);">⏹️ End Turn</button>
+                </div>
+                <div class="dice-label" id="diceLabel">Roll to start</div>
+                <!-- Run Stats Display -->
+                <div class="run-stats-display" id="runStatsDisplay">
+                    <div class="stat-item">
+                        <span class="stat-label">Dice:</span>
+                        <span class="stat-value">1-3</span>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="gameOverScreen" class="game-over-screen" style="display: none;">
+        <div class="game-over-container">
+            <div class="game-over-header">
+                <h2 id="gameOverTitle">Game Over!</h2>
+            </div>
+            <div class="game-over-content">
+                <div class="game-over-message" id="gameOverMessage"></div>
+                <div class="game-over-stats" id="gameOverStats"></div>
+                <!-- Run Summary (shown when lost) -->
+                <div id="runSummary" class="run-summary" style="display: none;">
+                    <div class="summary-item">
+                        <span class="summary-label">Level Reached:</span>
+                        <span class="summary-value" id="runSummaryLevel">-</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">Gold Collected:</span>
+                        <span class="summary-value" id="runSummaryGold">0</span>
+                    </div>
+                </div>
+            </div>
+            <div class="game-over-actions">
+                <button id="nextLevelBtn" class="menu-button primary" style="display: none;">Next Level</button>
+                <button id="restartBtn" class="menu-button primary">Claim</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Power-up Selection Screen -->
+    <div id="powerupScreen" class="powerup-screen" style="display: none;">
+        <div class="powerup-container">
+            <div class="powerup-header">
+                <h2>Level Complete!</h2>
+                <p>Choose your upgrades</p>
+                <div class="powerup-current-stats">
+                    <span class="stats-label">
+                        <span class="stats-icon">🧠</span>
+                        <span>INT:</span>
+                    </span>
+                    <span class="stats-value" id="powerupDiceRange">1-2</span>
+                </div>
+            </div>
+            
+            <div class="powerup-cards" id="powerupCards">
+                <!-- Power-up cards will be generated here -->
+            </div>
+            
+            <div class="powerup-actions">
+                <div class="resource-dice">
+                    <div class="dice" id="resourceDice">?</div>
+                </div>
+                <button id="rollResourceDice" class="roll-resource-btn">Roll</button>
+                <button id="skipPowerup" class="skip-btn">SKIP</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Combat Screen -->
+    <div id="combatScreen" class="combat-screen" style="display: none;">
+        <div class="combat-container">
+            <!-- Turn Indicator -->
+            <div class="combat-turn-indicator" id="combatTurnIndicator">
+                <span id="combatTurnText">Player Turn</span>
+            </div>
+            
+            <!-- Combat Arena -->
+            <div class="combat-arena">
+                <!-- Player Area (Left) -->
+                <div class="combat-character player-area" id="combatPlayerArea">
+                    <div class="character-emoji" id="combatPlayerEmoji">🧙</div>
+                    <div class="character-dice-display" id="combatPlayerDice"></div>
+                    <div class="character-info">
+                        <div class="character-name">Player</div>
+                        <div class="dice-range-display">
+                            <span class="dice-range-icon">⚔️</span>
+                            <span class="dice-range-label">Damage:</span>
+                            <span class="dice-range-value" id="combatPlayerDiceRange">1-2</span>
+                        </div>
+                        <div class="hp-bar-container">
+                            <div class="hp-bar-label">
+                                <span>
+                                    <span class="hp-icon">❤️</span>
+                                    <span>HP:</span>
+                                </span>
+                                <span id="combatPlayerHPText">0/0</span>
+                            </div>
+                            <div class="hp-bar">
+                                <div class="hp-bar-fill player-hp" id="combatPlayerHPBar" style="width: 100%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- VS Divider -->
+                <div class="combat-vs">VS</div>
+                
+                <!-- Enemy Area (Right) -->
+                <div class="combat-character enemy-area" id="combatEnemyArea">
+                    <div class="character-emoji" id="combatEnemyEmoji">👹</div>
+                    <div class="character-dice-display" id="combatEnemyDice"></div>
+                    <div class="character-info">
+                        <div class="character-name" id="combatEnemyName">Enemy</div>
+                        <div class="dice-range-display">
+                            <span class="dice-range-icon">⚔️</span>
+                            <span class="dice-range-label">Damage:</span>
+                            <span class="dice-range-value" id="combatEnemyDiceRange">1-1</span>
+                        </div>
+                        <div class="hp-bar-container">
+                            <div class="hp-bar-label">
+                                <span>
+                                    <span class="hp-icon">❤️</span>
+                                    <span>HP:</span>
+                                </span>
+                                <span id="combatEnemyHPText">0/0</span>
+                            </div>
+                            <div class="hp-bar">
+                                <div class="hp-bar-fill enemy-hp" id="combatEnemyHPBar" style="width: 100%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Damage Display Area -->
+            <div class="combat-damage-area">
+                <div class="damage-display player-damage" id="combatPlayerDamage"></div>
+                <div class="damage-display enemy-damage" id="combatEnemyDamage"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Item Stat Selection Pop-up -->
+    <div id="itemStatSelection" class="item-stat-selection" style="display: none;">
+        <div class="item-stat-selection-overlay"></div>
+        <div class="item-stat-selection-popup">
+            <div class="item-stat-selection-header">
+                <h3>Choose Stat to Upgrade</h3>
+                <div class="item-stat-selection-item">
+                    <span class="item-emoji" id="itemStatEmoji">⭐</span>
+                    <span class="item-value" id="itemStatValue">+1</span>
+                </div>
+            </div>
+            <div class="item-stat-selection-options">
+                <button class="stat-option-btn" data-stat="hp">
+                    <span class="stat-option-icon">❤️</span>
+                    <span class="stat-option-label">Max HP</span>
+                    <span class="stat-option-current" id="statOptionHP">0/0</span>
+                </button>
+                <button class="stat-option-btn" data-stat="dmg">
+                    <span class="stat-option-icon">⚔️</span>
+                    <span class="stat-option-label">Max DMG</span>
+                    <span class="stat-option-current" id="statOptionDMG">0</span>
+                </button>
+                <button class="stat-option-btn" data-stat="spd">
+                    <span class="stat-option-icon">🏃</span>
+                    <span class="stat-option-label">Max SPD</span>
+                    <span class="stat-option-current" id="statOptionSPD">0</span>
+                </button>
+                <button class="stat-option-btn" data-stat="int">
+                    <span class="stat-option-icon">🧠</span>
+                    <span class="stat-option-label">Max INT</span>
+                    <span class="stat-option-current" id="statOptionINT">0</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Level Designer Screen -->
+    <div id="levelDesignerScreen" class="level-designer-screen" style="display: none;">
+        <div class="level-designer-container">
+            <div class="level-designer-header">
+                <button id="backToHomeFromDesignerBtn" class="back-button-small">←</button>
+                <h2>🎨 Level Designer</h2>
+            </div>
+            
+            <!-- Tabs -->
+            <div class="designer-tabs">
+                <button class="designer-tab active" data-tab="tuning">Level Design</button>
+                <button class="designer-tab" data-tab="overview">Progress Overview</button>
+            </div>
+            
+            <!-- Tuning Parameters Tab -->
+            <div id="tuningTab" class="designer-tab-content active">
+                <div class="tuning-list-container">
+                    <div class="tuning-list-header">
+                        <h3>Level Parameters</h3>
+                        <div class="tuning-list-actions">
+                            <div class="api-key-input-group">
+                                <label for="openaiApiKeyInput">OpenAI API Key:</label>
+                                <input type="password" id="openaiApiKeyInput" class="api-key-input" placeholder="sk-..." />
+                                <button id="saveApiKeyBtn" class="save-api-key-btn">Save Key</button>
+                            </div>
+                            <button id="generateAll10LevelsBtn" class="generate-all-btn" style="background: linear-gradient(45deg, #e74c3c, #c0392b);">💾 Save AI Levels to level-design.js</button>
+                            <button id="generateAllWithAIBtn" class="generate-all-btn" style="background: linear-gradient(45deg, #9b59b6, #8e44ad);" disabled>🤖 Generate All 10 Levels with AI</button>
+                            <button id="loadAIResultBtn" class="generate-all-btn" style="background: linear-gradient(45deg, #27ae60, #229954);">📁 Load AI Result (ai-result.json)</button>
+                            <input type="file" id="aiResultFileInput" accept=".json" style="display: none;" />
+                            <button id="saveGenFileBtn" class="save-all-btn" style="display: none; background: linear-gradient(45deg, #9b59b6, #8e44ad);">Save to level-design-gen.js</button>
+                        </div>
+                    </div>
+                    <div class="level-parameters-list" id="levelParametersList">
+                        <!-- Level parameter cards will be generated here -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Progress Overview Tab -->
+            <div id="overviewTab" class="designer-tab-content">
+                <div class="overview-tab-content">
+                    <div class="overview-header">
+                        <h3>Level Progression Overview</h3>
+                        <div class="metric-selector-container">
+                            <label for="metricSelector">Metric:</label>
+                            <select id="metricSelector" class="metric-selector">
+                                <option value="difficultyScore">Difficulty Score</option>
+                                <option value="enemyPower">Enemy Power</option>
+                                <option value="totalObstacles">Total Obstacles</option>
+                                <option value="walkableCells">Walkable Cells</option>
+                                <option value="itemValue">Item Value</option>
+                                <option value="enemyCount">Enemy Count</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="charts-container">
+                        <div class="chart-section">
+                            <h4>Difficulty Progression</h4>
+                            <div class="chart-container line-chart-container">
+                                <canvas id="lineChartCanvas" width="800" height="400"></canvas>
+                                <div id="lineChartTooltip" class="chart-tooltip" style="display: none;"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="charts-row">
+                            <div class="chart-section">
+                                <h4>Obstacle Distribution by Level</h4>
+                                <div class="chart-container bar-chart-container">
+                                    <canvas id="barChartCanvas" width="600" height="400"></canvas>
+                                </div>
+                            </div>
+                            
+                            <div class="chart-section">
+                                <h4>Total Obstacle Types</h4>
+                                <div class="chart-container pie-chart-container">
+                                    <canvas id="pieChartCanvas" width="400" height="400"></canvas>
+                                    <div id="pieChartLegend" class="chart-legend"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="assets-config.js"></script>
+    <script src="assets-helper.js"></script>
+    <script src="level-design.js"></script>
+    <script src="dungeon-generator.js"></script>
+    <script src="powerup-config.js"></script>
+    <script src="home-manager.js"></script>
+    <script src="level-generator.js"></script>
+    <script src="camera-system.js"></script>
+    <script src="game.js"></script>
+    <script src="ai-level-designer.js"></script>
+    <script src="level-designer.js"></script>
+</body>
+</html>
+

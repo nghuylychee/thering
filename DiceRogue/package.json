@@ -1,0 +1,24 @@
+{
+  "name": "dicerogue-level-designer",
+  "version": "1.0.0",
+  "description": "Level Designer with OpenAI AI integration for DiceRogue",
+  "main": "ai-level-designer.js",
+  "scripts": {
+    "test": "echo \"No server needed - runs directly in browser\" && exit 0"
+  },
+  "keywords": [
+    "game",
+    "level-designer",
+    "openai",
+    "dicerogue"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.5.0",
+    "openai": "^4.104.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
