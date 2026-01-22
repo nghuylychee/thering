@@ -351,7 +351,10 @@ function initGame(levelNumber = 1) {
             bossActive: false,
             currentBoss: null,
             bossSpawnWeek: CONFIG.BOSS_CONFIG.spawnAfterWeeks
-        })
+        }),
+        // POI System
+        visitedPOIs: new Set(), // Set of POI positions "x,y" that have been used
+        poiData: {} // Object to store POI-specific data
     };
 
     // Initialize grid from dungeon
@@ -362,8 +365,8 @@ function initGame(levelNumber = 1) {
         CAMERA.init();
     }
     
-    // Initialize day/night cycle
-    initDayNightCycle();
+    // Initialize day/night cycle (reset when starting new run)
+    initDayNightCycle(levelNumber === 1);
     
     // Place entities from dungeon
     const entities = placeEntities(dungeon, levelConfig);
@@ -382,14 +385,39 @@ function initGame(levelNumber = 1) {
     // Reset cheat mode when starting new game
     gameState.cheatMode = false;
     
+    // Reset UI state
+    if (elements.rollButton) {
+        elements.rollButton.disabled = false;
+    }
+    if (elements.endTurnButton) {
+        elements.endTurnButton.style.display = 'none';
+    }
+    if (elements.diceLabel) {
+        elements.diceLabel.textContent = 'Roll to start';
+    }
+    if (elements.diceFace) {
+        elements.diceFace.textContent = '?';
+    }
+    
+    // Hide combat screen if it's showing
+    if (elements.combatScreen) {
+        elements.combatScreen.style.display = 'none';
+    }
+    gameState.combatState.active = false;
+    gameState.combatState.isBoss = false;
+    gameState.combatState.bossData = null;
+    
+    // Hide powerup screen if it's showing
+    const powerupScreen = document.getElementById('powerupScreen');
+    if (powerupScreen) {
+        powerupScreen.style.display = 'none';
+    }
+    
     // Render grid
     renderGrid();
     
     // Update UI
     updateUI();
-    
-    // Enable roll button
-    elements.rollButton.disabled = false;
     // Use playerStats.spd for display
     let rollRange;
     if (gameState.playerStats && gameState.playerStats.spd) {
@@ -582,8 +610,8 @@ function findItemTypeByValue(value) {
 // ==================== DAY/NIGHT CYCLE SYSTEM ====================
 
 // Initialize Day/Night Cycle
-function initDayNightCycle() {
-    if (!gameState.dayNightCycle) {
+function initDayNightCycle(reset = false) {
+    if (!gameState.dayNightCycle || reset) {
         gameState.dayNightCycle = {
             currentDay: 1,
             currentNight: 0,
@@ -1041,8 +1069,38 @@ async function enterBossCombat(bossData) {
 }
 
 // Handle Boss Defeat
+// Calculate Gold Reward for Boss
+function calculateBossGoldReward(bossData) {
+    if (!CONFIG.GOLD_REWARD) {
+        // Fallback: 10 gold per boss value
+        return bossData.value * 10;
+    }
+    
+    const config = CONFIG.GOLD_REWARD;
+    let gold = bossData.value * (config.perValue || config.baseMultiplier || 5);
+    
+    // Apply boss multiplier
+    if (config.bossMultiplier) {
+        gold = gold * config.bossMultiplier;
+    }
+    
+    // Apply min/max limits
+    if (config.minGold && gold < config.minGold) {
+        gold = config.minGold;
+    }
+    if (config.maxGold && gold > config.maxGold) {
+        gold = config.maxGold;
+    }
+    
+    return Math.floor(gold);
+}
+
 async function handleBossDefeat(bossData) {
     const bossState = gameState.bossState;
+    
+    // Calculate gold reward for boss
+    const goldReward = calculateBossGoldReward(bossData);
+    gameState.currentGold += goldReward;
     
     // Update boss state
     bossState.bossesDefeated++;
@@ -1053,10 +1111,13 @@ async function handleBossDefeat(bossData) {
     // Calculate next boss spawn week
     bossState.bossSpawnWeek = gameState.dayNightCycle.currentWeek + CONFIG.BOSS_CONFIG.spawnAfterWeeks;
     
-    console.log(`Boss ${bossData.name} defeated! Bosses defeated: ${bossState.bossesDefeated}/${CONFIG.BOSS_CONFIG.bossesPerRun}`);
+    console.log(`Boss ${bossData.name} defeated! Bosses defeated: ${bossState.bossesDefeated}/${CONFIG.BOSS_CONFIG.bossesPerRun}. Received ${goldReward} gold.`);
+    
+    // Update UI to show gold
+    updateUI();
     
     // Show reward notification
-    showBossRewardNotification(bossData);
+    showBossRewardNotification(bossData, goldReward);
     
     // Wait a bit
     await sleep(2000);
@@ -1083,7 +1144,7 @@ async function handleBossDefeat(bossData) {
 }
 
 // Show Boss Reward Notification
-function showBossRewardNotification(bossData) {
+function showBossRewardNotification(bossData, goldReward) {
     const notification = document.createElement('div');
     notification.className = 'boss-reward-notification';
     notification.innerHTML = `
@@ -1091,6 +1152,7 @@ function showBossRewardNotification(bossData) {
             <div class="boss-reward-icon">🎉</div>
             <div class="boss-reward-title">BOSS DEFEATED!</div>
             <div class="boss-reward-name">${bossData.name}</div>
+            <div class="boss-reward-gold">+${goldReward}💰 Gold</div>
             <div class="boss-reward-message">Continue your journey...</div>
         </div>
     `;
@@ -1719,54 +1781,70 @@ function renderGrid() {
             if (cellData.specialGrid !== null && shouldShowContent) {
                 const specialGridType = CONFIG.SPECIAL_GRID_TYPES[cellData.specialGrid];
                 if (specialGridType) {
-                    cell.classList.add('special-grid');
-                    cell.classList.add(`special-grid-${cellData.specialGrid}`);
-                    // Add special grid asset as overlay - centered and larger
-                    // Always show asset, even if there's player/enemy/item on the cell
-                    const specialGridIcon = document.createElement('div');
-                    specialGridIcon.className = 'special-grid-icon';
-                    specialGridIcon.style.cssText = `
-                        position: absolute;
-                        top: 50%;
-                        left: 50%;
-                        transform: translate(-50%, -50%);
-                        z-index: 1;
-                        pointer-events: none;
-                        width: 100%;
-                        height: 100%;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                    `;
-                    // Use asset helper to render special grid with image/emoji fallback
-                    if (typeof renderSpecialGrid !== 'undefined') {
-                        renderSpecialGrid(specialGridIcon, cellData.specialGrid, true);
-                    } else {
-                        // Fallback: use asset manager directly
-                        if (typeof assetManager !== 'undefined') {
-                            const image = assetManager.getSpecialGridImage(cellData.specialGrid);
-                            const emoji = assetManager.getSpecialGridEmoji(cellData.specialGrid);
-                            if (image) {
-                                const img = document.createElement('img');
-                                img.src = image.src;
-                                img.className = 'special-grid-asset';
-                                img.style.maxWidth = '70%';
-                                img.style.maxHeight = '70%';
-                                img.style.objectFit = 'contain';
-                                specialGridIcon.appendChild(img);
+                    // Check if POI is visited
+                    const poiKey = `${worldX},${worldY}`;
+                    const isPOI = (cellData.specialGrid === 'shop' || 
+                                cellData.specialGrid === 'stat_check' || 
+                                cellData.specialGrid === 'healer');
+                    const isPOIVisited = isPOI && gameState.visitedPOIs.has(poiKey);
+                    
+                    // Don't render visited POIs
+                    if (!isPOIVisited) {
+                        cell.classList.add('special-grid');
+                        cell.classList.add(`special-grid-${cellData.specialGrid}`);
+                        if (isPOI) {
+                            cell.classList.add('poi-cell');
+                        }
+                        // Add special grid asset as overlay - centered and larger
+                        // Always show asset, even if there's player/enemy/item on the cell
+                        const specialGridIcon = document.createElement('div');
+                        specialGridIcon.className = 'special-grid-icon';
+                        if (isPOI) {
+                            specialGridIcon.classList.add('poi-icon');
+                        }
+                        specialGridIcon.style.cssText = `
+                            position: absolute;
+                            top: 50%;
+                            left: 50%;
+                            transform: translate(-50%, -50%);
+                            z-index: 1;
+                            pointer-events: none;
+                            width: 100%;
+                            height: 100%;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                        `;
+                        // Use asset helper to render special grid with image/emoji fallback
+                        if (typeof renderSpecialGrid !== 'undefined') {
+                            renderSpecialGrid(specialGridIcon, cellData.specialGrid, true);
+                        } else {
+                            // Fallback: use asset manager directly
+                            if (typeof assetManager !== 'undefined') {
+                                const image = assetManager.getSpecialGridImage(cellData.specialGrid);
+                                const emoji = assetManager.getSpecialGridEmoji(cellData.specialGrid);
+                                if (image) {
+                                    const img = document.createElement('img');
+                                    img.src = image.src;
+                                    img.className = 'special-grid-asset';
+                                    img.style.maxWidth = '70%';
+                                    img.style.maxHeight = '70%';
+                                    img.style.objectFit = 'contain';
+                                    specialGridIcon.appendChild(img);
+                                } else {
+                                    specialGridIcon.textContent = emoji;
+                                    specialGridIcon.style.fontSize = '32px';
+                                    specialGridIcon.style.lineHeight = '1';
+                                }
                             } else {
-                                specialGridIcon.textContent = emoji;
+                                // Ultimate fallback: use emoji
+                                specialGridIcon.textContent = specialGridType.emoji;
                                 specialGridIcon.style.fontSize = '32px';
                                 specialGridIcon.style.lineHeight = '1';
                             }
-                        } else {
-                            // Ultimate fallback: use emoji
-                            specialGridIcon.textContent = specialGridType.emoji;
-                            specialGridIcon.style.fontSize = '32px';
-                            specialGridIcon.style.lineHeight = '1';
                         }
+                        cell.appendChild(specialGridIcon);
                     }
-                    cell.appendChild(specialGridIcon);
                     
                     // If player is on this special grid cell and it's a canon, make it clickable
                     // Player can activate canon when standing on it, regardless of remaining steps
@@ -2480,9 +2558,17 @@ async function movePlayerToCell(targetX, targetY) {
             }
         }
         
-        // Check for special grid effects
+        // Check for special grid effects (including POIs)
         const specialGrid = gameState.grid[gameState.player.y][gameState.player.x].specialGrid;
         if (specialGrid) {
+            // Check if this is a POI that can be interacted with
+            const poiKey = `${gameState.player.x},${gameState.player.y}`;
+            if ((specialGrid === 'shop' || specialGrid === 'stat_check' || specialGrid === 'healer') && 
+                !gameState.visitedPOIs.has(poiKey)) {
+                // POI interaction - handled separately, don't continue movement
+                await handleSpecialGrid(specialGrid, gameState.player.x, gameState.player.y);
+                break;
+            }
             const handled = await handleSpecialGrid(specialGrid, gameState.player.x, gameState.player.y);
             if (!handled) {
                 // Special grid prevented further movement (e.g., canon teleport)
@@ -2600,6 +2686,39 @@ async function handleSpecialGrid(specialGridType, x, y) {
             // Show message to select target (this will disable normal reachable cells)
             await showCanonTargetSelection(x, y);
             return false; // Movement handled by canon teleport
+            
+        case 'shop':
+            // Shop: Show shop UI with dice-roll upgrade system
+            const shopKey = `${x},${y}`;
+            if (gameState.visitedPOIs.has(shopKey)) {
+                // Shop already visited
+                return true;
+            }
+            gameState.isMoving = false;
+            await showShopPOI(x, y);
+            return false; // Interaction handled by shop UI
+            
+        case 'stat_check':
+            // Stat Check: Show stat check challenge UI
+            const statCheckKey = `${x},${y}`;
+            if (gameState.visitedPOIs.has(statCheckKey)) {
+                // Stat check already attempted
+                return true;
+            }
+            gameState.isMoving = false;
+            await showStatCheckPOI(x, y);
+            return false; // Interaction handled by stat check UI
+            
+        case 'healer':
+            // Healer: Show dialogue and heal player
+            const healerKey = `${x},${y}`;
+            if (gameState.visitedPOIs.has(healerKey)) {
+                // Healer already used
+                return true;
+            }
+            gameState.isMoving = false;
+            await showHealerPOI(x, y);
+            return false; // Interaction handled by healer UI
             
         default:
             return true;
@@ -2940,7 +3059,157 @@ async function moveEnemyToCellWithAnimation(enemy, targetX, targetY) {
     // The enemyTurn() loop will continue with next enemy
 }
 
+// Calculate Gold Reward for Enemy
+function calculateEnemyGoldReward(enemy) {
+    if (!CONFIG.GOLD_REWARD) {
+        // Fallback: 5 gold per enemy value
+        return enemy.value * 5;
+    }
+    
+    const config = CONFIG.GOLD_REWARD;
+    let gold = enemy.value * (config.perValue || config.baseMultiplier || 5);
+    
+    // Apply min/max limits
+    if (config.minGold && gold < config.minGold) {
+        gold = config.minGold;
+    }
+    if (config.maxGold && gold > config.maxGold) {
+        gold = config.maxGold;
+    }
+    
+    return Math.floor(gold);
+}
+
+// Show Gold Reward Animation
+async function showGoldRewardAnimation(x, y, goldAmount) {
+    const cell = elements.gameGrid.querySelector(`[data-x="${x}"][data-y="${y}"]`);
+    if (!cell) return;
+    
+    const goldText = document.createElement('div');
+    goldText.className = 'gold-reward-animation';
+    goldText.textContent = `+${goldAmount}💰`;
+    goldText.style.cssText = `
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        color: #f1c40f;
+        font-size: 18px;
+        font-weight: bold;
+        text-shadow: 0 0 10px rgba(241, 196, 15, 0.8), 2px 2px 4px rgba(0, 0, 0, 0.8);
+        pointer-events: none;
+        z-index: 1000;
+        animation: goldRewardFloat 1.5s ease-out forwards;
+    `;
+    
+    // Add animation keyframes if not already added
+    if (!document.getElementById('goldRewardAnimationStyle')) {
+        const style = document.createElement('style');
+        style.id = 'goldRewardAnimationStyle';
+        style.textContent = `
+            @keyframes goldRewardFloat {
+                0% {
+                    opacity: 1;
+                    transform: translate(-50%, -50%) translateY(0);
+                }
+                100% {
+                    opacity: 0;
+                    transform: translate(-50%, -50%) translateY(-40px);
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    cell.style.position = 'relative';
+    cell.appendChild(goldText);
+    
+    // Remove after animation
+    setTimeout(() => {
+        if (goldText.parentNode) {
+            goldText.parentNode.removeChild(goldText);
+        }
+    }, 1500);
+    
+    await sleep(100);
+}
+
 // Show Value Loss Animation
+// Calculate Gold Reward for Enemy
+function calculateEnemyGoldReward(enemy) {
+    if (!CONFIG.GOLD_REWARD) {
+        // Fallback: 5 gold per enemy value
+        return enemy.value * 5;
+    }
+    
+    const config = CONFIG.GOLD_REWARD;
+    let gold = enemy.value * (config.perValue || config.baseMultiplier || 5);
+    
+    // Apply min/max limits
+    if (config.minGold && gold < config.minGold) {
+        gold = config.minGold;
+    }
+    if (config.maxGold && gold > config.maxGold) {
+        gold = config.maxGold;
+    }
+    
+    return Math.floor(gold);
+}
+
+// Show Gold Reward Animation
+async function showGoldRewardAnimation(x, y, goldAmount) {
+    const cell = elements.gameGrid.querySelector(`[data-x="${x}"][data-y="${y}"]`);
+    if (!cell) return;
+    
+    const goldText = document.createElement('div');
+    goldText.className = 'gold-reward-animation';
+    goldText.textContent = `+${goldAmount}💰`;
+    goldText.style.cssText = `
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        color: #f1c40f;
+        font-size: 18px;
+        font-weight: bold;
+        text-shadow: 0 0 10px rgba(241, 196, 15, 0.8), 2px 2px 4px rgba(0, 0, 0, 0.8);
+        pointer-events: none;
+        z-index: 1000;
+        animation: goldRewardFloat 1.5s ease-out forwards;
+    `;
+    
+    // Add animation keyframes if not already added
+    if (!document.getElementById('goldRewardAnimationStyle')) {
+        const style = document.createElement('style');
+        style.id = 'goldRewardAnimationStyle';
+        style.textContent = `
+            @keyframes goldRewardFloat {
+                0% {
+                    opacity: 1;
+                    transform: translate(-50%, -50%) translateY(0);
+                }
+                100% {
+                    opacity: 0;
+                    transform: translate(-50%, -50%) translateY(-40px);
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    cell.style.position = 'relative';
+    cell.appendChild(goldText);
+    
+    // Remove after animation
+    setTimeout(() => {
+        if (goldText.parentNode) {
+            goldText.parentNode.removeChild(goldText);
+        }
+    }, 1500);
+    
+    await sleep(100);
+}
+
 function showValueLossAnimation(x, y, amount) {
     const cell = elements.gameGrid.querySelector(`[data-x="${x}"][data-y="${y}"]`);
     if (!cell) return;
@@ -3716,8 +3985,14 @@ async function resolveCombatResult(playerWon) {
         // Player wins - find and remove enemy
         const enemy = gameState.enemies.find(e => e.id === enemyId);
         if (enemy) {
-            // Remove enemy - no HP gain, no stat changes
-            // Just remove the enemy from the game
+            // Calculate gold reward based on enemy value
+            const goldReward = calculateEnemyGoldReward(enemy);
+            
+            // Add gold to player
+            gameState.currentGold += goldReward;
+            
+            // Show gold reward animation
+            await showGoldRewardAnimation(enemy.x, enemy.y, goldReward);
             
             // Remove enemy from grid
             for (let y = 0; y < gameState.gridHeight; y++) {
@@ -3738,7 +4013,7 @@ async function resolveCombatResult(playerWon) {
             updateUI();
             await sleep(300);
             
-            console.log(`Player won combat! Enemy defeated.`);
+            console.log(`Player won combat! Enemy defeated. Received ${goldReward} gold.`);
             
             // Note: Win condition is now reaching portal after rescuing princess, not defeating all enemies
             // Check item spawn after defeating enemy
@@ -5020,6 +5295,404 @@ function exitGame() {
     }
 }
 
+// ==================== POI SYSTEM ====================
+
+// Show Shop POI
+async function showShopPOI(x, y) {
+    const shopScreen = document.getElementById('shopPOIScreen');
+    if (!shopScreen) return;
+    
+    // Generate random powerup options
+    const shopConfig = CONFIG.POI_CONFIG.shop;
+    gameState.availablePowerups = POWERUP_CONFIG.getRandomPowerups(shopConfig.optionsCount);
+    gameState.currentResources = 0;
+    gameState.resourceDiceRolled = false;
+    
+    // Show shop screen
+    shopScreen.style.display = 'flex';
+    
+    // Generate shop cards
+    generateShopCards();
+    
+    // Store POI position for later
+    gameState.poiData.currentPOI = { x, y, type: 'shop' };
+}
+
+// Generate Shop Cards
+function generateShopCards() {
+    const shopCards = document.getElementById('shopCards');
+    if (!shopCards) return;
+    
+    shopCards.innerHTML = '';
+    
+    gameState.availablePowerups.forEach(powerup => {
+        const card = document.createElement('div');
+        card.className = 'powerup-card unaffordable';
+        card.dataset.powerupId = powerup.id;
+        
+        const diceRequired = Math.floor(Math.random() * 
+            (CONFIG.POI_CONFIG.shop.diceRequiredMax - CONFIG.POI_CONFIG.shop.diceRequiredMin + 1)) + 
+            CONFIG.POI_CONFIG.shop.diceRequiredMin;
+        powerup.diceRequired = diceRequired;
+        
+        card.innerHTML = `
+            <div class="powerup-name">${powerup.name}</div>
+            <div class="powerup-description">${powerup.description}</div>
+            <div class="powerup-cost">Cost: ${diceRequired} dice</div>
+        `;
+        
+        card.addEventListener('click', () => selectShopPowerup(powerup.id));
+        shopCards.appendChild(card);
+    });
+    
+    updateShopCardsAffordability();
+}
+
+// Update Shop Cards Affordability
+function updateShopCardsAffordability() {
+    const shopCards = document.getElementById('shopCards');
+    if (!shopCards) return;
+    
+    shopCards.querySelectorAll('.powerup-card').forEach(card => {
+        const powerupId = card.dataset.powerupId;
+        const powerup = gameState.availablePowerups.find(p => p.id === powerupId);
+        
+        if (!powerup) return;
+        
+        const isSelected = card.classList.contains('selected');
+        const canAfford = gameState.currentResources >= powerup.diceRequired;
+        
+        card.classList.remove('affordable', 'unaffordable');
+        if (isSelected) {
+            card.classList.add('selected');
+        } else if (canAfford) {
+            card.classList.add('affordable');
+        } else {
+            card.classList.add('unaffordable');
+        }
+    });
+}
+
+// Select Shop Powerup
+function selectShopPowerup(powerupId) {
+    const powerup = POWERUP_CONFIG.getPowerup(powerupId);
+    
+    if (!powerup || gameState.currentResources < powerup.diceRequired) {
+        return; // Can't afford
+    }
+    
+    // Mark power-up as selected
+    const card = document.getElementById('shopCards').querySelector(`[data-powerup-id="${powerupId}"]`);
+    if (card) {
+        card.classList.add('selected');
+        card.classList.remove('affordable', 'unaffordable');
+    }
+    
+    // Subtract resources
+    gameState.currentResources -= powerup.diceRequired;
+    
+    // Update dice display
+    const shopDice = document.getElementById('shopDice');
+    if (shopDice) {
+        shopDice.textContent = gameState.currentResources;
+    }
+    
+    // Apply power-up effect
+    applyPowerupEffect(powerup);
+    
+    // Update power-up cards affordability
+    updateShopCardsAffordability();
+    
+    // Check if user can still afford any power-ups
+    const canAffordAny = gameState.availablePowerups.some(p => 
+        gameState.currentResources >= p.diceRequired && 
+        !document.getElementById('shopCards').querySelector(`[data-powerup-id="${p.id}"].selected`)
+    );
+    
+    if (!canAffordAny) {
+        // No more affordable power-ups, close shop
+        setTimeout(() => {
+            hideShopPOI();
+        }, 1000);
+    }
+}
+
+// Hide Shop POI
+function hideShopPOI() {
+    const shopScreen = document.getElementById('shopPOIScreen');
+    if (shopScreen) {
+        shopScreen.style.display = 'none';
+    }
+    
+    // Mark POI as visited
+    if (gameState.poiData.currentPOI) {
+        const poiKey = `${gameState.poiData.currentPOI.x},${gameState.poiData.currentPOI.y}`;
+        gameState.visitedPOIs.add(poiKey);
+        
+        // Remove POI from grid
+        gameState.grid[gameState.poiData.currentPOI.y][gameState.poiData.currentPOI.x].specialGrid = null;
+        
+        gameState.poiData.currentPOI = null;
+    }
+    
+    // Reset resources
+    gameState.currentResources = 0;
+    gameState.resourceDiceRolled = false;
+    gameState.availablePowerups = [];
+    
+    // Re-render grid
+    renderGrid();
+    updateUI();
+}
+
+// Roll Shop Dice
+function rollShopDice() {
+    if (gameState.resourceDiceRolled) return;
+    
+    const shopDice = document.getElementById('shopDice');
+    if (!shopDice) return;
+    
+    // Roll animation
+    shopDice.classList.add('rolling');
+    shopDice.textContent = '?';
+    
+    setTimeout(() => {
+        const roll = Math.floor(Math.random() * 6) + 1;
+        gameState.currentResources = roll;
+        gameState.resourceDiceRolled = true;
+        
+        shopDice.classList.remove('rolling');
+        shopDice.textContent = roll;
+        
+        updateShopCardsAffordability();
+    }, 1000);
+}
+
+// Show Stat Check POI
+async function showStatCheckPOI(x, y) {
+    const statCheckScreen = document.getElementById('statCheckPOIScreen');
+    if (!statCheckScreen) return;
+    
+    // Show stat check screen
+    statCheckScreen.style.display = 'flex';
+    
+    // Reset UI
+    document.getElementById('statSelection').style.display = 'block';
+    document.getElementById('statRollSection').style.display = 'none';
+    document.getElementById('statResult').style.display = 'none';
+    document.getElementById('statUpgradeSelection').style.display = 'none';
+    
+    // Set up event listeners for stat buttons (in case they weren't set up yet)
+    setupStatCheckListeners();
+    
+    // Store POI position
+    gameState.poiData.currentPOI = { x, y, type: 'stat_check', selectedStat: null, rollResult: null };
+}
+
+// Handle Stat Selection for Stat Check
+function selectStatForCheck(statType) {
+    const statCheck = gameState.poiData.currentPOI;
+    if (!statCheck) return;
+    
+    statCheck.selectedStat = statType;
+    
+    // Get stat value
+    let statValue = 0;
+    const theme = CONFIG.POI_CONFIG.stat_check.dialogueThemes[statType];
+    
+    if (statType === 'dmg') {
+        statValue = gameState.playerStats.dmg.max;
+    } else if (statType === 'spd') {
+        statValue = gameState.playerStats.spd.max;
+    } else if (statType === 'int') {
+        statValue = gameState.playerStats.int.max;
+    }
+    
+    // Update UI
+    document.getElementById('statCheckTitle').textContent = `⚔️ ${theme.title}`;
+    document.getElementById('statCheckDialogue').textContent = theme.dialogue;
+    document.getElementById('statCheckValue').textContent = `${statType.toUpperCase()}: ${statValue}`;
+    
+    // Show roll section
+    document.getElementById('statSelection').style.display = 'none';
+    document.getElementById('statRollSection').style.display = 'block';
+}
+
+// Roll Stat Check
+function rollStatCheck() {
+    const statCheck = gameState.poiData.currentPOI;
+    if (!statCheck || !statCheck.selectedStat) return;
+    
+    const statCheckDice = document.getElementById('statCheckDice');
+    if (!statCheckDice) return;
+    
+    // Get stat value
+    let statValue = 0;
+    if (statCheck.selectedStat === 'dmg') {
+        statValue = gameState.playerStats.dmg.max;
+    } else if (statCheck.selectedStat === 'spd') {
+        statValue = gameState.playerStats.spd.max;
+    } else if (statCheck.selectedStat === 'int') {
+        statValue = gameState.playerStats.int.max;
+    }
+    
+    // Roll animation
+    statCheckDice.classList.add('rolling');
+    statCheckDice.textContent = '?';
+    
+    setTimeout(() => {
+        const roll = Math.floor(Math.random() * 6) + 1;
+        statCheck.rollResult = roll;
+        
+        statCheckDice.classList.remove('rolling');
+        statCheckDice.textContent = roll;
+        
+        // Check win condition (roll >= stat value)
+        const won = roll >= statValue;
+        const theme = CONFIG.POI_CONFIG.stat_check.dialogueThemes[statCheck.selectedStat];
+        
+        // Show result
+        document.getElementById('statRollSection').style.display = 'none';
+        document.getElementById('statResult').style.display = 'block';
+        
+        if (won) {
+            document.getElementById('statResultMessage').textContent = theme.success;
+            document.getElementById('statUpgradeSelection').style.display = 'block';
+        } else {
+            document.getElementById('statResultMessage').textContent = theme.failure;
+            // Mark POI as visited even on failure (one attempt only)
+            setTimeout(() => {
+                hideStatCheckPOI();
+            }, 2000);
+        }
+    }, 1000);
+}
+
+// Select Stat Upgrade from Stat Check
+function selectStatUpgrade(upgradeType) {
+    // Create powerup object
+    const powerupMap = {
+        'dmg_min': { id: 'dmg_min_boost', effect: 'increase_dmg_min', value: 1 },
+        'dmg_max': { id: 'dmg_max_boost', effect: 'increase_dmg_max', value: 1 },
+        'spd_min': { id: 'spd_min_boost', effect: 'increase_spd_min', value: 1 },
+        'spd_max': { id: 'spd_max_boost', effect: 'increase_spd_max', value: 1 },
+        'int_min': { id: 'int_min_boost', effect: 'increase_int_min', value: 1 },
+        'int_max': { id: 'int_max_boost', effect: 'increase_int_max', value: 1 }
+    };
+    
+    const powerup = powerupMap[upgradeType];
+    if (!powerup) return;
+    
+    // Apply upgrade
+    applyPowerupEffect(powerup);
+    
+    // Close stat check
+    setTimeout(() => {
+        hideStatCheckPOI();
+    }, 1000);
+}
+
+// Hide Stat Check POI
+function hideStatCheckPOI() {
+    const statCheckScreen = document.getElementById('statCheckPOIScreen');
+    if (statCheckScreen) {
+        statCheckScreen.style.display = 'none';
+    }
+    
+    // Mark POI as visited
+    if (gameState.poiData.currentPOI) {
+        const poiKey = `${gameState.poiData.currentPOI.x},${gameState.poiData.currentPOI.y}`;
+        gameState.visitedPOIs.add(poiKey);
+        
+        // Remove POI from grid
+        gameState.grid[gameState.poiData.currentPOI.y][gameState.poiData.currentPOI.x].specialGrid = null;
+        
+        gameState.poiData.currentPOI = null;
+    }
+    
+    // Re-render grid
+    renderGrid();
+    updateUI();
+}
+
+// Show Healer POI
+async function showHealerPOI(x, y) {
+    const healerScreen = document.getElementById('healerPOIScreen');
+    if (!healerScreen) return;
+    
+    // Select random healer dialogue
+    const dialogues = CONFIG.POI_CONFIG.healer.dialogueVariations;
+    const dialogue = dialogues[Math.floor(Math.random() * dialogues.length)];
+    
+    // Update UI
+    document.getElementById('healerName').textContent = `💚 ${dialogue.name}`;
+    document.getElementById('healerDialogue').textContent = dialogue.greeting;
+    document.getElementById('healMessage').textContent = dialogue.healing;
+    
+    // Hide heal animation initially
+    document.getElementById('healAnimation').style.display = 'none';
+    
+    // Show healer screen
+    healerScreen.style.display = 'flex';
+    
+    // Store POI position
+    gameState.poiData.currentPOI = { x, y, type: 'healer', dialogue: dialogue };
+}
+
+// Accept Heal from Healer
+async function acceptHeal() {
+    const healer = gameState.poiData.currentPOI;
+    if (!healer || healer.type !== 'healer') return;
+    
+    // Calculate heal amount
+    const healPercentage = CONFIG.POI_CONFIG.healer.healPercentage;
+    const maxHP = gameState.playerStats.hp.max;
+    const healAmount = Math.floor(maxHP * healPercentage);
+    const newHP = Math.min(gameState.playerStats.hp.current + healAmount, maxHP);
+    const actualHeal = newHP - gameState.playerStats.hp.current;
+    
+    // Apply heal
+    gameState.playerStats.hp.current = newHP;
+    
+    // Show heal animation
+    document.getElementById('healAnimation').style.display = 'block';
+    document.getElementById('healAmount').textContent = `+${actualHeal} HP`;
+    
+    // Show heal animation on grid
+    await showValueGainAnimation(healer.x, healer.y, actualHeal);
+    
+    // Update UI
+    updateUI();
+    
+    // Wait a bit then close
+    setTimeout(() => {
+        hideHealerPOI();
+    }, 2000);
+}
+
+// Hide Healer POI
+function hideHealerPOI() {
+    const healerScreen = document.getElementById('healerPOIScreen');
+    if (healerScreen) {
+        healerScreen.style.display = 'none';
+    }
+    
+    // Mark POI as visited
+    if (gameState.poiData.currentPOI) {
+        const poiKey = `${gameState.poiData.currentPOI.x},${gameState.poiData.currentPOI.y}`;
+        gameState.visitedPOIs.add(poiKey);
+        
+        // Remove POI from grid
+        gameState.grid[gameState.poiData.currentPOI.y][gameState.poiData.currentPOI.x].specialGrid = null;
+        
+        gameState.poiData.currentPOI = null;
+    }
+    
+    // Re-render grid
+    renderGrid();
+    updateUI();
+}
+
 // Utility: Sleep
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -5044,6 +5717,77 @@ if (elements.rollResourceDice) {
 if (elements.skipPowerup) {
     elements.skipPowerup.addEventListener('click', () => {
         hidePowerupSelection();
+    });
+}
+
+// POI Event Listeners
+const rollShopDiceBtn = document.getElementById('rollShopDice');
+if (rollShopDiceBtn) {
+    rollShopDiceBtn.addEventListener('click', () => {
+        rollShopDice();
+    });
+}
+
+const closeShopPOIBtn = document.getElementById('closeShopPOI');
+if (closeShopPOIBtn) {
+    closeShopPOIBtn.addEventListener('click', () => {
+        hideShopPOI();
+    });
+}
+
+// Stat Check POI event listeners (set up when DOM is ready)
+function setupStatCheckListeners() {
+    // Stat selection buttons
+    document.querySelectorAll('.stat-btn[data-stat]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const statType = e.target.dataset.stat;
+            selectStatForCheck(statType);
+        });
+    });
+    
+    // Roll button
+    const rollStatCheckBtn = document.getElementById('rollStatCheck');
+    if (rollStatCheckBtn) {
+        rollStatCheckBtn.addEventListener('click', () => {
+            rollStatCheck();
+        });
+    }
+    
+    // Stat upgrade selection buttons
+    document.querySelectorAll('.stat-btn[data-upgrade]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const upgradeType = e.target.dataset.upgrade;
+            selectStatUpgrade(upgradeType);
+        });
+    });
+}
+
+// Set up listeners when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupStatCheckListeners);
+} else {
+    setupStatCheckListeners();
+}
+
+const closeStatCheckPOIBtn = document.getElementById('closeStatCheckPOI');
+if (closeStatCheckPOIBtn) {
+    closeStatCheckPOIBtn.addEventListener('click', () => {
+        hideStatCheckPOI();
+    });
+}
+
+// Healer POI event listeners
+const acceptHealBtn = document.getElementById('acceptHeal');
+if (acceptHealBtn) {
+    acceptHealBtn.addEventListener('click', () => {
+        acceptHeal();
+    });
+}
+
+const closeHealerPOIBtn = document.getElementById('closeHealerPOI');
+if (closeHealerPOIBtn) {
+    closeHealerPOIBtn.addEventListener('click', () => {
+        hideHealerPOI();
     });
 }
 

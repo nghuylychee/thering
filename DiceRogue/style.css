@@ -2173,6 +2173,206 @@ body {
     box-shadow: 0 4px 8px rgba(0,0,0,0.3);
 }
 
+/* POI Screens */
+.poi-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.3s ease-in;
+}
+
+.poi-container {
+    background: linear-gradient(135deg, #1a2332 0%, #0f1419 50%, #1a2332 100%);
+    border-radius: 20px;
+    padding: 30px;
+    max-width: 500px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    animation: popupSlideIn 0.5s ease-out;
+}
+
+.poi-header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.poi-header h2 {
+    font-size: 32px;
+    color: white;
+    margin-bottom: 10px;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+}
+
+.poi-description {
+    font-size: 16px;
+    color: rgba(255, 255, 255, 0.8);
+    margin-bottom: 10px;
+    line-height: 1.6;
+}
+
+/* Shop POI */
+.shop-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.shop-cards .powerup-card {
+    background: linear-gradient(135deg, #1a2332, #0f1419);
+    border: 2px solid #7f8c8d;
+    border-radius: 12px;
+    padding: 15px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    color: white;
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+    min-height: 120px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.shop-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    align-items: center;
+}
+
+/* Stat Check POI */
+.stat-check-content {
+    margin-bottom: 20px;
+}
+
+.stat-selection h3,
+.stat-upgrade-selection h3 {
+    font-size: 18px;
+    color: white;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.stat-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.stat-btn {
+    background: linear-gradient(135deg, #1a2332, #0f1419);
+    border: 2px solid #7f8c8d;
+    border-radius: 12px;
+    padding: 15px;
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: center;
+}
+
+.stat-btn:hover {
+    border-color: #ffd700;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 215, 0, 0.4);
+}
+
+.stat-roll-section {
+    text-align: center;
+    margin: 20px 0;
+}
+
+.stat-display {
+    font-size: 20px;
+    color: #ffd700;
+    margin-bottom: 15px;
+    font-weight: bold;
+}
+
+.stat-result {
+    text-align: center;
+    margin: 20px 0;
+}
+
+#statResultMessage {
+    font-size: 18px;
+    color: white;
+    margin-bottom: 20px;
+    line-height: 1.6;
+}
+
+/* Healer POI */
+.healer-content {
+    text-align: center;
+    margin: 30px 0;
+    min-height: 100px;
+}
+
+.heal-animation {
+    animation: fadeIn 0.5s ease-in;
+}
+
+#healMessage {
+    font-size: 18px;
+    color: #2ecc71;
+    margin-bottom: 15px;
+    font-weight: bold;
+}
+
+.heal-amount {
+    font-size: 32px;
+    color: #2ecc71;
+    font-weight: bold;
+    text-shadow: 0 0 10px rgba(46, 204, 113, 0.8);
+    animation: pulse 1s ease-in-out infinite;
+}
+
+.poi-actions {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.poi-actions .menu-button {
+    min-width: 150px;
+}
+
+/* POI Icons */
+.poi-icon {
+    animation: poiPulse 2s ease-in-out infinite;
+}
+
+@keyframes poiPulse {
+    0%, 100% {
+        transform: translate(-50%, -50%) scale(1);
+    }
+    50% {
+        transform: translate(-50%, -50%) scale(1.1);
+    }
+}
+
+.poi-cell {
+    cursor: pointer;
+}
+
+.poi-cell:hover {
+    filter: brightness(1.2);
+}
+
 /* Combat Screen */
 .combat-screen {
     position: fixed;

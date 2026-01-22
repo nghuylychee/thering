@@ -38,10 +38,7 @@ function generateDungeon(width, height, roomCount, minRoomSize, maxRoomSize) {
     // Fill empty spaces with additional paths (create dense network)
     fillEmptySpaces(pathNetwork, grid, width, height);
     
-    // Generate obstacles (boxes) along paths - will be added to entities
-    const roomObstacles = generatePathObstacles(pathNetwork, grid, width, height);
-    
-    // Find starting position - MUST be on a walkable cell (grid[y][x] === 1)
+    // Find starting position first (needed for obstacle validation)
     let playerStart = null;
     
     // Try to use first junction if it's walkable
@@ -71,6 +68,10 @@ function generateDungeon(width, height, roomCount, minRoomSize, maxRoomSize) {
         // Force center to be walkable as last resort
         grid[playerStart.y][playerStart.x] = 1;
     }
+    
+    // Generate obstacles (boxes) along paths - will be added to entities
+    // Pass playerStart for connectivity validation
+    const roomObstacles = generatePathObstacles(pathNetwork, grid, width, height, playerStart);
     
     // Convert junctions to rooms format for compatibility
     const rooms = pathNetwork.junctions.map((junction, index) => ({
@@ -428,14 +429,147 @@ function fillEmptySpaces(pathNetwork, grid, width, height) {
 }
 
 /**
+ * Check if a cell is walkable and not blocked by obstacles
+ * @param {number} x - Cell X coordinate
+ * @param {number} y - Cell Y coordinate
+ * @param {Array} grid - Grid array
+ * @param {Array} obstacles - Array of obstacle positions {x, y}
+ * @returns {boolean} True if cell is walkable and not blocked
+ */
+function isCellWalkable(x, y, grid, obstacles) {
+    if (x < 0 || x >= grid[0].length || y < 0 || y >= grid.length) return false;
+    if (grid[y][x] !== 1) return false; // Not a walkable cell
+    
+    // Check if blocked by obstacle
+    const isBlocked = obstacles.some(obs => obs.x === x && obs.y === y);
+    return !isBlocked;
+}
+
+/**
+ * Get walkable neighbors of a cell
+ * @param {number} x - Cell X coordinate
+ * @param {number} y - Cell Y coordinate
+ * @param {Array} grid - Grid array
+ * @param {number} width - Grid width
+ * @param {number} height - Grid height
+ * @param {Array} obstacles - Array of obstacle positions {x, y}
+ * @returns {Array} Array of neighbor positions {x, y}
+ */
+function getWalkableNeighbors(x, y, grid, width, height, obstacles) {
+    const neighbors = [];
+    const directions = [
+        { dx: 0, dy: -1 }, // up
+        { dx: 0, dy: 1 },  // down
+        { dx: -1, dy: 0 }, // left
+        { dx: 1, dy: 0 }   // right
+    ];
+    
+    for (const dir of directions) {
+        const nx = x + dir.dx;
+        const ny = y + dir.dy;
+        if (isCellWalkable(nx, ny, grid, obstacles)) {
+            neighbors.push({ x: nx, y: ny });
+        }
+    }
+    
+    return neighbors;
+}
+
+/**
+ * Count total walkable cells in the grid
+ * @param {Array} grid - Grid array
+ * @param {number} width - Grid width
+ * @param {number} height - Grid height
+ * @returns {number} Total count of walkable cells
+ */
+function countTotalWalkableCells(grid, width, height) {
+    let count = 0;
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            if (grid[y] && grid[y][x] === 1) {
+                count++;
+            }
+        }
+    }
+    return count;
+}
+
+/**
+ * Validate map connectivity using BFS
+ * @param {Array} grid - Grid array
+ * @param {number} width - Grid width
+ * @param {number} height - Grid height
+ * @param {Array} obstacles - Array of obstacle positions {x, y}
+ * @param {Object} playerStart - Player start position {x, y}
+ * @returns {Object} { isConnected: boolean, reachableCount: number, totalWalkable: number }
+ */
+function validateMapConnectivity(grid, width, height, obstacles, playerStart) {
+    if (!playerStart || grid[playerStart.y][playerStart.x] !== 1) {
+        return { isConnected: false, reachableCount: 0, totalWalkable: 0 };
+    }
+    
+    const totalWalkable = countTotalWalkableCells(grid, width, height);
+    const totalObstacles = obstacles.length;
+    const expectedReachable = totalWalkable - totalObstacles;
+    
+    // BFS from playerStart
+    const queue = [{ x: playerStart.x, y: playerStart.y }];
+    const visited = new Set();
+    visited.add(`${playerStart.x},${playerStart.y}`);
+    
+    while (queue.length > 0) {
+        const current = queue.shift();
+        const neighbors = getWalkableNeighbors(current.x, current.y, grid, width, height, obstacles);
+        
+        for (const neighbor of neighbors) {
+            const key = `${neighbor.x},${neighbor.y}`;
+            if (!visited.has(key)) {
+                visited.add(key);
+                queue.push(neighbor);
+            }
+        }
+    }
+    
+    const reachableCount = visited.size;
+    const isConnected = reachableCount === expectedReachable;
+    
+    return { isConnected, reachableCount, totalWalkable: expectedReachable };
+}
+
+/**
+ * Check if a specific obstacle creates a dead-end
+ * @param {Array} grid - Grid array
+ * @param {number} width - Grid width
+ * @param {number} height - Grid height
+ * @param {Array} obstacles - Array of obstacle positions {x, y}
+ * @param {Object} obstacleToCheck - Obstacle to check {x, y}
+ * @param {Object} playerStart - Player start position {x, y}
+ * @returns {boolean} True if obstacle creates a dead-end
+ */
+function checkObstacleCreatesDeadEnd(grid, width, height, obstacles, obstacleToCheck, playerStart) {
+    // Create temporary obstacles list with the obstacle to check
+    const tempObstacles = [...obstacles, obstacleToCheck];
+    
+    // Validate connectivity with this obstacle
+    const validation = validateMapConnectivity(grid, width, height, tempObstacles, playerStart);
+    
+    // Compare with connectivity without this obstacle
+    const validationWithout = validateMapConnectivity(grid, width, height, obstacles, playerStart);
+    
+    // If adding this obstacle reduces reachable cells, it creates a dead-end
+    return validation.reachableCount < validationWithout.reachableCount;
+}
+
+/**
  * Generate obstacles (boxes) along paths
  * @param {Object} pathNetwork - Path network data
  * @param {Array} grid - Grid array
  * @param {number} width - Grid width
  * @param {number} height - Grid height
+ * @param {Object} playerStart - Player start position {x, y}
  * @returns {Array} Array of obstacle positions
  */
-function generatePathObstacles(pathNetwork, grid, width, height) {
+function generatePathObstacles(pathNetwork, grid, width, height, playerStart) {
     const obstacles = [];
     const blockPercentMin = CONFIG.DUNGEON_CONFIG.blockCellsPercentMin || 5;
     const blockPercentMax = CONFIG.DUNGEON_CONFIG.blockCellsPercentMax || 15;
@@ -507,7 +641,7 @@ function assignZoneThemes(rooms) {
  * @returns {Object} Entity placement data: { enemies, items, specialGrids, princess, portal }
  */
 function placeEntities(dungeon, levelConfig) {
-    const { pathNetwork, grid, rooms } = dungeon;
+    const { pathNetwork, grid, rooms, playerStart } = dungeon;
     const entities = {
         enemies: [],
         items: [],
@@ -557,6 +691,15 @@ function placeEntities(dungeon, levelConfig) {
         });
     }
     
+    // Helper function to calculate distance from player spawn
+    const getDistanceFromSpawn = (x, y) => {
+        if (!playerStart) return Infinity;
+        return Math.abs(x - playerStart.x) + Math.abs(y - playerStart.y);
+    };
+    
+    // Spawn safe zone radius (no strong enemies within this distance)
+    const spawnSafeRadius = 10;
+    
     // Place enemies along paths and at junctions
     let enemiesPlaced = 0;
     const enemyPerRoomMin = CONFIG.DUNGEON_CONFIG.enemyPerRoomMin || 1;
@@ -567,7 +710,15 @@ function placeEntities(dungeon, levelConfig) {
         for (const junction of pathNetwork.junctions) {
             if (enemiesPlaced >= enemyCount) break;
             
-            const enemiesAtJunction = Math.floor(Math.random() * (enemyPerRoomMax - enemyPerRoomMin + 1)) + enemyPerRoomMin;
+            // Check distance from spawn - reduce enemy count near spawn
+            const distanceFromSpawn = getDistanceFromSpawn(junction.x, junction.y);
+            let enemiesAtJunction = Math.floor(Math.random() * (enemyPerRoomMax - enemyPerRoomMin + 1)) + enemyPerRoomMin;
+            
+            // Reduce enemies near spawn area
+            if (distanceFromSpawn < spawnSafeRadius) {
+                // Only 0-1 enemy near spawn, and only weak ones
+                enemiesAtJunction = Math.random() < 0.3 ? 1 : 0;
+            }
             
             for (let i = 0; i < enemiesAtJunction && enemiesPlaced < enemyCount; i++) {
                 // Place near junction (within 2 cells)
@@ -581,7 +732,18 @@ function placeEntities(dungeon, levelConfig) {
                     const hasBox = entities.specialGrids.some(sg => sg.x === x && sg.y === y && sg.type === 'box');
                     
                     if (!hasEnemy && !hasBox) {
-                        const enemyValue = Math.random() < 0.7 ? 1 : (Math.random() < 0.5 ? 3 : 5);
+                        // Determine enemy value based on distance from spawn
+                        const enemyDistance = getDistanceFromSpawn(x, y);
+                        let enemyValue;
+                        
+                        if (enemyDistance < spawnSafeRadius) {
+                            // Only weak enemies (value 1) near spawn
+                            enemyValue = 1;
+                        } else {
+                            // Normal distribution for enemies far from spawn
+                            enemyValue = Math.random() < 0.7 ? 1 : (Math.random() < 0.5 ? 3 : 5);
+                        }
+                        
                         const enemyType = findEnemyTypeByValue(enemyValue);
                         entities.enemies.push({
                             x,
@@ -604,16 +766,35 @@ function placeEntities(dungeon, levelConfig) {
             
             // Place enemies along path (skip first and last cells - junctions)
             for (let i = 1; i < path.cells.length - 1 && enemiesPlaced < enemyCount; i++) {
-                if (Math.random() < 0.3) { // 30% chance per cell
-                    const cell = path.cells[i];
-                    const cellKey = `${cell.x},${cell.y}`;
-                    
+                const cell = path.cells[i];
+                const cellKey = `${cell.x},${cell.y}`;
+                
+                // Check distance from spawn
+                const enemyDistance = getDistanceFromSpawn(cell.x, cell.y);
+                
+                // Reduce spawn chance near spawn area
+                let spawnChance = 0.3; // 30% chance per cell
+                if (enemyDistance < spawnSafeRadius) {
+                    spawnChance = 0.05; // Only 5% chance near spawn
+                }
+                
+                if (Math.random() < spawnChance) {
                     if (!junctionPositions.has(cellKey) && grid[cell.y] && grid[cell.y][cell.x] === 1) {
                         const hasEnemy = entities.enemies.some(e => e.x === cell.x && e.y === cell.y);
                         const hasBox = entities.specialGrids.some(sg => sg.x === cell.x && sg.y === cell.y && sg.type === 'box');
                         
                         if (!hasEnemy && !hasBox) {
-                            const enemyValue = Math.random() < 0.8 ? 1 : (Math.random() < 0.5 ? 3 : 5);
+                            // Determine enemy value based on distance from spawn
+                            let enemyValue;
+                            
+                            if (enemyDistance < spawnSafeRadius) {
+                                // Only weak enemies (value 1) near spawn
+                                enemyValue = 1;
+                            } else {
+                                // Normal distribution for enemies far from spawn
+                                enemyValue = Math.random() < 0.8 ? 1 : (Math.random() < 0.5 ? 3 : 5);
+                            }
+                            
                             const enemyType = findEnemyTypeByValue(enemyValue);
                             entities.enemies.push({
                                 x: cell.x,
@@ -695,6 +876,110 @@ function placeEntities(dungeon, levelConfig) {
                     }
                 }
             }
+        }
+    }
+    
+    // Place POIs (Points of Interest)
+    const poiConfig = CONFIG.POI_CONFIG;
+    
+    // Helper function to check if position is available for POI
+    const isPositionAvailable = (x, y) => {
+        if (x < 0 || x >= grid[0].length || y < 0 || y >= grid.length) return false;
+        if (grid[y][x] !== 1) return false; // Must be walkable
+        
+        const cellKey = `${x},${y}`;
+        // Check if position has enemy, item, or special grid
+        const hasEnemy = entities.enemies.some(e => e.x === x && e.y === y);
+        const hasItem = entities.items.some(i => i.x === x && i.y === y);
+        const hasSpecialGrid = entities.specialGrids.some(sg => sg.x === x && sg.y === y);
+        const isJunction = junctionPositions.has(cellKey);
+        
+        return !hasEnemy && !hasItem && !hasSpecialGrid;
+    };
+    
+    // Get available positions for POIs
+    const availablePositions = [];
+    if (pathNetwork && pathNetwork.paths) {
+        pathNetwork.paths.forEach(path => {
+            path.cells.forEach(cell => {
+                if (isPositionAvailable(cell.x, cell.y)) {
+                    availablePositions.push({ x: cell.x, y: cell.y });
+                }
+            });
+        });
+    }
+    
+    // Shuffle available positions
+    const shuffledPositions = [...availablePositions].sort(() => Math.random() - 0.5);
+    
+    // Place Shops at junctions (1-2 per map)
+    const shopCount = Math.floor(Math.random() * (poiConfig.shop.spawnCountMax - poiConfig.shop.spawnCountMin + 1)) + poiConfig.shop.spawnCountMin;
+    let shopsPlaced = 0;
+    for (const junction of (pathNetwork?.junctions || [])) {
+        if (shopsPlaced >= shopCount) break;
+        if (isPositionAvailable(junction.x, junction.y)) {
+            entities.specialGrids.push({
+                x: junction.x,
+                y: junction.y,
+                type: 'shop'
+            });
+            shopsPlaced++;
+        }
+    }
+    
+    // Place remaining shops along paths if needed
+    for (const pos of shuffledPositions) {
+        if (shopsPlaced >= shopCount) break;
+        if (isPositionAvailable(pos.x, pos.y) && !junctionPositions.has(`${pos.x},${pos.y}`)) {
+            entities.specialGrids.push({
+                x: pos.x,
+                y: pos.y,
+                type: 'shop'
+            });
+            shopsPlaced++;
+        }
+    }
+    
+    // Place Stat Checks along paths (2-3 per map)
+    const statCheckCount = Math.floor(Math.random() * (poiConfig.stat_check.spawnCountMax - poiConfig.stat_check.spawnCountMin + 1)) + poiConfig.stat_check.spawnCountMin;
+    let statChecksPlaced = 0;
+    for (const pos of shuffledPositions) {
+        if (statChecksPlaced >= statCheckCount) break;
+        if (isPositionAvailable(pos.x, pos.y)) {
+            entities.specialGrids.push({
+                x: pos.x,
+                y: pos.y,
+                type: 'stat_check'
+            });
+            statChecksPlaced++;
+        }
+    }
+    
+    // Place Healers at junctions (1-2 per map)
+    const healerCount = Math.floor(Math.random() * (poiConfig.healer.spawnCountMax - poiConfig.healer.spawnCountMin + 1)) + poiConfig.healer.spawnCountMin;
+    let healersPlaced = 0;
+    for (const junction of (pathNetwork?.junctions || [])) {
+        if (healersPlaced >= healerCount) break;
+        if (isPositionAvailable(junction.x, junction.y)) {
+            entities.specialGrids.push({
+                x: junction.x,
+                y: junction.y,
+                type: 'healer'
+            });
+            healersPlaced++;
+        }
+    }
+    
+    // Place remaining healers along paths if needed
+    for (const pos of shuffledPositions) {
+        if (healersPlaced >= healerCount) break;
+        if (isPositionAvailable(pos.x, pos.y) && !junctionPositions.has(`${pos.x},${pos.y}`)) {
+            entities.specialGrids.push({
+                x: pos.x,
+                y: pos.y,
+                type: 'healer'
+            });
+            healersPlaced++;
         }
     }
     

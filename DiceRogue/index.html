@@ -453,6 +453,92 @@
         </div>
     </div>
 
+    <!-- Shop POI Screen -->
+    <div id="shopPOIScreen" class="poi-screen shop-poi-screen" style="display: none;">
+        <div class="poi-container">
+            <div class="poi-header">
+                <h2>🏪 Merchant Shop</h2>
+                <p class="poi-description">Roll dice to unlock upgrade options!</p>
+            </div>
+            <div class="shop-cards" id="shopCards">
+                <!-- Shop upgrade cards will be generated here -->
+            </div>
+            <div class="shop-actions">
+                <div class="resource-dice">
+                    <div class="dice" id="shopDice">?</div>
+                </div>
+                <button id="rollShopDice" class="roll-resource-btn">Roll</button>
+                <button id="closeShopPOI" class="skip-btn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stat Check POI Screen -->
+    <div id="statCheckPOIScreen" class="poi-screen stat-check-poi-screen" style="display: none;">
+        <div class="poi-container">
+            <div class="poi-header">
+                <h2 id="statCheckTitle">⚔️ Test of Strength</h2>
+                <p class="poi-description" id="statCheckDialogue">Prove your might! Roll against your Damage stat.</p>
+            </div>
+            <div class="stat-check-content">
+                <div class="stat-selection" id="statSelection">
+                    <h3>Choose Stat to Test:</h3>
+                    <div class="stat-buttons">
+                        <button class="stat-btn" data-stat="dmg">💪 Damage</button>
+                        <button class="stat-btn" data-stat="spd">⚡ Speed</button>
+                        <button class="stat-btn" data-stat="int">🧠 Intelligence</button>
+                    </div>
+                </div>
+                <div class="stat-roll-section" id="statRollSection" style="display: none;">
+                    <div class="stat-display">
+                        <span id="statCheckValue">DMG: 3</span>
+                    </div>
+                    <div class="dice-container">
+                        <div class="dice" id="statCheckDice">?</div>
+                    </div>
+                    <button id="rollStatCheck" class="roll-resource-btn">Roll</button>
+                </div>
+                <div class="stat-result" id="statResult" style="display: none;">
+                    <p id="statResultMessage"></p>
+                    <div class="stat-upgrade-selection" id="statUpgradeSelection" style="display: none;">
+                        <h3>Choose Stat to Upgrade:</h3>
+                        <div class="stat-buttons">
+                            <button class="stat-btn" data-upgrade="dmg_min">💪 +Min DMG</button>
+                            <button class="stat-btn" data-upgrade="dmg_max">💪 +Max DMG</button>
+                            <button class="stat-btn" data-upgrade="spd_min">⚡ +Min SPD</button>
+                            <button class="stat-btn" data-upgrade="spd_max">⚡ +Max SPD</button>
+                            <button class="stat-btn" data-upgrade="int_min">🧠 +Min INT</button>
+                            <button class="stat-btn" data-upgrade="int_max">🧠 +Max INT</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="poi-actions">
+                <button id="closeStatCheckPOI" class="skip-btn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Healer POI Screen -->
+    <div id="healerPOIScreen" class="poi-screen healer-poi-screen" style="display: none;">
+        <div class="poi-container">
+            <div class="poi-header">
+                <h2 id="healerName">💚 Wandering Healer</h2>
+                <p class="poi-description" id="healerDialogue">Greetings, traveler. I sense you are wounded. Allow me to heal you.</p>
+            </div>
+            <div class="healer-content">
+                <div class="heal-animation" id="healAnimation" style="display: none;">
+                    <p id="healMessage">May the light restore your vitality!</p>
+                    <div class="heal-amount" id="healAmount">+5 HP</div>
+                </div>
+            </div>
+            <div class="poi-actions">
+                <button id="acceptHeal" class="menu-button primary">Accept Healing</button>
+                <button id="closeHealerPOI" class="skip-btn">Close</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Combat Screen -->
     <div id="combatScreen" class="combat-screen" style="display: none;">
         <div class="combat-container">

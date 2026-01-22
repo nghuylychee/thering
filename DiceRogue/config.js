@@ -15,6 +15,20 @@ const CONFIG = {
         { name: 'Orc', value: 5, emoji: '👹' },
         { name: 'Dragon', value: 8, emoji: '🐉' }
     ],
+    
+    // Gold Reward System - Gold per enemy defeated
+    GOLD_REWARD: {
+        // Base gold multiplier (gold = enemyValue * baseMultiplier)
+        baseMultiplier: 5,
+        // Gold reward per enemy value
+        perValue: 5,  // Each enemy value point = 5 gold
+        // Minimum gold per enemy
+        minGold: 5,
+        // Maximum gold per enemy (optional, set to null for no limit)
+        maxGold: null,
+        // Boss gold multiplier (boss gold = base gold * bossMultiplier)
+        bossMultiplier: 3
+    },
 
     // Item types - D&D Treasure Theme
     ITEM_TYPES: [
@@ -53,6 +67,24 @@ const CONFIG = {
             name: 'Teleport Rune',
             emoji: '⚡',
             type: 'teleport',
+            walkable: true
+        },
+        'shop': {
+            name: 'Merchant Shop',
+            emoji: '🏪',
+            type: 'poi',
+            walkable: true
+        },
+        'stat_check': {
+            name: 'Stat Challenge',
+            emoji: '⚔️',
+            type: 'poi',
+            walkable: true
+        },
+        'healer': {
+            name: 'Wandering Healer',
+            emoji: '💚',
+            type: 'poi',
             walkable: true
         }
     },
@@ -114,6 +146,66 @@ const CONFIG = {
         bossHPMultiplier: 5,           // Boss HP = value * multiplier
         bossDamageMultiplier: 1.2,     // Boss damage multiplier
         bossSpeedMultiplier: 1.1       // Boss speed multiplier
+    },
+    
+    // POI (Points of Interest) Config
+    POI_CONFIG: {
+        shop: {
+            optionsCount: 3,           // Number of upgrade options
+            diceRequiredMin: 2,        // Minimum dice required per option
+            diceRequiredMax: 4,        // Maximum dice required per option
+            spawnCountMin: 1,          // Minimum shops per map
+            spawnCountMax: 2           // Maximum shops per map
+        },
+        stat_check: {
+            dialogueThemes: {
+                dmg: {
+                    title: 'Test of Strength',
+                    dialogue: 'Prove your might! Roll against your Damage stat.',
+                    success: 'Your strength impresses! Choose a stat to upgrade.',
+                    failure: 'You lack the strength. Try again when you are stronger.'
+                },
+                spd: {
+                    title: 'Test of Agility',
+                    dialogue: 'Show your speed! Roll against your Speed stat.',
+                    success: 'Your agility amazes! Choose a stat to upgrade.',
+                    failure: 'You are too slow. Practice and return when faster.'
+                },
+                int: {
+                    title: 'Test of Wisdom',
+                    dialogue: 'Demonstrate your intellect! Roll against your Intelligence stat.',
+                    success: 'Your wisdom shines! Choose a stat to upgrade.',
+                    failure: 'You lack wisdom. Study more and return when wiser.'
+                }
+            },
+            spawnCountMin: 2,          // Minimum stat checks per map
+            spawnCountMax: 3           // Maximum stat checks per map
+        },
+        healer: {
+            healPercentage: 0.5,       // Heal 50% of max HP
+            dialogueVariations: [
+                {
+                    name: 'Wandering Healer',
+                    greeting: 'Greetings, traveler. I sense you are wounded. Allow me to heal you.',
+                    healing: 'May the light restore your vitality!',
+                    farewell: 'Safe travels, adventurer.'
+                },
+                {
+                    name: 'Mystic Shaman',
+                    greeting: 'The spirits whisper of your pain. Come, let me channel their healing energy.',
+                    healing: 'The ancient magic flows through you!',
+                    farewell: 'May the spirits guide your path.'
+                },
+                {
+                    name: 'Hermit Sage',
+                    greeting: 'You have found me, wanderer. I offer healing in exchange for nothing.',
+                    healing: 'Nature\'s blessing restores your strength!',
+                    farewell: 'Go forth with renewed vigor.'
+                }
+            ],
+            spawnCountMin: 1,          // Minimum healers per map
+            spawnCountMax: 2           // Maximum healers per map
+        }
     }
 };
 
