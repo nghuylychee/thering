@@ -4416,6 +4416,162 @@ async function showEnemyDiceRoll(enemy, roll) {
     }
 }
 
+// Show dice roll animation for all enemies at once (parallel mode)
+async function showAllEnemiesDiceRoll(entries) {
+    const diceDisplays = [];
+    for (const entry of entries) {
+        const enemy = entry.enemy;
+        const cell = elements.gameGrid && elements.gameGrid.querySelector(`[data-x="${enemy.x}"][data-y="${enemy.y}"]`);
+        if (!cell) continue;
+        const diceDisplay = document.createElement('div');
+        diceDisplay.className = 'enemy-dice-display rolling';
+        diceDisplay.textContent = '?';
+        cell.appendChild(diceDisplay);
+        diceDisplays.push({ diceDisplay, roll: entry.roll });
+    }
+    await sleep(500);
+    for (const { diceDisplay, roll } of diceDisplays) {
+        diceDisplay.textContent = roll;
+        diceDisplay.classList.remove('rolling');
+    }
+    await sleep(400);
+    for (const { diceDisplay } of diceDisplays) {
+        if (diceDisplay.parentNode) diceDisplay.parentNode.removeChild(diceDisplay);
+    }
+}
+
+// Enemy Turn (parallel) - when > 3 enemies in viewport: roll all, move all step-by-step together
+async function enemyTurnParallel(enemiesInViewport) {
+    if (!gameState.gameRunning) return;
+    
+    const entries = [];
+    for (const enemy of enemiesInViewport) {
+        if (!gameState.enemies.find(e => e.id === enemy.id)) continue;
+        const roll = rollEnemyDice(enemy);
+        const targetCell = chooseBestTargetCell(enemy, roll);
+        const path = findPath(enemy.x, enemy.y, targetCell.x, targetCell.y, roll);
+        if (!path || path.length === 0) continue;
+        entries.push({ enemy, roll, path, curX: enemy.x, curY: enemy.y });
+    }
+    
+    if (entries.length === 0) {
+        await endEnemyTurn();
+        return;
+    }
+    
+    entries.sort((a, b) => String(a.enemy.id || '').localeCompare(String(b.enemy.id || '')));
+    
+    // Show roll animation for all enemies at once
+    await showAllEnemiesDiceRoll(entries);
+    if (!gameState.gameRunning) return;
+    renderGrid();
+    await sleep(100);
+    
+    const maxSteps = Math.max(...entries.map(e => Math.min(e.roll, e.path.length)));
+    
+    for (let step = 0; step < maxSteps && gameState.gameRunning; step++) {
+        const taken = new Set();
+        const moves = [];
+        
+        for (const entry of entries) {
+            if (!gameState.enemies.find(e => e.id === entry.enemy.id)) continue;
+            if (step >= entry.path.length) continue;
+            const direction = entry.path[step];
+            const newPos = getNewPosition(entry.curX, entry.curY, direction);
+            
+            if (newPos.x < 0 || newPos.x >= gameState.gridWidth || newPos.y < 0 || newPos.y >= gameState.gridHeight) continue;
+            const cellData = gameState.grid[newPos.y] && gameState.grid[newPos.y][newPos.x];
+            if (!cellData || cellData.isFloor === false || cellData.specialGrid === 'box') continue;
+            
+            const key = `${newPos.x},${newPos.y}`;
+            if (taken.has(key)) continue;
+            
+            if (gameState.grid[newPos.y][newPos.x].player) {
+                taken.add(key);
+                moves.push({ entry, newX: newPos.x, newY: newPos.y, combat: true });
+                break;
+            }
+            if (gameState.grid[newPos.y][newPos.x].enemy !== null) continue;
+            
+            taken.add(key);
+            moves.push({ entry, newX: newPos.x, newY: newPos.y, combat: false });
+        }
+        
+        // Clear all old positions first so we don't overwrite an enemy that moved into another's cell
+        for (const { entry, newX, newY } of moves) {
+            if (!gameState.enemies.find(e => e.id === entry.enemy.id)) continue;
+            const enemy = entry.enemy;
+            gameState.grid[enemy.y][enemy.x].enemy = null;
+        }
+        for (const { entry, newX, newY, combat } of moves) {
+            if (!gameState.enemies.find(e => e.id === entry.enemy.id)) continue;
+            const enemy = entry.enemy;
+            enemy.x = newX;
+            enemy.y = newY;
+            gameState.grid[newY][newX].enemy = enemy.id;
+            entry.curX = newX;
+            entry.curY = newY;
+            
+            if (combat) {
+                renderGrid();
+                await sleep(100);
+                await performEnemyCombat(enemy, newX, newY);
+                await endEnemyTurn();
+                return;
+            }
+        }
+        
+        for (const { entry } of moves) {
+            if (!gameState.enemies.find(e => e.id === entry.enemy.id)) continue;
+            const enemy = entry.enemy;
+            const specialGrid = gameState.grid[enemy.y] && gameState.grid[enemy.y][enemy.x] && gameState.grid[enemy.y][enemy.x].specialGrid;
+            if (specialGrid === 'canon') {
+                await handleEnemyCanon(enemy, enemy.x, enemy.y);
+            } else if (specialGrid === 'lava') {
+                const lavaDamage = CONFIG.SPECIAL_GRID_TYPES.lava.damage;
+                if (enemy.value > lavaDamage) {
+                    enemy.value -= lavaDamage;
+                    syncEnemyStats(enemy);
+                } else {
+                    gameState.grid[enemy.y][enemy.x].enemy = null;
+                    gameState.enemies = gameState.enemies.filter(e => e.id !== enemy.id);
+                }
+            } else if (specialGrid === 'swamp') {
+                const swampDamage = CONFIG.SPECIAL_GRID_TYPES.swamp.damage;
+                if (enemy.value > swampDamage) {
+                    enemy.value -= swampDamage;
+                    syncEnemyStats(enemy);
+                } else {
+                    gameState.grid[enemy.y][enemy.x].enemy = null;
+                    gameState.enemies = gameState.enemies.filter(e => e.id !== enemy.id);
+                }
+            }
+            if (gameState.grid[enemy.y][enemy.x].item !== null) {
+                await enemyCollectItem(enemy, enemy.x, enemy.y);
+            }
+        }
+        
+        renderGrid();
+        await sleep(150);
+    }
+    
+    await endEnemyTurn();
+}
+
+async function endEnemyTurn() {
+    if (!gameState.gameRunning) return;
+    checkItemSpawn();
+    if (!gameState.gameRunning) return;
+    gameState.currentTurn = 'player';
+    await updatePendingSpawns();
+    checkItemSpawn();
+    if (!gameState.gameRunning) return;
+    elements.diceLabel.textContent = 'Your turn';
+    elements.diceFace.textContent = '?';
+    elements.rollButton.disabled = false;
+    if (elements.endTurnButton) elements.endTurnButton.style.display = 'none';
+}
+
 // Enemy Turn - Process enemies one by one
 async function enemyTurn() {
     if (!gameState.gameRunning) return;
@@ -4443,6 +4599,13 @@ async function enemyTurn() {
     }
     
     console.log(`Processing ${enemiesInViewport.length} enemies in viewport (out of ${gameState.enemies.length} total)`);
+    
+    // When more than 3 enemies on screen: roll and move all at once to save time
+    const PARALLEL_ENEMY_THRESHOLD = 3;
+    if (enemiesInViewport.length > PARALLEL_ENEMY_THRESHOLD) {
+        await enemyTurnParallel(enemiesInViewport);
+        return;
+    }
     
     // Process enemies in viewport one by one (with roll dice animation)
     for (const enemy of enemiesInViewport) {
@@ -4603,25 +4766,7 @@ async function enemyTurn() {
         }
     }
     
-    // End enemy turn
-    if (gameState.gameRunning) {
-        // Check item spawn after enemy turn (but don't update pending spawns - only player turn counts)
-        checkItemSpawn();
-        
-        if (gameState.gameRunning) {
-            gameState.currentTurn = 'player';
-            
-            // Check item spawn at the START of player turn (before player can roll)
-            // This happens immediately when turn switches to player, before any player action
-            await updatePendingSpawns();
-            checkItemSpawn();
-            
-            elements.diceLabel.textContent = 'Your turn';
-            elements.diceFace.textContent = '?';
-            elements.rollButton.disabled = false;
-            elements.endTurnButton.style.display = 'none';
-        }
-    }
+    await endEnemyTurn();
 }
 
 // Sync Enemy Stats when value changes
@@ -5474,56 +5619,70 @@ function rollShopDice() {
     }, rollDuration);
 }
 
-// Show Stat Check POI — system picks which stat to test and which reward to grant on success
+// Show Stat Check POI — game sets target number; player chooses one stat to add to 1d6 roll
 async function showStatCheckPOI(x, y) {
     const statCheckScreen = document.getElementById('statCheckPOIScreen');
     if (!statCheckScreen) return;
     
-    // System picks a random stat to test (and reward is defined in config per stat)
-    const statOptions = ['dmg', 'spd', 'int'];
-    const testStat = statOptions[Math.floor(Math.random() * statOptions.length)];
-    const theme = CONFIG.POI_CONFIG.stat_check.dialogueThemes[testStat];
+    const cfg = CONFIG.POI_CONFIG.stat_check;
+    const targetMin = cfg.targetMin != null ? cfg.targetMin : 4;
+    const targetMax = cfg.targetMax != null ? cfg.targetMax : 6;
+    const targetNumber = targetMin + Math.floor(Math.random() * (targetMax - targetMin + 1));
     
-    let statValue = 0;
-    if (testStat === 'dmg') statValue = gameState.playerStats.dmg.max;
-    else if (testStat === 'spd') statValue = gameState.playerStats.spd.max;
-    else if (testStat === 'int') statValue = gameState.playerStats.int.max;
-    
-    // Store POI data: test stat and predetermined reward upgrade
     gameState.poiData.currentPOI = {
         x, y, type: 'stat_check',
-        testStat,
-        rewardUpgrade: theme.rewardUpgrade,
-        rollResult: null
+        targetNumber,
+        chosenStat: null,
+        rollResult: null,
+        diceValue: null
     };
     
-    // Update UI with D&D style title and description
-    document.getElementById('statCheckTitle').textContent = `⚔️ ${theme.title}`;
-    document.getElementById('statCheckDialogue').textContent = theme.dialogue;
-    document.getElementById('statCheckValue').textContent = `${testStat.toUpperCase()}: ${statValue}`;
+    document.getElementById('statCheckTitle').textContent = `⚔️ ${cfg.title || 'Trial'}`;
+    const dialogue = (cfg.dialogueTemplate || 'You must reach **TARGET** or higher. Roll 1d6 and add one of your stats.').replace('**TARGET**', targetNumber);
+    document.getElementById('statCheckDialogue').textContent = dialogue;
+    document.getElementById('statCheckTarget').textContent = `Need: ${targetNumber} or higher`;
+    
+    const dmgVal = document.getElementById('statCheckDmgVal');
+    const spdVal = document.getElementById('statCheckSpdVal');
+    const intVal = document.getElementById('statCheckIntVal');
+    if (dmgVal) dmgVal.textContent = gameState.playerStats.dmg.max;
+    if (spdVal) spdVal.textContent = gameState.playerStats.spd.max;
+    if (intVal) intVal.textContent = gameState.playerStats.int.max;
     
     document.getElementById('statRollSection').style.display = 'block';
     document.getElementById('statResult').style.display = 'none';
     const continueBtn = document.getElementById('statResultContinue');
     if (continueBtn) continueBtn.style.display = 'none';
+    const resultDice = document.getElementById('statResultDice');
+    if (resultDice) resultDice.textContent = '?';
+    const diceContainer = document.getElementById('statCheckDiceContainer');
+    if (diceContainer) diceContainer.style.display = 'none';
+    const rollBtns = document.querySelectorAll('.stat-roll-btn');
+    rollBtns.forEach(btn => { btn.style.display = ''; });
     
     statCheckScreen.style.display = 'flex';
 }
 
-// Roll Stat Check — uses system-picked test stat; on success, auto-applies predetermined reward
-function rollStatCheck() {
+// Roll Stat Check — player chose a stat; roll 1d6 + stat, success if total >= target
+function rollStatCheck(chosenStat) {
     const statCheck = gameState.poiData.currentPOI;
-    if (!statCheck || !statCheck.testStat) return;
+    if (!statCheck || statCheck.type !== 'stat_check' || statCheck.chosenStat != null) return;
+    if (!chosenStat || !['dmg', 'spd', 'int'].includes(chosenStat)) return;
     
     const statCheckDice = document.getElementById('statCheckDice');
     if (!statCheckDice) return;
     
     let statValue = 0;
-    if (statCheck.testStat === 'dmg') statValue = gameState.playerStats.dmg.max;
-    else if (statCheck.testStat === 'spd') statValue = gameState.playerStats.spd.max;
-    else if (statCheck.testStat === 'int') statValue = gameState.playerStats.int.max;
+    if (chosenStat === 'dmg') statValue = gameState.playerStats.dmg.max;
+    else if (chosenStat === 'spd') statValue = gameState.playerStats.spd.max;
+    else if (chosenStat === 'int') statValue = gameState.playerStats.int.max;
     
-    // Start roll animation
+    statCheck.chosenStat = chosenStat;
+    const rollBtns = document.querySelectorAll('.stat-roll-btn');
+    rollBtns.forEach(btn => { btn.style.display = 'none'; });
+    const diceContainer = document.getElementById('statCheckDiceContainer');
+    if (diceContainer) diceContainer.style.display = 'flex';
+    
     statCheckDice.classList.add('rolling');
     statCheckDice.textContent = '?';
     
@@ -5541,21 +5700,27 @@ function rollStatCheck() {
     
     setTimeout(() => {
         clearInterval(rollInterval);
-        const roll = Math.floor(Math.random() * 6) + 1;
-        statCheck.rollResult = roll;
+        const diceRoll = Math.floor(Math.random() * 6) + 1;
+        const total = diceRoll + statValue;
+        statCheck.rollResult = total;
+        statCheck.diceValue = diceRoll;
         
         statCheckDice.classList.remove('rolling');
-        statCheckDice.textContent = roll;
+        statCheckDice.textContent = diceRoll;
         
-        const won = roll >= statValue;
-        const theme = CONFIG.POI_CONFIG.stat_check.dialogueThemes[statCheck.testStat];
+        const won = total >= statCheck.targetNumber;
+        const theme = CONFIG.POI_CONFIG.stat_check.dialogueThemes[chosenStat];
         
         document.getElementById('statRollSection').style.display = 'none';
-        document.getElementById('statResult').style.display = 'block';
+        const resultEl = document.getElementById('statResult');
+        resultEl.style.display = 'flex';
+        const resultDiceEl = document.getElementById('statResultDice');
+        if (resultDiceEl) resultDiceEl.textContent = total;
+        const resultDetail = document.getElementById('statResultDetail');
+        if (resultDetail) resultDetail.textContent = `1d6 = ${diceRoll} + ${theme.label || chosenStat} (${statValue}) = ${total}. Need ${statCheck.targetNumber}.`;
         document.getElementById('statResultMessage').textContent = won ? theme.success : theme.failure;
         
         if (won) {
-            // System auto-applies the predetermined reward for this trial type
             const powerupMap = {
                 'dmg_min': { id: 'dmg_min_boost', effect: 'increase_dmg_min', value: 1 },
                 'dmg_max': { id: 'dmg_max_boost', effect: 'increase_dmg_max', value: 1 },
@@ -5564,7 +5729,7 @@ function rollStatCheck() {
                 'int_min': { id: 'int_min_boost', effect: 'increase_int_min', value: 1 },
                 'int_max': { id: 'int_max_boost', effect: 'increase_int_max', value: 1 }
             };
-            const powerup = powerupMap[statCheck.rewardUpgrade];
+            const powerup = powerupMap[theme.rewardUpgrade];
             if (powerup) applyPowerupEffect(powerup);
             const continueBtn = document.getElementById('statResultContinue');
             if (continueBtn) continueBtn.style.display = 'block';
@@ -5717,12 +5882,12 @@ if (closeShopPOIBtn) {
     });
 }
 
-// Stat Check POI event listeners (roll + continue + close)
+// Stat Check POI event listeners (roll with chosen stat + continue + close)
 function setupStatCheckListeners() {
-    const rollStatCheckBtn = document.getElementById('rollStatCheck');
-    if (rollStatCheckBtn) {
-        rollStatCheckBtn.addEventListener('click', () => rollStatCheck());
-    }
+    ['dmg', 'spd', 'int'].forEach(stat => {
+        const btn = document.getElementById(`rollStatCheck${stat.charAt(0).toUpperCase() + stat.slice(1)}`);
+        if (btn) btn.addEventListener('click', () => rollStatCheck(stat));
+    });
     const continueBtn = document.getElementById('statResultContinue');
     if (continueBtn) {
         continueBtn.addEventListener('click', () => hideStatCheckPOI());

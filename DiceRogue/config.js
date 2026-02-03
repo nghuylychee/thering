@@ -158,25 +158,26 @@ const CONFIG = {
             spawnCountMax: 2           // Maximum shops per map
         },
         stat_check: {
-            // System picks one stat to test; on success, grants the corresponding rewardUpgrade (no user choice).
+            // Game defines a target number (roll this or higher). Player chooses one stat to add to 1d6 roll. Success = (1d6 + stat) >= target.
+            targetMin: 4,             // Minimum target number (e.g. "reach 4 or higher")
+            targetMax: 6,             // Maximum target number
+            title: 'Trial',
+            dialogueTemplate: 'You must reach **TARGET** or higher. Roll 1d6 and add one of your stats—choose which stat to use.',
             dialogueThemes: {
                 dmg: {
-                    title: 'Trial of Strength',
-                    dialogue: 'A stone altar demands proof of your might. Roll a die—you must meet or exceed your Damage to pass this trial.',
+                    label: 'Damage',
                     success: 'The altar glows with approval. You have proven worthy. The rune grants you +1 to your maximum Damage.',
                     failure: 'The altar remains cold. You were not strong enough this time. Perhaps another day, warrior.',
                     rewardUpgrade: 'dmg_max'
                 },
                 spd: {
-                    title: 'Trial of Agility',
-                    dialogue: 'A shimmering sigil tests your reflexes. Roll a die—you must meet or exceed your Speed to pass this trial.',
+                    label: 'Speed',
                     success: 'The sigil flares in recognition. Your swiftness has been acknowledged. You gain +1 to your maximum Speed.',
                     failure: 'The sigil fades. You were not quick enough. Hone your reflexes and return when you are ready.',
                     rewardUpgrade: 'spd_max'
                 },
                 int: {
-                    title: 'Trial of Wisdom',
-                    dialogue: 'An ancient obelisk probes your mind. Roll a die—you must meet or exceed your Intelligence to pass this trial.',
+                    label: 'Intelligence',
                     success: 'The obelisk hums with resonance. Your wisdom has been recognized. You gain +1 to your maximum Intelligence.',
                     failure: 'The obelisk falls silent. Your mind was not sharp enough. Seek knowledge and return when you are wiser.',
                     rewardUpgrade: 'int_max'

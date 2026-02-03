@@ -473,26 +473,38 @@
         </div>
     </div>
 
-    <!-- Stat Check POI Screen (system picks stat to test and reward; D&D style) -->
+    <!-- Stat Check POI Screen: game sets target number; player chooses one stat to add to 1d6 roll -->
     <div id="statCheckPOIScreen" class="poi-screen stat-check-poi-screen" style="display: none;">
         <div class="poi-container">
             <div class="poi-header">
-                <h2 id="statCheckTitle">⚔️ Trial of Strength</h2>
-                <p class="poi-description" id="statCheckDialogue">A stone altar demands proof of your might. Roll a die—you must meet or exceed your Damage to pass this trial.</p>
+                <h2 id="statCheckTitle">⚔️ Trial</h2>
+                <p class="poi-description" id="statCheckDialogue">You must reach the target or higher. Roll 1d6 and add one of your stats.</p>
             </div>
             <div class="stat-check-content">
                 <div class="stat-roll-section" id="statRollSection">
-                    <div class="stat-display">
-                        <span id="statCheckValue">DMG: 3</span>
+                    <div class="stat-display stat-target-display">
+                        <span id="statCheckTarget">Need: 5 or higher</span>
                     </div>
-                    <div class="dice-container">
+                    <p class="stat-choose-label">Choose a stat to add to your 1d6 roll:</p>
+                    <div class="stat-roll-buttons">
+                        <button type="button" class="stat-roll-btn" id="rollStatCheckDmg" data-stat="dmg">Roll with Damage (+<span id="statCheckDmgVal">0</span>)</button>
+                        <button type="button" class="stat-roll-btn" id="rollStatCheckSpd" data-stat="spd">Roll with Speed (+<span id="statCheckSpdVal">0</span>)</button>
+                        <button type="button" class="stat-roll-btn" id="rollStatCheckInt" data-stat="int">Roll with Intelligence (+<span id="statCheckIntVal">0</span>)</button>
+                    </div>
+                    <div class="dice-container stat-check-dice-container" id="statCheckDiceContainer" style="display: none;">
                         <div class="dice" id="statCheckDice">?</div>
                     </div>
-                    <button id="rollStatCheck" class="roll-resource-btn">Roll</button>
                 </div>
                 <div class="stat-result" id="statResult" style="display: none;">
+                    <div class="stat-result-dice-wrap">
+                        <span class="stat-result-dice-label">Total:</span>
+                        <div class="dice stat-result-dice" id="statResultDice">?</div>
+                    </div>
+                    <p class="stat-result-detail" id="statResultDetail"></p>
                     <p id="statResultMessage"></p>
-                    <button id="statResultContinue" class="roll-resource-btn" style="display: none;">Continue</button>
+                    <div class="stat-result-actions">
+                        <button id="statResultContinue" class="roll-resource-btn" style="display: none;">Continue</button>
+                    </div>
                 </div>
             </div>
             <div class="poi-actions">
