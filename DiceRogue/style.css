@@ -1049,6 +1049,7 @@ body {
 .spine-player-container > * {
     transform-origin: center center;
     transform: scale(0.14) translate(50%, 40%);
+    transition: none;
 }
 
 /* Enemy Spine: same size/position/transparent as player (inside cell) */
@@ -1082,7 +1083,8 @@ body {
 /* Enemy sprite larger than player so monsters are clearly visible in cell */
 .enemy-spine-container > * {
     transform-origin: center center;
-    transform: scale(1) translate(0%, 0%);
+    transform: scale(1) translate(0%, 00%);
+    transition: none;
 }
 
 .game-grid {

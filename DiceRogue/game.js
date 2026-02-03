@@ -2524,6 +2524,9 @@ async function movePlayerToCell(targetX, targetY) {
     }
     
     gameState.isMoving = true;
+    if (typeof SpinePlayerIntegration !== 'undefined' && SpinePlayerIntegration.play) {
+        SpinePlayerIntegration.play('AssassinPyramid_Walk_01', true);
+    }
     
     // Move step by step following the path
     for (let i = 0; i < path.length && gameState.gameRunning; i++) {
@@ -2632,6 +2635,10 @@ async function movePlayerToCell(targetX, targetY) {
     }
     
     gameState.isMoving = false;
+    if (typeof SpinePlayerIntegration !== 'undefined' && SpinePlayerIntegration.play) {
+        var idleAnim = (window.SPINE_CONFIG && window.SPINE_CONFIG.combatPlayerIdle) ? window.SPINE_CONFIG.combatPlayerIdle : 'AssassinPyramid_Idle_01';
+        SpinePlayerIntegration.play(idleAnim, true);
+    }
     
     // Fog of war tắt: không cập nhật fog
     
@@ -2968,6 +2975,9 @@ async function movePlayerToCellWithAnimation(targetX, targetY) {
     } else {
         // Move step by step following the path with animation
         gameState.isMoving = true;
+        if (typeof SpinePlayerIntegration !== 'undefined' && SpinePlayerIntegration.play) {
+            SpinePlayerIntegration.play('AssassinPyramid_Walk_01', true);
+        }
         for (let i = 0; i < path.length && gameState.gameRunning; i++) {
             const direction = path[i];
             const newPos = getNewPosition(gameState.player.x, gameState.player.y, direction);
@@ -2983,6 +2993,10 @@ async function movePlayerToCellWithAnimation(targetX, targetY) {
             await sleep(150); // Animation speed
         }
         gameState.isMoving = false;
+        if (typeof SpinePlayerIntegration !== 'undefined' && SpinePlayerIntegration.play) {
+            var pyramidIdle = (window.SPINE_CONFIG && window.SPINE_CONFIG.combatPlayerIdle) ? window.SPINE_CONFIG.combatPlayerIdle : 'AssassinPyramid_Idle_01';
+            SpinePlayerIntegration.play(pyramidIdle, true);
+        }
     }
     
     // Check for item at new position
@@ -4552,6 +4566,17 @@ async function enemyTurnParallel(enemiesInViewport) {
     const maxSteps = Math.max(...entries.map(e => Math.min(e.roll, e.path.length)));
     
     for (let step = 0; step < maxSteps && gameState.gameRunning; step++) {
+        if (typeof SpineEnemyIntegration !== 'undefined' && SpineEnemyIntegration.isEnabled && SpineEnemyIntegration.isEnabled()) {
+            for (var ei = 0; ei < entries.length; ei++) {
+                var e = entries[ei];
+                if (step >= e.path.length) continue;
+                var c = elements.gameGrid.querySelector('[data-x="' + e.curX + '"][data-y="' + e.curY + '"]');
+                if (c && e.enemy.type) {
+                    var jumpAnim = SpineEnemyIntegration.getJumpAnimation ? SpineEnemyIntegration.getJumpAnimation(e.enemy.type) : 'Monster1_Jump_01';
+                    SpineEnemyIntegration.playAnimationInCell(c, jumpAnim, false);
+                }
+            }
+        }
         const taken = new Set();
         const moves = [];
         
@@ -4637,6 +4662,15 @@ async function enemyTurnParallel(enemiesInViewport) {
         await sleep(150);
     }
     
+    if (typeof SpineEnemyIntegration !== 'undefined' && SpineEnemyIntegration.playDefaultInCell) {
+        for (var ei = 0; ei < entries.length; ei++) {
+            var e = entries[ei];
+            if (!gameState.enemies.find(function (x) { return x.id === e.enemy.id; })) continue;
+            var c = elements.gameGrid.querySelector('[data-x="' + e.curX + '"][data-y="' + e.curY + '"]');
+            if (c) SpineEnemyIntegration.playDefaultInCell(c);
+        }
+    }
+    
     await endEnemyTurn();
 }
 
@@ -4712,6 +4746,13 @@ async function enemyTurn() {
                 
                 // Move enemy to player position if not already there
                 if (distance === 1) {
+                    if (typeof SpineEnemyIntegration !== 'undefined' && SpineEnemyIntegration.isEnabled && SpineEnemyIntegration.isEnabled() && enemy.type) {
+                        var atkCell = elements.gameGrid.querySelector('[data-x="' + enemy.x + '"][data-y="' + enemy.y + '"]');
+                        if (atkCell) {
+                            var jumpAnim = SpineEnemyIntegration.getJumpAnimation ? SpineEnemyIntegration.getJumpAnimation(enemy.type) : 'Monster1_Jump_01';
+                            SpineEnemyIntegration.playAnimationInCell(atkCell, jumpAnim, false);
+                        }
+                    }
                     gameState.grid[enemy.y][enemy.x].enemy = null;
                     enemy.x = playerX;
                     enemy.y = playerY;
@@ -4748,6 +4789,14 @@ async function enemyTurn() {
         if (!path || path.length === 0) {
             console.log(`Enemy ${enemy.id} has no path to target`);
             continue;
+        }
+        
+        if (typeof SpineEnemyIntegration !== 'undefined' && SpineEnemyIntegration.isEnabled && SpineEnemyIntegration.isEnabled() && enemy.type) {
+            var enemyCell = elements.gameGrid.querySelector('[data-x="' + enemy.x + '"][data-y="' + enemy.y + '"]');
+            if (enemyCell) {
+                var jumpAnim = SpineEnemyIntegration.getJumpAnimation ? SpineEnemyIntegration.getJumpAnimation(enemy.type) : 'Monster1_Jump_01';
+                SpineEnemyIntegration.playAnimationInCell(enemyCell, jumpAnim, false);
+            }
         }
         
         // Move enemy step by step following the path
@@ -4845,6 +4894,11 @@ async function enemyTurn() {
             
             renderGrid();
             await sleep(200);
+        }
+        
+        if (typeof SpineEnemyIntegration !== 'undefined' && SpineEnemyIntegration.playDefaultInCell) {
+            var endCell = elements.gameGrid.querySelector('[data-x="' + enemy.x + '"][data-y="' + enemy.y + '"]');
+            if (endCell) SpineEnemyIntegration.playDefaultInCell(endCell);
         }
     }
     

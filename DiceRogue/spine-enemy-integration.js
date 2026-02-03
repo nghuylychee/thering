@@ -24,7 +24,8 @@
             jsonUrl: base + folder + '/' + (entry.json || folder + '.json'),
             atlasUrl: base + folder + '/' + (entry.atlas || folder + '.atlas.txt'),
             scale: entry.scale != null ? entry.scale : 0.015,
-            defaultAnimation: entry.defaultAnimation || 'Monster1_Down_01'
+            defaultAnimation: entry.defaultAnimation || 'Monster1_Down_01',
+            jumpAnimation: entry.jumpAnimation || 'Monster1_Jump_01'
         };
     }
 
@@ -70,6 +71,7 @@
                 atlasUrl: ec.atlasUrl,
                 scale: ec.scale,
                 animation: ec.defaultAnimation,
+                defaultMix: 0,
                 showControls: false,
                 showLoading: false,
                 alpha: true,
@@ -78,6 +80,7 @@
                 preserveDrawingBuffer: false,
                 success: function (p) {
                     if (p.setAnimation) p.setAnimation(ec.defaultAnimation, true);
+                    container._spineEnemyPlayer = p;
                     container.classList.add('spine-inited');
                     var root = container.querySelector('.spine-player');
                     if (root) {
@@ -156,12 +159,53 @@
         return pool[enemyType].pop();
     }
 
+    /**
+     * Play animation on the Spine in the given grid cell (if it has an enemy Spine container).
+     * @param {HTMLElement} cellElement - grid cell DOM element
+     * @param {string} animName - e.g. 'Monster1_Jump_01'
+     * @param {boolean} loop
+     */
+    function playAnimationInCell(cellElement, animName, loop) {
+        if (!cellElement || !animName) return;
+        var container = cellElement.querySelector('.enemy-spine-container');
+        if (!container || !container._spineEnemyPlayer) return;
+        try {
+            if (typeof container._spineEnemyPlayer.setAnimation === 'function') {
+                container._spineEnemyPlayer.setAnimation(animName, loop !== false);
+            }
+        } catch (e) { console.warn('[Spine Enemy] playAnimationInCell:', e); }
+    }
+
+    /**
+     * Play default (idle) animation for the enemy Spine in the given cell.
+     */
+    function playDefaultInCell(cellElement) {
+        if (!cellElement) return;
+        var container = cellElement.querySelector('.enemy-spine-container');
+        if (!container) return;
+        var typeName = container.getAttribute('data-enemy-type');
+        var ec = typeName ? getEnemySpineConfig(typeName) : null;
+        var defaultAnim = ec ? ec.defaultAnimation : 'Monster1_Fly_01';
+        playAnimationInCell(cellElement, defaultAnim, true);
+    }
+
+    /**
+     * Get jump animation name for enemy type (for movement).
+     */
+    function getJumpAnimation(enemyTypeName) {
+        var ec = getEnemySpineConfig(enemyTypeName);
+        return ec ? ec.jumpAnimation : 'Monster1_Jump_01';
+    }
+
     window.SpineEnemyIntegration = {
         isEnabled: isEnemySpineEnabled,
         getConfig: getEnemySpineConfig,
         initEnemy: initEnemySpine,
         initAllInGrid: initEnemiesInGrid,
         beforeGridClear: beforeGridClear,
-        getPooledContainer: getPooledContainer
+        getPooledContainer: getPooledContainer,
+        playAnimationInCell: playAnimationInCell,
+        playDefaultInCell: playDefaultInCell,
+        getJumpAnimation: getJumpAnimation
     };
 })();
