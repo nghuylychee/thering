@@ -1571,6 +1571,17 @@ function spawnSpecialGrids() {
 
 // Render Grid
 function renderGrid() {
+    // Reuse enemy Spine containers from pool so they don't reload/flicker on every move
+    if (typeof SpineEnemyIntegration !== 'undefined' && SpineEnemyIntegration.beforeGridClear) {
+        SpineEnemyIntegration.beforeGridClear(elements.gameGrid);
+    }
+    // Move player Spine layer out of grid before clear so it isn't destroyed (same fix as enemy pool)
+    var playerLayer = document.getElementById('spine-player-layer');
+    var gridParent = elements.gameGrid && elements.gameGrid.parentElement;
+    if (playerLayer && gridParent && elements.gameGrid.contains(playerLayer)) {
+        playerLayer.parentNode.removeChild(playerLayer);
+        gridParent.appendChild(playerLayer);
+    }
     elements.gameGrid.innerHTML = '';
     
     // Update camera to follow player
@@ -1719,30 +1730,44 @@ function renderGrid() {
                 cell.classList.add('combat');
             }
             
-            // Add player
+            // Add player (Spine Assassin or image/emoji fallback)
             if (cellData.player) {
                 cell.classList.add('player');
-                // Use asset system if available, otherwise fallback to emoji
-                if (typeof renderPlayer !== 'undefined') {
-                    const playerContainer = document.createElement('div');
-                    playerContainer.style.cssText = 'width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; position: absolute; top: 0; left: 0;';
-                    renderPlayer(playerContainer, true); // true = inGrid
-                    cell.appendChild(playerContainer);
-                } else {
-                    content += '🧙';
+                const useSpine = typeof SpinePlayerIntegration !== 'undefined' && SpinePlayerIntegration.isEnabled && SpinePlayerIntegration.isEnabled();
+                if (!useSpine) {
+                    if (typeof renderPlayer !== 'undefined') {
+                        const playerContainer = document.createElement('div');
+                        playerContainer.style.cssText = 'width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; position: absolute; top: 0; left: 0;';
+                        renderPlayer(playerContainer, true);
+                        cell.appendChild(playerContainer);
+                    } else {
+                        content += '🧙';
+                    }
                 }
             }
             
-            // Add enemy (only show if visible or discovered)
+            // Add enemy (Spine Monster_Lv1-5 or image/emoji fallback)
             if (cellData.enemy !== null && shouldShowContent) {
                 const enemy = gameState.enemies.find(e => e.id === cellData.enemy);
                 if (enemy) {
                     cell.classList.add('enemy');
-                    // Use asset system if available, otherwise fallback to emoji
-                    if (typeof renderEnemy !== 'undefined' && enemy.type) {
+                    const hasEnemySpineConfig = typeof SpineEnemyIntegration !== 'undefined' && SpineEnemyIntegration.getConfig && SpineEnemyIntegration.getConfig(enemy.type);
+                    const useEnemySpine = typeof SpineEnemyIntegration !== 'undefined' && SpineEnemyIntegration.isEnabled && SpineEnemyIntegration.isEnabled() && enemy.type && hasEnemySpineConfig;
+                    if (useEnemySpine) {
+                        let enemySpineContainer = typeof SpineEnemyIntegration.getPooledContainer === 'function' ? SpineEnemyIntegration.getPooledContainer(enemy.type) : null;
+                        if (!enemySpineContainer) {
+                            enemySpineContainer = document.createElement('div');
+                            enemySpineContainer.className = 'enemy-spine-container';
+                            enemySpineContainer.setAttribute('data-enemy-type', enemy.type);
+                            enemySpineContainer.setAttribute('data-emoji', enemy.emoji || '👹');
+                        } else {
+                            enemySpineContainer.setAttribute('data-emoji', enemy.emoji || '👹');
+                        }
+                        cell.appendChild(enemySpineContainer);
+                    } else if (typeof renderEnemy !== 'undefined' && enemy.type) {
                         const enemyContainer = document.createElement('div');
                         enemyContainer.style.cssText = 'width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; position: absolute; top: 0; left: 0;';
-                        renderEnemy(enemyContainer, enemy.type, true); // true = inGrid
+                        renderEnemy(enemyContainer, enemy.type, true);
                         cell.appendChild(enemyContainer);
                     } else {
                         content += enemy.emoji || '👹';
@@ -2143,6 +2168,32 @@ function renderGrid() {
         setTimeout(() => {
             restoreCanonTargetSelection();
         }, 0);
+    }
+
+    // Spine: position player layer over player cell and init if needed
+    if (typeof SpinePlayerIntegration !== 'undefined' && gameState.gameRunning && gameState.player) {
+        if (SpinePlayerIntegration.isEnabled && SpinePlayerIntegration.isEnabled()) {
+            const layer = document.getElementById('spine-player-layer');
+            const container = document.getElementById('spine-player-container');
+            if (layer && container && !SpinePlayerIntegration.getInstance()) {
+                SpinePlayerIntegration.init(container);
+            }
+            SpinePlayerIntegration.positionOverPlayerCell();
+            SpinePlayerIntegration.setVisible(true);
+        }
+    } else if (typeof SpinePlayerIntegration !== 'undefined' && SpinePlayerIntegration.setVisible) {
+        SpinePlayerIntegration.setVisible(false);
+    }
+
+    // Spine: init enemy Spine in all enemy cells after layout (so container has non-zero size)
+    if (typeof SpineEnemyIntegration !== 'undefined' && SpineEnemyIntegration.initAllInGrid) {
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+                if (typeof SpineEnemyIntegration !== 'undefined' && SpineEnemyIntegration.initAllInGrid) {
+                    SpineEnemyIntegration.initAllInGrid();
+                }
+            });
+        });
     }
 }
 
@@ -3628,17 +3679,37 @@ function showCombatScreen(playerValue, enemyValue, enemyEmoji, enemyName, enemyI
         gameState.combatState.bossData = null;
     }
     
-    // Update UI - Use asset system if available
+    // Update UI - Spine for combat or asset/emoji fallback
     if (elements.combatPlayerEmoji) {
-        if (typeof renderPlayer !== 'undefined') {
-            renderPlayer(elements.combatPlayerEmoji, false); // false = not in grid, use full size
+        const useCombatSpinePlayer = typeof SpinePlayerIntegration !== 'undefined' && SpinePlayerIntegration.isEnabled && SpinePlayerIntegration.isEnabled();
+        if (useCombatSpinePlayer && SpinePlayerIntegration.initCombatPlayer) {
+            elements.combatPlayerEmoji.innerHTML = '';
+            const playerSpineWrap = document.createElement('div');
+            playerSpineWrap.className = 'combat-player-spine-wrap';
+            playerSpineWrap.style.cssText = 'width:100%;height:100%;position:absolute;left:0;top:0;display:flex;align-items:center;justify-content:center;background:transparent;';
+            elements.combatPlayerEmoji.appendChild(playerSpineWrap);
+            SpinePlayerIntegration.initCombatPlayer(playerSpineWrap);
+        } else if (typeof renderPlayer !== 'undefined') {
+            renderPlayer(elements.combatPlayerEmoji, false);
         } else {
             elements.combatPlayerEmoji.textContent = '🧙';
         }
     }
     if (elements.combatEnemyEmoji) {
-        if (typeof renderEnemy !== 'undefined' && enemyName) {
-            renderEnemy(elements.combatEnemyEmoji, enemyName, false); // false = not in grid, use full size
+        const hasEnemySpineConfig = typeof SpineEnemyIntegration !== 'undefined' && SpineEnemyIntegration.getConfig && SpineEnemyIntegration.getConfig(enemyName);
+        const useCombatSpineEnemy = typeof SpineEnemyIntegration !== 'undefined' && SpineEnemyIntegration.isEnabled && SpineEnemyIntegration.isEnabled() && enemyName && hasEnemySpineConfig;
+        if (useCombatSpineEnemy && SpineEnemyIntegration.initEnemy) {
+            elements.combatEnemyEmoji.innerHTML = '';
+            const enemySpineWrap = document.createElement('div');
+            enemySpineWrap.className = 'combat-enemy-spine-wrap';
+            enemySpineWrap.style.cssText = 'width:100%;height:100%;position:absolute;left:0;top:0;display:flex;align-items:center;justify-content:center;background:transparent;';
+            elements.combatEnemyEmoji.appendChild(enemySpineWrap);
+            const enemySpineInner = document.createElement('div');
+            enemySpineInner.setAttribute('data-emoji', enemyEmoji || '👹');
+            enemySpineWrap.appendChild(enemySpineInner);
+            SpineEnemyIntegration.initEnemy(enemySpineInner, enemyName);
+        } else if (typeof renderEnemy !== 'undefined' && enemyName) {
+            renderEnemy(elements.combatEnemyEmoji, enemyName, false);
         } else {
             elements.combatEnemyEmoji.textContent = enemyEmoji;
         }
@@ -3774,12 +3845,23 @@ async function animateAttack(attacker, defender) {
     
     if (!attackerArea || !defenderArea) return;
     
+    // Spine: player uses AssassinPyramid_Attack_01 when attacking
+    if (attacker === 'player' && typeof SpinePlayerIntegration !== 'undefined' && SpinePlayerIntegration.playCombatPlayerAnimation) {
+        const attackAnim = (window.SPINE_CONFIG && window.SPINE_CONFIG.combatPlayerAttack) || 'AssassinPyramid_Attack_01';
+        SpinePlayerIntegration.playCombatPlayerAnimation(attackAnim, false);
+    }
+    
     // Add attacking class
     attackerArea.classList.add('attacking');
     defenderArea.classList.add('defending');
     
     // Wait for attack animation
     await sleep(600);
+    
+    // Spine: switch combat player back to idle
+    if (attacker === 'player' && typeof SpinePlayerIntegration !== 'undefined' && SpinePlayerIntegration.combatPlayerBackToIdle) {
+        SpinePlayerIntegration.combatPlayerBackToIdle();
+    }
     
     // Remove classes
     attackerArea.classList.remove('attacking');

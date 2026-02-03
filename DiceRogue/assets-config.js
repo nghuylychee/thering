@@ -11,11 +11,11 @@ const ASSETS_CONFIG = {
         emoji: '🧙' // Fallback emoji
     },
     
-    // Enemy assets - mapped by enemy type, chỉ cần 1 hình mỗi enemy
+    // Enemy assets - mapped by enemy type (fallback image when Spine disabled)
     enemies: {
         'Giant Rat': {
             image: 'enemies/rat.png',
-            emoji: '🐀' // Fallback emoji
+            emoji: '🐀'
         },
         'Goblin': {
             image: 'enemies/goblin.png',
@@ -24,6 +24,10 @@ const ASSETS_CONFIG = {
         'Orc': {
             image: 'enemies/orc.png',
             emoji: '👹'
+        },
+        'Troll': {
+            image: 'enemies/orc.png',
+            emoji: '👾'
         },
         'Dragon': {
             image: 'enemies/dragon.png',

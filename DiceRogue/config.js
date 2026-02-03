@@ -8,11 +8,12 @@ const CONFIG = {
     // Player
     PLAYER_START_VALUE: 2,
 
-    // Enemy types - D&D Monster Theme
+    // Enemy types - D&D Monster Theme (5 types mapped to Monster_Lv1-5 Spine)
     ENEMY_TYPES: [
         { name: 'Giant Rat', value: 1, emoji: '🐀' },
         { name: 'Goblin', value: 3, emoji: '👺' },
         { name: 'Orc', value: 5, emoji: '👹' },
+        { name: 'Troll', value: 6, emoji: '👾' },
         { name: 'Dragon', value: 8, emoji: '🐉' }
     ],
     
