@@ -2817,7 +2817,7 @@ body {
 }
 .combat-player-spine-container > * {
     transform-origin: center center;
-    transform: scale(1);
+    transform: scale(1.2);
 }
 .combat-enemy-spine-wrap .enemy-spine-container,
 .combat-enemy-spine-wrap .enemy-spine-container .spine-player,
