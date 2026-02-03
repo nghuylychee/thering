@@ -473,23 +473,15 @@
         </div>
     </div>
 
-    <!-- Stat Check POI Screen -->
+    <!-- Stat Check POI Screen (system picks stat to test and reward; D&D style) -->
     <div id="statCheckPOIScreen" class="poi-screen stat-check-poi-screen" style="display: none;">
         <div class="poi-container">
             <div class="poi-header">
-                <h2 id="statCheckTitle">⚔️ Test of Strength</h2>
-                <p class="poi-description" id="statCheckDialogue">Prove your might! Roll against your Damage stat.</p>
+                <h2 id="statCheckTitle">⚔️ Trial of Strength</h2>
+                <p class="poi-description" id="statCheckDialogue">A stone altar demands proof of your might. Roll a die—you must meet or exceed your Damage to pass this trial.</p>
             </div>
             <div class="stat-check-content">
-                <div class="stat-selection" id="statSelection">
-                    <h3>Choose Stat to Test:</h3>
-                    <div class="stat-buttons">
-                        <button class="stat-btn" data-stat="dmg">💪 Damage</button>
-                        <button class="stat-btn" data-stat="spd">⚡ Speed</button>
-                        <button class="stat-btn" data-stat="int">🧠 Intelligence</button>
-                    </div>
-                </div>
-                <div class="stat-roll-section" id="statRollSection" style="display: none;">
+                <div class="stat-roll-section" id="statRollSection">
                     <div class="stat-display">
                         <span id="statCheckValue">DMG: 3</span>
                     </div>
@@ -500,17 +492,7 @@
                 </div>
                 <div class="stat-result" id="statResult" style="display: none;">
                     <p id="statResultMessage"></p>
-                    <div class="stat-upgrade-selection" id="statUpgradeSelection" style="display: none;">
-                        <h3>Choose Stat to Upgrade:</h3>
-                        <div class="stat-buttons">
-                            <button class="stat-btn" data-upgrade="dmg_min">💪 +Min DMG</button>
-                            <button class="stat-btn" data-upgrade="dmg_max">💪 +Max DMG</button>
-                            <button class="stat-btn" data-upgrade="spd_min">⚡ +Min SPD</button>
-                            <button class="stat-btn" data-upgrade="spd_max">⚡ +Max SPD</button>
-                            <button class="stat-btn" data-upgrade="int_min">🧠 +Min INT</button>
-                            <button class="stat-btn" data-upgrade="int_max">🧠 +Max INT</button>
-                        </div>
-                    </div>
+                    <button id="statResultContinue" class="roll-resource-btn" style="display: none;">Continue</button>
                 </div>
             </div>
             <div class="poi-actions">

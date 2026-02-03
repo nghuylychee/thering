@@ -1029,7 +1029,7 @@ body {
     overflow: hidden;
 }
 
-/* Fog of War Styles */
+/* Fog of War Styles - Đã tắt: không còn áp class cell-undiscovered/cell-discovered/cell-visible */
 .grid-cell.cell-undiscovered {
     background: #000 !important;
     opacity: 0.8;
@@ -2252,6 +2252,40 @@ body {
     align-items: center;
 }
 
+.shop-actions .resource-dice {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.shop-actions .resource-dice .dice {
+    width: 56px;
+    height: 56px;
+    background: linear-gradient(145deg, #ffd700, #e6c200);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    font-weight: bold;
+    color: white;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+    box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3), inset 0 1px 0 rgba(255,255,255,0.3);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.shop-actions .resource-dice .dice.rolling {
+    animation: shopDiceRollSpin 0.5s ease-in-out infinite;
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
+}
+
+@keyframes shopDiceRollSpin {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(90deg); }
+    50% { transform: rotate(180deg); }
+    75% { transform: rotate(270deg); }
+}
+
 /* Stat Check POI */
 .stat-check-content {
     margin-bottom: 20px;
@@ -2300,6 +2334,41 @@ body {
     color: #ffd700;
     margin-bottom: 15px;
     font-weight: bold;
+}
+
+.stat-check-poi-screen .stat-roll-section .dice-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 15px 0;
+}
+
+.stat-check-poi-screen .stat-roll-section .dice-container .dice {
+    width: 56px;
+    height: 56px;
+    background: linear-gradient(145deg, #ffd700, #e6c200);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    font-weight: bold;
+    color: white;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+    box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3), inset 0 1px 0 rgba(255,255,255,0.3);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-check-poi-screen .stat-roll-section .dice-container .dice.rolling {
+    animation: statCheckDiceRollSpin 0.5s ease-in-out infinite;
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
+}
+
+@keyframes statCheckDiceRollSpin {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(90deg); }
+    50% { transform: rotate(180deg); }
+    75% { transform: rotate(270deg); }
 }
 
 .stat-result {

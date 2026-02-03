@@ -1640,17 +1640,8 @@ function renderGrid() {
                 continue;
             }
             
-            // Apply fog of war classes
-            const isVisible = isCellVisible(worldX, worldY);
-            const isDiscovered = isCellDiscovered(worldX, worldY);
-            
-            if (isVisible) {
-                cell.classList.add('cell-visible');
-            } else if (isDiscovered) {
-                cell.classList.add('cell-discovered');
-            } else {
-                cell.classList.add('cell-undiscovered');
-            }
+            // Fog of war tắt: không áp class tối, toàn bộ grid hiển thị bình thường
+            // (Giữ isVisible/isDiscovered cho logic nếu cần sau này)
             
             // Set random grid asset background for floor cells
             if (cellData.isFloor && typeof assetManager !== 'undefined' && cellData.gridAssetIndex >= 0) {
@@ -1667,8 +1658,8 @@ function renderGrid() {
             let hasReachableEnemy = false;
             let hasReachableItem = false;
             
-            // Only show content for visible or discovered cells
-            const shouldShowContent = isVisible || isDiscovered;
+            // Fog of war tắt: luôn hiển thị nội dung ô
+            const shouldShowContent = true;
             
             // Check if this cell is reachable
             if (showReachableCells && !cellData.player) {
@@ -1815,11 +1806,14 @@ function renderGrid() {
                             align-items: center;
                             justify-content: center;
                         `;
-                        // Use asset helper to render special grid with image/emoji fallback
-                        if (typeof renderSpecialGrid !== 'undefined') {
+                        // POI: tạm thời luôn dùng emoji từ config (chưa có icon riêng)
+                        if (isPOI) {
+                            specialGridIcon.textContent = specialGridType.emoji;
+                            specialGridIcon.style.fontSize = '32px';
+                            specialGridIcon.style.lineHeight = '1';
+                        } else if (typeof renderSpecialGrid !== 'undefined') {
                             renderSpecialGrid(specialGridIcon, cellData.specialGrid, true);
                         } else {
-                            // Fallback: use asset manager directly
                             if (typeof assetManager !== 'undefined') {
                                 const image = assetManager.getSpecialGridImage(cellData.specialGrid);
                                 const emoji = assetManager.getSpecialGridEmoji(cellData.specialGrid);
@@ -1837,7 +1831,6 @@ function renderGrid() {
                                     specialGridIcon.style.lineHeight = '1';
                                 }
                             } else {
-                                // Ultimate fallback: use emoji
                                 specialGridIcon.textContent = specialGridType.emoji;
                                 specialGridIcon.style.fontSize = '32px';
                                 specialGridIcon.style.lineHeight = '1';
@@ -2589,8 +2582,7 @@ async function movePlayerToCell(targetX, targetY) {
     
     gameState.isMoving = false;
     
-    // Final fog update
-    updateFogOfWar();
+    // Fog of war tắt: không cập nhật fog
     
     // If no more steps, end turn
     if (gameState.playerRemainingSteps <= 0 && gameState.gameRunning) {
@@ -5452,11 +5444,25 @@ function rollShopDice() {
     const shopDice = document.getElementById('shopDice');
     if (!shopDice) return;
     
-    // Roll animation
+    // Start roll animation
     shopDice.classList.add('rolling');
     shopDice.textContent = '?';
     
+    // Cycle through random numbers during roll for visible "rolling" effect
+    const rollDuration = 1000;
+    const tickInterval = 80;
+    let elapsed = 0;
+    const rollInterval = setInterval(() => {
+        elapsed += tickInterval;
+        if (elapsed < rollDuration) {
+            shopDice.textContent = Math.floor(Math.random() * 6) + 1;
+        } else {
+            clearInterval(rollInterval);
+        }
+    }, tickInterval);
+    
     setTimeout(() => {
+        clearInterval(rollInterval);
         const roll = Math.floor(Math.random() * 6) + 1;
         gameState.currentResources = roll;
         gameState.resourceDiceRolled = true;
@@ -5465,131 +5471,107 @@ function rollShopDice() {
         shopDice.textContent = roll;
         
         updateShopCardsAffordability();
-    }, 1000);
+    }, rollDuration);
 }
 
-// Show Stat Check POI
+// Show Stat Check POI — system picks which stat to test and which reward to grant on success
 async function showStatCheckPOI(x, y) {
     const statCheckScreen = document.getElementById('statCheckPOIScreen');
     if (!statCheckScreen) return;
     
-    // Show stat check screen
-    statCheckScreen.style.display = 'flex';
+    // System picks a random stat to test (and reward is defined in config per stat)
+    const statOptions = ['dmg', 'spd', 'int'];
+    const testStat = statOptions[Math.floor(Math.random() * statOptions.length)];
+    const theme = CONFIG.POI_CONFIG.stat_check.dialogueThemes[testStat];
     
-    // Reset UI
-    document.getElementById('statSelection').style.display = 'block';
-    document.getElementById('statRollSection').style.display = 'none';
-    document.getElementById('statResult').style.display = 'none';
-    document.getElementById('statUpgradeSelection').style.display = 'none';
-    
-    // Set up event listeners for stat buttons (in case they weren't set up yet)
-    setupStatCheckListeners();
-    
-    // Store POI position
-    gameState.poiData.currentPOI = { x, y, type: 'stat_check', selectedStat: null, rollResult: null };
-}
-
-// Handle Stat Selection for Stat Check
-function selectStatForCheck(statType) {
-    const statCheck = gameState.poiData.currentPOI;
-    if (!statCheck) return;
-    
-    statCheck.selectedStat = statType;
-    
-    // Get stat value
     let statValue = 0;
-    const theme = CONFIG.POI_CONFIG.stat_check.dialogueThemes[statType];
+    if (testStat === 'dmg') statValue = gameState.playerStats.dmg.max;
+    else if (testStat === 'spd') statValue = gameState.playerStats.spd.max;
+    else if (testStat === 'int') statValue = gameState.playerStats.int.max;
     
-    if (statType === 'dmg') {
-        statValue = gameState.playerStats.dmg.max;
-    } else if (statType === 'spd') {
-        statValue = gameState.playerStats.spd.max;
-    } else if (statType === 'int') {
-        statValue = gameState.playerStats.int.max;
-    }
+    // Store POI data: test stat and predetermined reward upgrade
+    gameState.poiData.currentPOI = {
+        x, y, type: 'stat_check',
+        testStat,
+        rewardUpgrade: theme.rewardUpgrade,
+        rollResult: null
+    };
     
-    // Update UI
+    // Update UI with D&D style title and description
     document.getElementById('statCheckTitle').textContent = `⚔️ ${theme.title}`;
     document.getElementById('statCheckDialogue').textContent = theme.dialogue;
-    document.getElementById('statCheckValue').textContent = `${statType.toUpperCase()}: ${statValue}`;
+    document.getElementById('statCheckValue').textContent = `${testStat.toUpperCase()}: ${statValue}`;
     
-    // Show roll section
-    document.getElementById('statSelection').style.display = 'none';
     document.getElementById('statRollSection').style.display = 'block';
+    document.getElementById('statResult').style.display = 'none';
+    const continueBtn = document.getElementById('statResultContinue');
+    if (continueBtn) continueBtn.style.display = 'none';
+    
+    statCheckScreen.style.display = 'flex';
 }
 
-// Roll Stat Check
+// Roll Stat Check — uses system-picked test stat; on success, auto-applies predetermined reward
 function rollStatCheck() {
     const statCheck = gameState.poiData.currentPOI;
-    if (!statCheck || !statCheck.selectedStat) return;
+    if (!statCheck || !statCheck.testStat) return;
     
     const statCheckDice = document.getElementById('statCheckDice');
     if (!statCheckDice) return;
     
-    // Get stat value
     let statValue = 0;
-    if (statCheck.selectedStat === 'dmg') {
-        statValue = gameState.playerStats.dmg.max;
-    } else if (statCheck.selectedStat === 'spd') {
-        statValue = gameState.playerStats.spd.max;
-    } else if (statCheck.selectedStat === 'int') {
-        statValue = gameState.playerStats.int.max;
-    }
+    if (statCheck.testStat === 'dmg') statValue = gameState.playerStats.dmg.max;
+    else if (statCheck.testStat === 'spd') statValue = gameState.playerStats.spd.max;
+    else if (statCheck.testStat === 'int') statValue = gameState.playerStats.int.max;
     
-    // Roll animation
+    // Start roll animation
     statCheckDice.classList.add('rolling');
     statCheckDice.textContent = '?';
     
+    const rollDuration = 1000;
+    const tickInterval = 80;
+    let elapsed = 0;
+    const rollInterval = setInterval(() => {
+        elapsed += tickInterval;
+        if (elapsed < rollDuration) {
+            statCheckDice.textContent = Math.floor(Math.random() * 6) + 1;
+        } else {
+            clearInterval(rollInterval);
+        }
+    }, tickInterval);
+    
     setTimeout(() => {
+        clearInterval(rollInterval);
         const roll = Math.floor(Math.random() * 6) + 1;
         statCheck.rollResult = roll;
         
         statCheckDice.classList.remove('rolling');
         statCheckDice.textContent = roll;
         
-        // Check win condition (roll >= stat value)
         const won = roll >= statValue;
-        const theme = CONFIG.POI_CONFIG.stat_check.dialogueThemes[statCheck.selectedStat];
+        const theme = CONFIG.POI_CONFIG.stat_check.dialogueThemes[statCheck.testStat];
         
-        // Show result
         document.getElementById('statRollSection').style.display = 'none';
         document.getElementById('statResult').style.display = 'block';
+        document.getElementById('statResultMessage').textContent = won ? theme.success : theme.failure;
         
         if (won) {
-            document.getElementById('statResultMessage').textContent = theme.success;
-            document.getElementById('statUpgradeSelection').style.display = 'block';
+            // System auto-applies the predetermined reward for this trial type
+            const powerupMap = {
+                'dmg_min': { id: 'dmg_min_boost', effect: 'increase_dmg_min', value: 1 },
+                'dmg_max': { id: 'dmg_max_boost', effect: 'increase_dmg_max', value: 1 },
+                'spd_min': { id: 'spd_min_boost', effect: 'increase_spd_min', value: 1 },
+                'spd_max': { id: 'spd_max_boost', effect: 'increase_spd_max', value: 1 },
+                'int_min': { id: 'int_min_boost', effect: 'increase_int_min', value: 1 },
+                'int_max': { id: 'int_max_boost', effect: 'increase_int_max', value: 1 }
+            };
+            const powerup = powerupMap[statCheck.rewardUpgrade];
+            if (powerup) applyPowerupEffect(powerup);
+            const continueBtn = document.getElementById('statResultContinue');
+            if (continueBtn) continueBtn.style.display = 'block';
         } else {
-            document.getElementById('statResultMessage').textContent = theme.failure;
-            // Mark POI as visited even on failure (one attempt only)
-            setTimeout(() => {
-                hideStatCheckPOI();
-            }, 2000);
+            setTimeout(() => hideStatCheckPOI(), 2000);
         }
-    }, 1000);
-}
-
-// Select Stat Upgrade from Stat Check
-function selectStatUpgrade(upgradeType) {
-    // Create powerup object
-    const powerupMap = {
-        'dmg_min': { id: 'dmg_min_boost', effect: 'increase_dmg_min', value: 1 },
-        'dmg_max': { id: 'dmg_max_boost', effect: 'increase_dmg_max', value: 1 },
-        'spd_min': { id: 'spd_min_boost', effect: 'increase_spd_min', value: 1 },
-        'spd_max': { id: 'spd_max_boost', effect: 'increase_spd_max', value: 1 },
-        'int_min': { id: 'int_min_boost', effect: 'increase_int_min', value: 1 },
-        'int_max': { id: 'int_max_boost', effect: 'increase_int_max', value: 1 }
-    };
-    
-    const powerup = powerupMap[upgradeType];
-    if (!powerup) return;
-    
-    // Apply upgrade
-    applyPowerupEffect(powerup);
-    
-    // Close stat check
-    setTimeout(() => {
-        hideStatCheckPOI();
-    }, 1000);
+    }, rollDuration);
 }
 
 // Hide Stat Check POI
@@ -5735,31 +5717,16 @@ if (closeShopPOIBtn) {
     });
 }
 
-// Stat Check POI event listeners (set up when DOM is ready)
+// Stat Check POI event listeners (roll + continue + close)
 function setupStatCheckListeners() {
-    // Stat selection buttons
-    document.querySelectorAll('.stat-btn[data-stat]').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const statType = e.target.dataset.stat;
-            selectStatForCheck(statType);
-        });
-    });
-    
-    // Roll button
     const rollStatCheckBtn = document.getElementById('rollStatCheck');
     if (rollStatCheckBtn) {
-        rollStatCheckBtn.addEventListener('click', () => {
-            rollStatCheck();
-        });
+        rollStatCheckBtn.addEventListener('click', () => rollStatCheck());
     }
-    
-    // Stat upgrade selection buttons
-    document.querySelectorAll('.stat-btn[data-upgrade]').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const upgradeType = e.target.dataset.upgrade;
-            selectStatUpgrade(upgradeType);
-        });
-    });
+    const continueBtn = document.getElementById('statResultContinue');
+    if (continueBtn) {
+        continueBtn.addEventListener('click', () => hideStatCheckPOI());
+    }
 }
 
 // Set up listeners when DOM is ready

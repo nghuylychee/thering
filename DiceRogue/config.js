@@ -77,13 +77,13 @@ const CONFIG = {
         },
         'stat_check': {
             name: 'Stat Challenge',
-            emoji: '⚔️',
+            emoji: '📜',
             type: 'poi',
             walkable: true
         },
         'healer': {
             name: 'Wandering Healer',
-            emoji: '💚',
+            emoji: '❤️‍🩹',
             type: 'poi',
             walkable: true
         }
@@ -97,9 +97,9 @@ const CONFIG = {
     
     // Procedural Dungeon Generation Config
     DUNGEON_CONFIG: {
-        mapWidth: 50,
-        mapHeight: 50,
-        roomCountMin: 8,
+        mapWidth: 30,
+        mapHeight: 30,
+        roomCountMin: 5,
         roomCountMax: 15,
         minRoomSize: 8,
         maxRoomSize: 20,
@@ -158,24 +158,28 @@ const CONFIG = {
             spawnCountMax: 2           // Maximum shops per map
         },
         stat_check: {
+            // System picks one stat to test; on success, grants the corresponding rewardUpgrade (no user choice).
             dialogueThemes: {
                 dmg: {
-                    title: 'Test of Strength',
-                    dialogue: 'Prove your might! Roll against your Damage stat.',
-                    success: 'Your strength impresses! Choose a stat to upgrade.',
-                    failure: 'You lack the strength. Try again when you are stronger.'
+                    title: 'Trial of Strength',
+                    dialogue: 'A stone altar demands proof of your might. Roll a die—you must meet or exceed your Damage to pass this trial.',
+                    success: 'The altar glows with approval. You have proven worthy. The rune grants you +1 to your maximum Damage.',
+                    failure: 'The altar remains cold. You were not strong enough this time. Perhaps another day, warrior.',
+                    rewardUpgrade: 'dmg_max'
                 },
                 spd: {
-                    title: 'Test of Agility',
-                    dialogue: 'Show your speed! Roll against your Speed stat.',
-                    success: 'Your agility amazes! Choose a stat to upgrade.',
-                    failure: 'You are too slow. Practice and return when faster.'
+                    title: 'Trial of Agility',
+                    dialogue: 'A shimmering sigil tests your reflexes. Roll a die—you must meet or exceed your Speed to pass this trial.',
+                    success: 'The sigil flares in recognition. Your swiftness has been acknowledged. You gain +1 to your maximum Speed.',
+                    failure: 'The sigil fades. You were not quick enough. Hone your reflexes and return when you are ready.',
+                    rewardUpgrade: 'spd_max'
                 },
                 int: {
-                    title: 'Test of Wisdom',
-                    dialogue: 'Demonstrate your intellect! Roll against your Intelligence stat.',
-                    success: 'Your wisdom shines! Choose a stat to upgrade.',
-                    failure: 'You lack wisdom. Study more and return when wiser.'
+                    title: 'Trial of Wisdom',
+                    dialogue: 'An ancient obelisk probes your mind. Roll a die—you must meet or exceed your Intelligence to pass this trial.',
+                    success: 'The obelisk hums with resonance. Your wisdom has been recognized. You gain +1 to your maximum Intelligence.',
+                    failure: 'The obelisk falls silent. Your mind was not sharp enough. Seek knowledge and return when you are wiser.',
+                    rewardUpgrade: 'int_max'
                 }
             },
             spawnCountMin: 2,          // Minimum stat checks per map
