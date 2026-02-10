@@ -1,12 +1,17 @@
 // DiceBound Configuration
 
 const CONFIG = {
-    // Grid size
+    // Map source: load level from JSON only (no procedural generation)
+    MAP_SOURCE: 'dicerogue-map.json',
+
+    // Grid size (fallback when map not loaded)
     GRID_W: 8,
     GRID_H: 10,
 
     // Player
     PLAYER_START_VALUE: 2,
+    // Player movement speed (SPD): dice roll range = steps per turn (min-max)
+    PLAYER_SPD: { min: 10, max: 10 },
 
     // Enemy types - D&D Monster Theme (5 types mapped to Monster_Lv1-5 Spine)
     ENEMY_TYPES: [
@@ -106,6 +111,7 @@ const CONFIG = {
         maxRoomSize: 20,
         corridorWidth: 1,
         zoneTypes: ['lava', 'swamp', 'treasure', 'combat', 'mixed'],
+        areaThemeIds: ['greenland', 'freljord', 'hot_sand', 'sakura', 'island'],
         // Enemy spawn per room
         enemyPerRoomMin: 1,  // Minimum enemies per room
         enemyPerRoomMax: 4,  // Maximum enemies per room

@@ -136,34 +136,75 @@ const elements = {
     combatEnemyDiceRange: document.getElementById('combatEnemyDiceRange')
 };
 
-// Initialize Game
-function initGame(levelNumber = 1) {
-    console.log(`Initializing DiceRogue - Level ${levelNumber}...`);
-    
-    // Generate procedural dungeon
-    const dungeonConfig = CONFIG.DUNGEON_CONFIG;
-    const roomCount = Math.floor(Math.random() * (dungeonConfig.roomCountMax - dungeonConfig.roomCountMin + 1)) + dungeonConfig.roomCountMin;
-    const dungeon = generateDungeon(
-        dungeonConfig.mapWidth,
-        dungeonConfig.mapHeight,
-        roomCount,
-        dungeonConfig.minRoomSize,
-        dungeonConfig.maxRoomSize
-    );
-    
-    const gridWidth = dungeonConfig.mapWidth;
-    const gridHeight = dungeonConfig.mapHeight;
-    
-    // Create a minimal levelConfig for compatibility
-    const levelConfig = {
+// Load map data from dicerogue-map.json (no procedural generation)
+function loadMapFromJson() {
+    const path = CONFIG.MAP_SOURCE || 'dicerogue-map.json';
+    return fetch(path).then(function (res) {
+        if (!res.ok) throw new Error('Map load failed: ' + res.status);
+        return res.json();
+    });
+}
+
+// Initialize grid from map terrain (terrain array in levelConfig)
+function initializeGridFromMapTerrain(map) {
+    const gridWidth = map.width;
+    const gridHeight = map.height;
+    const levelConfig = map.levelConfig || {};
+    const terrain = levelConfig.terrain || [];
+    gameState.grid = [];
+    for (let y = 0; y < gridHeight; y++) {
+        gameState.grid[y] = [];
+        const row = terrain[y] || [];
+        for (let x = 0; x < gridWidth; x++) {
+            const cell = row[x] || { type: 'empty' };
+            const isFloor = cell.type === 'floor' || cell.type === 'wall'; // wall removed: treat as floor
+            const gridAssetIndex = isFloor && typeof assetManager !== 'undefined'
+                ? ((x + y) % 4)
+                : -1;
+            gameState.grid[y][x] = {
+                player: false,
+                enemy: null,
+                item: null,
+                specialGrid: null,
+                gold: false,
+                princess: false,
+                portal: false,
+                goldAmount: 0,
+                goldCollected: false,
+                isFloor: isFloor,
+                themeId: (cell.type !== 'empty' && cell.themeId) ? cell.themeId : null,
+                gridAssetIndex: gridAssetIndex
+            };
+        }
+    }
+}
+
+// Initialize Game (load map from dicerogue-map.json, or use mapOverride when provided e.g. playtest)
+function initGame(levelNumber = 1, mapOverride) {
+    const mapPromise = mapOverride
+        ? Promise.resolve(mapOverride)
+        : loadMapFromJson();
+    if (!mapOverride) {
+        console.log(`Initializing DiceRogue - Level ${levelNumber}... (loading map from ${CONFIG.MAP_SOURCE || 'dicerogue-map.json'})`);
+    } else {
+        console.log(`Initializing DiceRogue - Level ${levelNumber}... (playtest map)`);
+    }
+    mapPromise.then(function (map) {
+        return doInitGameWithMap(levelNumber, map);
+    }).catch(function (err) {
+        console.error('Failed to load map:', err);
+        alert('Không tải được bản đồ (dicerogue-map.json). Kiểm tra file và thử lại.');
+    });
+}
+
+function doInitGameWithMap(levelNumber, map) {
+    const gridWidth = map.width;
+    const gridHeight = map.height;
+    const levelConfig = Object.assign({}, map.levelConfig || {}, {
         level: levelNumber,
-        name: `Dungeon Floor ${levelNumber}`,
-        playerStartValue: 2,
-        description: 'Procedurally generated dungeon',
-        enemyCount: Math.floor((gridWidth * gridHeight) / 15),
-        itemCount: Math.floor((gridWidth * gridHeight) / 20),
-        specialGridCount: Math.floor((gridWidth * gridHeight) / 25)
-    };
+        playerStartValue: map.levelConfig && map.levelConfig.playerStartValue != null ? map.levelConfig.playerStartValue : CONFIG.PLAYER_START_VALUE
+    });
+    if (!levelConfig.layout) levelConfig.layout = [];
     
     // Reset runStats if starting a new run (level 1)
     let currentRunStats;
@@ -178,8 +219,9 @@ function initGame(levelNumber = 1) {
         // Apply base upgrades from home screen
         if (typeof HOME_MANAGER !== 'undefined') {
             const baseUpgrades = HOME_MANAGER.getBaseUpgrades();
-            baseMinRoll = 1 + baseUpgrades.minRoll;
-            baseMaxRoll = 2 + baseUpgrades.maxRoll;
+            const spdConfig = (typeof CONFIG !== 'undefined' && CONFIG.PLAYER_SPD) ? CONFIG.PLAYER_SPD : null;
+            baseMinRoll = spdConfig ? spdConfig.min : (1 + baseUpgrades.minRoll);
+            baseMaxRoll = spdConfig ? spdConfig.max : (2 + baseUpgrades.maxRoll);
             baseStartValueBoost = baseUpgrades.startValueBoost;
             
             // Initialize player stats from upgrades
@@ -188,9 +230,9 @@ function initGame(levelNumber = 1) {
             // DMG: min=1 + dmgMin upgrades, max=starting value + dmgMax upgrades
             const baseDMGMin = 1 + baseUpgrades.dmgMin;
             const baseDMGMax = levelConfig.playerStartValue + baseStartValueBoost + baseUpgrades.dmgMax;
-            // SPD: min=1 + spdMin upgrades, max=2 + spdMax upgrades (replaces minRoll-maxRoll)
-            const baseSPDMin = 1 + baseUpgrades.spdMin;
-            const baseSPDMax = 2 + baseUpgrades.spdMax;
+            // SPD: from CONFIG.PLAYER_SPD or min=1+spdMin, max=2+spdMax
+            const baseSPDMin = spdConfig ? spdConfig.min : (1 + baseUpgrades.spdMin);
+            const baseSPDMax = spdConfig ? spdConfig.max : (2 + baseUpgrades.spdMax);
             // INT: min=1 + intMin upgrades, max=2 + intMax upgrades
             const baseINTMin = 1 + baseUpgrades.intMin;
             const baseINTMax = 2 + baseUpgrades.intMax;
@@ -204,10 +246,11 @@ function initGame(levelNumber = 1) {
         } else {
             // Fallback if HOME_MANAGER not available
             const baseHP = levelConfig.playerStartValue + baseStartValueBoost;
+            const spdConfig = (typeof CONFIG !== 'undefined' && CONFIG.PLAYER_SPD) ? CONFIG.PLAYER_SPD : { min: 1, max: 2 };
             playerStats = {
                 hp: { current: baseHP, max: baseHP },
                 dmg: { min: 1, max: baseHP },
-                spd: { min: 1, max: 2 },
+                spd: { min: spdConfig.min, max: spdConfig.max },
                 int: { min: 1, max: 2 }
             };
         }
@@ -237,10 +280,11 @@ function initGame(levelNumber = 1) {
         } else {
             // Fallback if playerStats doesn't exist
             const baseHP = levelConfig.playerStartValue + currentRunStats.startValueBoost;
+            const spdConfig = (typeof CONFIG !== 'undefined' && CONFIG.PLAYER_SPD) ? CONFIG.PLAYER_SPD : { min: currentRunStats.minRoll, max: currentRunStats.maxRoll };
             playerStats = {
                 hp: { current: baseHP, max: baseHP },
                 dmg: { min: 1, max: baseHP },
-                spd: { min: currentRunStats.minRoll, max: currentRunStats.maxRoll },
+                spd: { min: spdConfig.min, max: spdConfig.max },
                 int: { min: 1, max: 2 }
             };
         }
@@ -357,8 +401,13 @@ function initGame(levelNumber = 1) {
         poiData: {} // Object to store POI-specific data
     };
 
-    // Initialize grid from dungeon
-    initializeGridFromDungeon(dungeon, gridWidth, gridHeight);
+    // Initialize grid from map terrain (no dungeon)
+    initializeGridFromMapTerrain(map);
+    if (map.levelConfig && map.levelConfig.multiCellDecors) {
+        gameState.multiCellDecors = map.levelConfig.multiCellDecors;
+    } else {
+        gameState.multiCellDecors = [];
+    }
     
     // Initialize camera system
     if (typeof CAMERA !== 'undefined') {
@@ -368,9 +417,26 @@ function initGame(levelNumber = 1) {
     // Initialize day/night cycle (reset when starting new run)
     initDayNightCycle(levelNumber === 1);
     
-    // Place entities from dungeon
-    const entities = placeEntities(dungeon, levelConfig);
-    loadDungeonEntities(entities, dungeon.playerStart);
+    // Place entities from layout (P, enemies, items, specials)
+    loadLevelFromLayout(levelConfig);
+    
+    // Apply multiCellDecors: mark all cells under decor as unwalkable (no wall fill – keep floor look, decor layer draws on top)
+    if (gameState.multiCellDecors && gameState.multiCellDecors.length > 0) {
+        gameState.multiCellDecors.forEach(function (d) {
+            const w = Math.max(1, Number(d.w) || 1);
+            const h = Math.max(1, Number(d.h) || 1);
+            const dx = Number(d.x) || 0;
+            const dy = Number(d.y) || 0;
+            for (let gy = dy; gy < dy + h; gy++) {
+                for (let gx = dx; gx < dx + w; gx++) {
+                    if (gy >= 0 && gy < gameState.gridHeight && gx >= 0 && gx < gameState.gridWidth && gameState.grid[gy] && gameState.grid[gy][gx]) {
+                        gameState.grid[gy][gx].isFloor = false;
+                        gameState.grid[gy][gx].blockedByDecor = true;
+                    }
+                }
+            }
+        });
+    }
     
     // Initialize fog of war - discover starting room
     // updateFogOfWar(); // TEMPORARILY DISABLED
@@ -1376,6 +1442,9 @@ function loadLevelFromLayout(levelConfig) {
                         gameState.grid[y][x].goldAmount = levelConfig.goldPerBag || 5;
                         break;
                         
+                    case 'W':
+                        // Wall (ignored – wall logic removed)
+                        break;
                     case '.':
                     case ' ':
                     case 0:
@@ -1578,9 +1647,12 @@ function renderGrid() {
     // Move player Spine layer out of grid before clear so it isn't destroyed (same fix as enemy pool)
     var playerLayer = document.getElementById('spine-player-layer');
     var gridParent = elements.gameGrid && elements.gameGrid.parentElement;
-    if (playerLayer && gridParent && elements.gameGrid.contains(playerLayer)) {
-        playerLayer.parentNode.removeChild(playerLayer);
-        gridParent.appendChild(playerLayer);
+    if (playerLayer && gridParent) {
+        // Always move to gridParent before clear (layer may be inside a cell or already sibling of gameGrid)
+        if (playerLayer.parentNode !== gridParent) {
+            playerLayer.parentNode && playerLayer.parentNode.removeChild(playerLayer);
+            gridParent.appendChild(playerLayer);
+        }
     }
     elements.gameGrid.innerHTML = '';
     
@@ -1614,6 +1686,7 @@ function renderGrid() {
     // Create cells in row-major order (top to bottom, left to right)
     const viewportWidth = endX - startX;
     const viewportHeight = endY - startY;
+    let playerCellForSpine = null;
     
     for (let viewportY = 0; viewportY < viewportHeight; viewportY++) {
         for (let viewportX = 0; viewportX < viewportWidth; viewportX++) {
@@ -1623,40 +1696,28 @@ function renderGrid() {
             
             // Get cell data from world coordinates
             const cellData = gameState.grid[worldY] && gameState.grid[worldY][worldX];
+            if (!cellData) {
+                const cell = document.createElement('div');
+                cell.className = 'grid-cell';
+                cell.dataset.x = worldX;
+                cell.dataset.y = worldY;
+                elements.gameGrid.appendChild(cell);
+                continue;
+            }
             
-            // Create cell element (always create, even for walls)
+            // Create cell element
             const cell = document.createElement('div');
             cell.className = 'grid-cell';
             cell.dataset.x = worldX;
             cell.dataset.y = worldY;
             
-            // If cell doesn't exist or is a wall, display as river and skip to next
-            if (!cellData || cellData.isFloor === false) {
-                // Display river for all wall cells (non-walkable areas)
-                if (typeof assetManager !== 'undefined') {
-                    const riverImage = assetManager.getRiverImage();
-                    if (riverImage) {
-                        cell.style.backgroundImage = `url(${riverImage.src})`;
-                        cell.style.backgroundSize = 'cover';
-                        cell.style.backgroundPosition = 'center';
-                        cell.style.backgroundRepeat = 'no-repeat';
-                    } else if (assetManager.config.settings.fallbackToEmoji) {
-                        // Fallback to emoji if image not available
-                        cell.textContent = assetManager.getRiverEmoji();
-                    }
-                }
-                // Wall cells are displayed as rivers
-                cell.classList.add('wall-cell');
-                elements.gameGrid.appendChild(cell);
-                continue;
-            }
-            
-            // Fog of war tắt: không áp class tối, toàn bộ grid hiển thị bình thường
-            // (Giữ isVisible/isDiscovered cho logic nếu cần sau này)
-            
-            // Set random grid asset background for floor cells
-            if (cellData.isFloor && typeof assetManager !== 'undefined' && cellData.gridAssetIndex >= 0) {
-                const gridImage = assetManager.getGridCellImage(cellData.gridAssetIndex);
+            // Set grid asset background for all cells (no wall – floor tile only)
+            const gridAssetIndex = cellData.gridAssetIndex >= 0 ? cellData.gridAssetIndex : (worldX + worldY) % 4;
+            if (typeof assetManager !== 'undefined') {
+                const themeId = cellData.themeId || null;
+                const gridImage = themeId && typeof assetManager.getGridCellImageForTheme === 'function'
+                    ? assetManager.getGridCellImageForTheme(themeId, gridAssetIndex)
+                    : assetManager.getGridCellImage(gridAssetIndex);
                 if (gridImage) {
                     cell.style.backgroundImage = `url(${gridImage.src})`;
                     cell.style.backgroundSize = 'cover';
@@ -1730,9 +1791,11 @@ function renderGrid() {
                 cell.classList.add('combat');
             }
             
-            // Add player (Spine Assassin or image/emoji fallback)
+            // Add player (Spine Fighter or image/emoji fallback) — same cell gets value-badge and spine layer so they move together
             if (cellData.player) {
                 cell.classList.add('player');
+                cell.setAttribute('data-player-cell', '1');
+                playerCellForSpine = cell;
                 const useSpine = typeof SpinePlayerIntegration !== 'undefined' && SpinePlayerIntegration.isEnabled && SpinePlayerIntegration.isEnabled();
                 if (!useSpine) {
                     if (typeof renderPlayer !== 'undefined') {
@@ -1831,12 +1894,8 @@ function renderGrid() {
                             align-items: center;
                             justify-content: center;
                         `;
-                        // POI: tạm thời luôn dùng emoji từ config (chưa có icon riêng)
-                        if (isPOI) {
-                            specialGridIcon.textContent = specialGridType.emoji;
-                            specialGridIcon.style.fontSize = '32px';
-                            specialGridIcon.style.lineHeight = '1';
-                        } else if (typeof renderSpecialGrid !== 'undefined') {
+                        // POI and special grids: use asset image if available, else emoji
+                        if (typeof renderSpecialGrid !== 'undefined') {
                             renderSpecialGrid(specialGridIcon, cellData.specialGrid, true);
                         } else {
                             if (typeof assetManager !== 'undefined') {
@@ -2092,6 +2151,31 @@ function renderGrid() {
         }
     }
     
+    // Fill multi-cell decor overlay (sprites spanning 2x2, 1x2, etc.)
+    const multiCellLayer = document.getElementById('multi-cell-decor-layer');
+    if (multiCellLayer) {
+        multiCellLayer.innerHTML = '';
+        if (gameState.multiCellDecors && gameState.multiCellDecors.length > 0 && typeof assetManager !== 'undefined') {
+            gameState.multiCellDecors.forEach(function (d) {
+            if (d.x + d.w <= startX || d.x >= endX || d.y + d.h <= startY || d.y >= endY) return;
+            const col = d.x - startX + 1;
+            const row = d.y - startY + 1;
+            const img = assetManager.getMultiCellDecorImageForTheme && assetManager.getMultiCellDecorImageForTheme(d.themeId, d.assetId);
+            if (!img) return;
+            const block = document.createElement('div');
+            block.className = 'multi-cell-decor-block';
+            block.style.gridColumn = col + ' / span ' + (d.w || 1);
+            block.style.gridRow = row + ' / span ' + (d.h || 1);
+            const sprite = document.createElement('img');
+            sprite.className = 'multi-cell-decor-sprite';
+            sprite.src = img.src || img;
+            sprite.alt = '';
+            block.appendChild(sprite);
+            multiCellLayer.appendChild(block);
+            });
+        }
+    }
+    
     // Re-render pending spawn previews (always recreate after grid re-render)
     gameState.pendingSpawns.forEach(spawn => {
         const cell = elements.gameGrid.querySelector(`[data-x="${spawn.x}"][data-y="${spawn.y}"]`);
@@ -2170,16 +2254,33 @@ function renderGrid() {
         }, 0);
     }
 
-    // Spine: position player layer over player cell and init if needed
+    // Spine: position player layer over player cell only after layout (avoid getBoundingClientRect() on fresh cells = 0 size → visual disappears)
     if (typeof SpinePlayerIntegration !== 'undefined' && gameState.gameRunning && gameState.player) {
         if (SpinePlayerIntegration.isEnabled && SpinePlayerIntegration.isEnabled()) {
             const layer = document.getElementById('spine-player-layer');
             const container = document.getElementById('spine-player-container');
-            if (layer && container && !SpinePlayerIntegration.getInstance()) {
-                SpinePlayerIntegration.init(container);
-            }
-            SpinePlayerIntegration.positionOverPlayerCell();
             SpinePlayerIntegration.setVisible(true);
+            if (layer && container && !SpinePlayerIntegration.getInstance()) {
+                requestAnimationFrame(function () {
+                    requestAnimationFrame(function () {
+                        if (!SpinePlayerIntegration.getInstance() && container.parentElement && container.parentElement.offsetWidth > 0) {
+                            SpinePlayerIntegration.init(container);
+                        }
+                    });
+                });
+            }
+            var cellRef = playerCellForSpine;
+            requestAnimationFrame(function () {
+                requestAnimationFrame(function () {
+                    if (typeof SpinePlayerIntegration === 'undefined' || !SpinePlayerIntegration.positionOverPlayerCell) return;
+                    if (!gameState.gameRunning || !gameState.player) return;
+                    var cell = cellRef;
+                    if (!cell || !cell.isConnected) {
+                        cell = elements.gameGrid.querySelector('.grid-cell[data-player-cell="1"]');
+                    }
+                    SpinePlayerIntegration.positionOverPlayerCell(cell || undefined);
+                });
+            });
         }
     } else if (typeof SpinePlayerIntegration !== 'undefined' && SpinePlayerIntegration.setVisible) {
         SpinePlayerIntegration.setVisible(false);
@@ -2525,7 +2626,8 @@ async function movePlayerToCell(targetX, targetY) {
     
     gameState.isMoving = true;
     if (typeof SpinePlayerIntegration !== 'undefined' && SpinePlayerIntegration.play) {
-        SpinePlayerIntegration.play('AssassinPyramid_Walk_01', true);
+        var walkAnim = (window.SPINE_CONFIG && window.SPINE_CONFIG.combatPlayerWalk) ? window.SPINE_CONFIG.combatPlayerWalk : 'Fighter_Walk_01';
+        SpinePlayerIntegration.play(walkAnim, true);
     }
     
     // Move step by step following the path
@@ -2636,7 +2738,7 @@ async function movePlayerToCell(targetX, targetY) {
     
     gameState.isMoving = false;
     if (typeof SpinePlayerIntegration !== 'undefined' && SpinePlayerIntegration.play) {
-        var idleAnim = (window.SPINE_CONFIG && window.SPINE_CONFIG.combatPlayerIdle) ? window.SPINE_CONFIG.combatPlayerIdle : 'AssassinPyramid_Idle_01';
+        var idleAnim = (window.SPINE_CONFIG && window.SPINE_CONFIG.combatPlayerIdle) ? window.SPINE_CONFIG.combatPlayerIdle : 'Fighter_Idle_01';
         SpinePlayerIntegration.play(idleAnim, true);
     }
     
@@ -2976,7 +3078,8 @@ async function movePlayerToCellWithAnimation(targetX, targetY) {
         // Move step by step following the path with animation
         gameState.isMoving = true;
         if (typeof SpinePlayerIntegration !== 'undefined' && SpinePlayerIntegration.play) {
-            SpinePlayerIntegration.play('AssassinPyramid_Walk_01', true);
+            var walkAnim = (window.SPINE_CONFIG && window.SPINE_CONFIG.combatPlayerWalk) ? window.SPINE_CONFIG.combatPlayerWalk : 'Fighter_Walk_01';
+            SpinePlayerIntegration.play(walkAnim, true);
         }
         for (let i = 0; i < path.length && gameState.gameRunning; i++) {
             const direction = path[i];
@@ -2994,7 +3097,7 @@ async function movePlayerToCellWithAnimation(targetX, targetY) {
         }
         gameState.isMoving = false;
         if (typeof SpinePlayerIntegration !== 'undefined' && SpinePlayerIntegration.play) {
-            var pyramidIdle = (window.SPINE_CONFIG && window.SPINE_CONFIG.combatPlayerIdle) ? window.SPINE_CONFIG.combatPlayerIdle : 'AssassinPyramid_Idle_01';
+            var pyramidIdle = (window.SPINE_CONFIG && window.SPINE_CONFIG.combatPlayerIdle) ? window.SPINE_CONFIG.combatPlayerIdle : 'Fighter_Idle_01';
             SpinePlayerIntegration.play(pyramidIdle, true);
         }
     }
@@ -3859,9 +3962,9 @@ async function animateAttack(attacker, defender) {
     
     if (!attackerArea || !defenderArea) return;
     
-    // Spine: player uses AssassinPyramid_Attack_01 when attacking
+    // Spine: player uses Fighter_Attack_01 (or SPINE_CONFIG.combatPlayerAttack) when attacking
     if (attacker === 'player' && typeof SpinePlayerIntegration !== 'undefined' && SpinePlayerIntegration.playCombatPlayerAnimation) {
-        const attackAnim = (window.SPINE_CONFIG && window.SPINE_CONFIG.combatPlayerAttack) || 'AssassinPyramid_Attack_01';
+        const attackAnim = (window.SPINE_CONFIG && window.SPINE_CONFIG.combatPlayerAttack) || 'Fighter_Attack_01';
         SpinePlayerIntegration.playCombatPlayerAnimation(attackAnim, false);
     }
     
@@ -4566,17 +4669,7 @@ async function enemyTurnParallel(enemiesInViewport) {
     const maxSteps = Math.max(...entries.map(e => Math.min(e.roll, e.path.length)));
     
     for (let step = 0; step < maxSteps && gameState.gameRunning; step++) {
-        if (typeof SpineEnemyIntegration !== 'undefined' && SpineEnemyIntegration.isEnabled && SpineEnemyIntegration.isEnabled()) {
-            for (var ei = 0; ei < entries.length; ei++) {
-                var e = entries[ei];
-                if (step >= e.path.length) continue;
-                var c = elements.gameGrid.querySelector('[data-x="' + e.curX + '"][data-y="' + e.curY + '"]');
-                if (c && e.enemy.type) {
-                    var jumpAnim = SpineEnemyIntegration.getJumpAnimation ? SpineEnemyIntegration.getJumpAnimation(e.enemy.type) : 'Monster1_Jump_01';
-                    SpineEnemyIntegration.playAnimationInCell(c, jumpAnim, false);
-                }
-            }
-        }
+        /* Do not play jump / reset enemy spine on move – keep current animation (e.g. Fly_01) playing */
         const taken = new Set();
         const moves = [];
         
@@ -4662,14 +4755,7 @@ async function enemyTurnParallel(enemiesInViewport) {
         await sleep(150);
     }
     
-    if (typeof SpineEnemyIntegration !== 'undefined' && SpineEnemyIntegration.playDefaultInCell) {
-        for (var ei = 0; ei < entries.length; ei++) {
-            var e = entries[ei];
-            if (!gameState.enemies.find(function (x) { return x.id === e.enemy.id; })) continue;
-            var c = elements.gameGrid.querySelector('[data-x="' + e.curX + '"][data-y="' + e.curY + '"]');
-            if (c) SpineEnemyIntegration.playDefaultInCell(c);
-        }
-    }
+    /* Do not reset enemy spine to default after move – animation continues without reset */
     
     await endEnemyTurn();
 }
@@ -4746,13 +4832,7 @@ async function enemyTurn() {
                 
                 // Move enemy to player position if not already there
                 if (distance === 1) {
-                    if (typeof SpineEnemyIntegration !== 'undefined' && SpineEnemyIntegration.isEnabled && SpineEnemyIntegration.isEnabled() && enemy.type) {
-                        var atkCell = elements.gameGrid.querySelector('[data-x="' + enemy.x + '"][data-y="' + enemy.y + '"]');
-                        if (atkCell) {
-                            var jumpAnim = SpineEnemyIntegration.getJumpAnimation ? SpineEnemyIntegration.getJumpAnimation(enemy.type) : 'Monster1_Jump_01';
-                            SpineEnemyIntegration.playAnimationInCell(atkCell, jumpAnim, false);
-                        }
-                    }
+                    /* Do not play jump – keep enemy spine animation as-is */
                     gameState.grid[enemy.y][enemy.x].enemy = null;
                     enemy.x = playerX;
                     enemy.y = playerY;
@@ -4791,13 +4871,7 @@ async function enemyTurn() {
             continue;
         }
         
-        if (typeof SpineEnemyIntegration !== 'undefined' && SpineEnemyIntegration.isEnabled && SpineEnemyIntegration.isEnabled() && enemy.type) {
-            var enemyCell = elements.gameGrid.querySelector('[data-x="' + enemy.x + '"][data-y="' + enemy.y + '"]');
-            if (enemyCell) {
-                var jumpAnim = SpineEnemyIntegration.getJumpAnimation ? SpineEnemyIntegration.getJumpAnimation(enemy.type) : 'Monster1_Jump_01';
-                SpineEnemyIntegration.playAnimationInCell(enemyCell, jumpAnim, false);
-            }
-        }
+                    /* Do not play jump on enemy move – keep current animation */
         
         // Move enemy step by step following the path
         for (let i = 0; i < path.length && i < roll && gameState.gameRunning; i++) {
@@ -4896,10 +4970,7 @@ async function enemyTurn() {
             await sleep(200);
         }
         
-        if (typeof SpineEnemyIntegration !== 'undefined' && SpineEnemyIntegration.playDefaultInCell) {
-            var endCell = elements.gameGrid.querySelector('[data-x="' + enemy.x + '"][data-y="' + enemy.y + '"]');
-            if (endCell) SpineEnemyIntegration.playDefaultInCell(endCell);
-        }
+        /* Do not reset enemy spine to default after move – animation continues without reset */
     }
     
     await endEnemyTurn();
@@ -6171,16 +6242,11 @@ function renderFullMap() {
             cell.dataset.y = y;
             
             const cellData = gameState.grid[y] && gameState.grid[y][x];
-            
-            // Check if it's a wall
-            if (!cellData || cellData.isFloor === false) {
-                cell.classList.add('wall');
+            if (!cellData) {
                 fullMapGrid.appendChild(cell);
                 continue;
             }
-            
-            // It's a floor
-            cell.classList.add('floor');
+            cell.classList.add(cellData.isFloor !== false ? 'floor' : 'unwalkable');
             
             // Check for entities at this position
             const key = `${x},${y}`;

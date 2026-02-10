@@ -4,6 +4,8 @@
 const ASSETS_CONFIG = {
     // Base path for assets
     basePath: 'assets/images/',
+    // Base path for theme map assets (assets/map/greenland|freljord|hotsand|sakura|island/...)
+    mapBasePath: 'assets/map/',
     
     // Player assets - chỉ cần 1 hình
     player: {
@@ -66,19 +68,98 @@ const ASSETS_CONFIG = {
             emoji: '🔥'
         },
         'swamp': {
-            image: 'grid/swamp.png',
-            emoji: '🌊'
+            image: 'backgrounds/bomb.png',
+            emoji: '💣'
         },
         'canon': {
-            image: 'grid/teleport-rune.png',
+            image: 'items/tele.png',
             emoji: '⚡'
+        },
+        'healer': {
+            image: 'items/shipper.png',
+            emoji: '💚'
+        },
+        'shop': {
+            image: 'items/merchant.png',
+            emoji: '🏪'
+        },
+        'stat_check': {
+            image: 'items/trial.png',
+            emoji: '⚔️'
         }
     },
     
-    // River/Water assets for wall cells (non-walkable areas - displayed as rivers)
+    // Wall cells: grid underneath + decor sprite on top (transparent background)
     river: {
-        image: 'backgrounds/river.png', // Main river asset
+        image: 'backgrounds/river.png', // Legacy; wall cells now use grid + decor
+        decorImage: 'decor/decor1.png', // Sprite on top of grid (e.g. tree)
         emoji: '🌊' // Fallback emoji
+    },
+    
+    // Multi-cell unwalkable decor (2x2, 1x2, etc.) – assetId -> { image, w, h }
+    multiCellDecorAssets: {
+        'decor_2x2': { image: 'decor/decor1.png', w: 2, h: 2 },
+        'decor_1x2': { image: 'decor/decor2.png', w: 1, h: 2 },
+        'decor_2x1': { image: 'decor/decor3.png', w: 2, h: 1 }
+    },
+    
+    // Area themes (Greenland, Freljord, Hot sand, Sakura, Island) – per-theme grid + decor; fallback to gridCells/river/multiCellDecorAssets when missing
+    areaThemes: [
+        { id: 'greenland', name: 'Greenland' },
+        { id: 'freljord', name: 'Freljord' },
+        { id: 'hot_sand', name: 'Hot sand' },
+        { id: 'sakura', name: 'Sakura' },
+        { id: 'island', name: 'Island' }
+    ],
+    themes: {
+        greenland: {
+            gridCells: { variants: [], default: 'greenland/grid/grid.png' },
+            wallDecor: 'greenland/decor/decor1.png',
+            multiCellDecorAssets: {
+                'decor_1x1': { image: 'greenland/decor/decor2.png', w: 1, h: 1 },
+                'decor_2x2': { image: 'greenland/decor/decor3.png', w: 2, h: 2 },
+                'decor_2x2_4': { image: 'greenland/decor/decor4.png', w: 2, h: 2 }
+            }
+        },
+        freljord: {
+            gridCells: { variants: [], default: 'freljord/grid/grid.png' },
+            wallDecor: 'freljord/decor/decor1.png',
+            multiCellDecorAssets: {
+                'decor_2x2': { image: 'freljord/decor/decor2.png', w: 2, h: 2 },
+                'decor_1x2': { image: 'freljord/decor/decor3.png', w: 1, h: 2 },
+                'decor_2x1': { image: 'freljord/decor/decor4.png', w: 2, h: 1 }
+            }
+        },
+        hot_sand: {
+            gridCells: { variants: [], default: 'hotsand/grid/grid.png' },
+            wallDecor: 'hotsand/decor/decor1.png',
+            multiCellDecorAssets: {
+                'decor_2x2': { image: 'hotsand/decor/decor2.png', w: 2, h: 2 },
+                'decor_2x2_3': { image: 'hotsand/decor/decor3.png', w: 2, h: 2 },
+                'decor_3x1': { image: 'hotsand/decor/decor4.png', w: 2, h: 1 }
+            }
+        },
+        sakura: {
+            gridCells: { variants: [], default: 'sakura/grid/grid.png' },
+            wallDecor: 'sakura/decor/decor1.png',
+            multiCellDecorAssets: {
+                'decor_1x1': { image: 'sakura/decor/decor1.png', w: 1, h: 1 },
+                'decor_3x2': { image: 'sakura/decor/decor2.png', w: 3, h: 2 },
+                'decor_2x2': { image: 'sakura/decor/decor3.png', w: 2, h: 2 },
+                'decor_2x2_4': { image: 'sakura/decor/decor4.png', w: 2, h: 2 }
+            }
+        },
+        island: {
+            gridCells: { variants: [], default: 'island/grid/grid.png' },
+            wallDecor: 'island/decor/decor1.png',
+            multiCellDecorAssets: {
+                'decor_1x2': { image: 'island/decor/decor1.png', w: 1, h: 2 },
+                'decor_1x1': { image: 'island/decor/decor2.png', w: 1, h: 1 },
+                'decor_2x2': { image: 'island/decor/decor3.png', w: 2, h: 2 },
+                'decor_2x2_4': { image: 'island/decor/decor4.png', w: 2, h: 2 },
+                'decor_1x2_5': { image: 'island/decor/decor5.png', w: 1, h: 2 }
+            }
+        }
     },
     
     // UI assets
@@ -133,8 +214,12 @@ class AssetManager {
         this.onLoadCallbacks = [];
     }
     
-    // Get full path for an asset
+    // Get full path for an asset (theme map paths use mapBasePath)
     getAssetPath(relativePath) {
+        const mapPrefix = /^(greenland|freljord|hotsand|sakura|island)\//;
+        if (this.config.mapBasePath && mapPrefix.test(relativePath)) {
+            return this.config.mapBasePath + relativePath;
+        }
         return this.config.basePath + relativePath;
     }
     
@@ -228,9 +313,33 @@ class AssetManager {
             }
         }
         
-        // River asset for wall cells
-        if (this.config.river && this.config.river.image) {
-            allPaths.push(this.config.river.image);
+        // River/wall assets for wall cells
+        if (this.config.river) {
+            if (this.config.river.image) allPaths.push(this.config.river.image);
+            if (this.config.river.decorImage) allPaths.push(this.config.river.decorImage);
+        }
+        
+        // Multi-cell decor assets
+        if (this.config.multiCellDecorAssets) {
+            Object.values(this.config.multiCellDecorAssets).forEach(asset => {
+                if (asset && asset.image) allPaths.push(asset.image);
+            });
+        }
+        
+        // Theme assets (grid, wall decor, multi-cell per theme)
+        if (this.config.themes) {
+            Object.values(this.config.themes).forEach(theme => {
+                if (theme.gridCells) {
+                    (theme.gridCells.variants || []).forEach(p => allPaths.push(p));
+                    if (theme.gridCells.default) allPaths.push(theme.gridCells.default);
+                }
+                if (theme.wallDecor) allPaths.push(theme.wallDecor);
+                if (theme.multiCellDecorAssets) {
+                    Object.values(theme.multiCellDecorAssets).forEach(asset => {
+                        if (asset && asset.image) allPaths.push(asset.image);
+                    });
+                }
+            });
         }
         
         console.log(`Preloading ${allPaths.length} assets...`);
@@ -339,16 +448,72 @@ class AssetManager {
         return Math.floor(Math.random() * this.config.gridCells.variants.length);
     }
     
-    // Get river image for wall cells (non-walkable areas displayed as rivers)
+    // Get river image for wall cells (legacy)
     getRiverImage() {
         if (!this.config.settings.useImages) return null;
         if (!this.config.river || !this.config.river.image) return null;
         return this.getImage(this.config.river.image);
     }
     
+    // Get wall decor image (sprite on top of grid for wall cells)
+    getWallDecorImage() {
+        if (!this.config.settings.useImages) return null;
+        if (!this.config.river || !this.config.river.decorImage) return null;
+        return this.getImage(this.config.river.decorImage);
+    }
+    
     // Get river emoji fallback
     getRiverEmoji() {
         return this.config.river ? (this.config.river.emoji || '🌊') : '🌊';
+    }
+    
+    // Multi-cell decor: get config { image, w, h } by assetId
+    getMultiCellDecorConfig(assetId) {
+        if (!this.config.multiCellDecorAssets || !assetId) return null;
+        return this.config.multiCellDecorAssets[assetId] || null;
+    }
+    
+    // Multi-cell decor: get loaded image for assetId
+    getMultiCellDecorImage(assetId) {
+        const config = this.getMultiCellDecorConfig(assetId);
+        if (!config || !config.image) return null;
+        return this.getImage(config.image);
+    }
+    
+    // Theme-aware getters (fallback to global grid/river/multiCell when theme or path missing)
+    getGridCellImageForTheme(themeId, variantIndex) {
+        if (!this.config.settings.useImages) return null;
+        const theme = this.config.themes && themeId ? this.config.themes[themeId] : null;
+        const gridCells = (theme && theme.gridCells) ? theme.gridCells : this.config.gridCells;
+        if (!gridCells || !gridCells.variants) return null;
+        const variants = gridCells.variants;
+        if (variantIndex >= 0 && variantIndex < variants.length) {
+            const img = this.getImage(variants[variantIndex]);
+            if (img) return img;
+        }
+        if (gridCells.default) return this.getImage(gridCells.default);
+        return null;
+    }
+    
+    getWallDecorImageForTheme(themeId) {
+        if (!this.config.settings.useImages) return null;
+        const theme = this.config.themes && themeId ? this.config.themes[themeId] : null;
+        const path = (theme && theme.wallDecor) ? theme.wallDecor : (this.config.river && this.config.river.decorImage ? this.config.river.decorImage : null);
+        if (!path) return null;
+        return this.getImage(path);
+    }
+    
+    getMultiCellDecorConfigForTheme(themeId, assetId) {
+        if (!assetId) return null;
+        const theme = this.config.themes && themeId ? this.config.themes[themeId] : null;
+        const assets = (theme && theme.multiCellDecorAssets) ? theme.multiCellDecorAssets : this.config.multiCellDecorAssets;
+        return assets && assets[assetId] ? assets[assetId] : null;
+    }
+    
+    getMultiCellDecorImageForTheme(themeId, assetId) {
+        const config = this.getMultiCellDecorConfigForTheme(themeId, assetId);
+        if (!config || !config.image) return null;
+        return this.getImage(config.image);
     }
 }
 

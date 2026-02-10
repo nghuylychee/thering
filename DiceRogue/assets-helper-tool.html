@@ -171,11 +171,87 @@
             border-radius: 5px;
             color: #f1c40f;
         }
+        
+        .theme-subsection {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 15px;
+            margin: 12px 0;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .theme-subsection h3 {
+            color: #f1c40f;
+            font-size: 18px;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .theme-asset-row {
+            font-size: 12px;
+            margin: 6px 0;
+            font-family: 'Courier New', monospace;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .asset-preview {
+            width: 48px;
+            height: 48px;
+            min-width: 48px;
+            min-height: 48px;
+            object-fit: contain;
+            background: rgba(0,0,0,0.3);
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.15);
+        }
+        .asset-preview.failed { opacity: 0.3; }
+        .theme-preview {
+            width: 40px;
+            height: 40px;
+            min-width: 40px;
+            min-height: 40px;
+            object-fit: contain;
+            background: rgba(0,0,0,0.3);
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .theme-preview.failed { opacity: 0.3; }
+        .asset-item .preview-wrap { margin-bottom: 10px; }
+        .header-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 18px;
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+        .back-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.35);
+            color: #ffd700;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🎨 Asset Helper Tool - DiceRogue</h1>
+        <div class="header-row">
+            <a href="index.html" class="back-btn">← Back to main menu</a>
+            <h1 style="margin: 0;">🎨 Asset Helper Tool - DiceRogue</h1>
+        </div>
         
         <div class="instructions">
             <h3>📋 Hướng dẫn nhanh:</h3>
@@ -187,27 +263,38 @@
         </div>
         
         <div class="section">
+            <h2>🗺️ Themed assets (by area)</h2>
+            <p style="margin-bottom: 15px; color: rgba(255,255,255,0.8);">Each area theme has its own grid tiles, wall decor, and multi-cell decor. Fallback uses the default grid/decor when a theme has no assets.</p>
+            <div id="themedAssets"></div>
+        </div>
+        
+        <div class="section">
             <h2>👤 Player Assets</h2>
+            <p style="margin-bottom: 10px; color: rgba(255,255,255,0.7); font-size: 13px;">Shared across all themes.</p>
             <div class="asset-list" id="playerAssets"></div>
         </div>
         
         <div class="section">
             <h2>👹 Enemy Assets</h2>
+            <p style="margin-bottom: 10px; color: rgba(255,255,255,0.7); font-size: 13px;">Shared across all themes.</p>
             <div class="asset-list" id="enemyAssets"></div>
         </div>
         
         <div class="section">
             <h2>💎 Item Assets</h2>
+            <p style="margin-bottom: 10px; color: rgba(255,255,255,0.7); font-size: 13px;">Shared across all themes.</p>
             <div class="asset-list" id="itemAssets"></div>
         </div>
         
         <div class="section">
-            <h2>🗺️ Special Grid Assets</h2>
+            <h2>🎯 Special Grid Assets</h2>
+            <p style="margin-bottom: 10px; color: rgba(255,255,255,0.7); font-size: 13px;">Shared across all themes.</p>
             <div class="asset-list" id="gridAssets"></div>
         </div>
         
         <div class="section">
             <h2>🎮 UI Assets</h2>
+            <p style="margin-bottom: 10px; color: rgba(255,255,255,0.7); font-size: 13px;">Shared across all themes.</p>
             <div class="asset-list" id="uiAssets"></div>
         </div>
         
@@ -219,7 +306,16 @@
 
     <script src="assets-config.js"></script>
     <script>
-        // Check if file exists (async check)
+        // Resolve full URL for an asset path (map theme paths use mapBasePath)
+        function getFullAssetPath(path) {
+            if (!path) return '';
+            const mapPrefix = /^(greenland|freljord|hotsand|sakura|island)\//;
+            if (ASSETS_CONFIG.mapBasePath && mapPrefix.test(path)) {
+                return ASSETS_CONFIG.mapBasePath + path;
+            }
+            return ASSETS_CONFIG.basePath + path;
+        }
+        
         async function checkFileExists(path) {
             try {
                 const response = await fetch(path, { method: 'HEAD' });
@@ -229,7 +325,26 @@
             }
         }
         
-        // Create asset item display
+        function addPreviewImg(html, fullPath, cssClass) {
+            const cls = cssClass || 'asset-preview';
+            return `<img class="${cls}" src="${fullPath}" alt="" onerror="this.classList.add('failed')" />`;
+        }
+        
+        function addFileRow(path, statusId, extraHtml) {
+            const fullPath = getFullAssetPath(path);
+            const preview = addPreviewImg('', fullPath, 'asset-preview');
+            return `
+                <div class="file-info" style="display:flex;align-items:center;gap:10px;">
+                    ${preview}
+                    <div style="flex:1;">
+                        <span class="file-path">${path}</span>
+                        <span class="status-badge status-missing" id="${statusId}">Checking...</span>
+                        ${extraHtml ? extraHtml : ''}
+                    </div>
+                </div>
+            `;
+        }
+        
         function createAssetItem(name, config, type) {
             const item = document.createElement('div');
             item.className = 'asset-item';
@@ -237,108 +352,62 @@
             let html = `<h3>${name}`;
             
             if (type === 'enemy' || type === 'player') {
-                // Single image
                 const path = config.image;
-                const fullPath = ASSETS_CONFIG.basePath + path;
+                const fullPath = getFullAssetPath(path);
+                const statusId = 'status-' + path.replace(/\//g, '-');
                 html += `</h3>`;
-                html += `
-                    <div class="file-info">
-                        <span class="file-path">${path}</span>
-                        <span class="status-badge status-missing" id="status-${path.replace(/\//g, '-')}">Checking...</span>
-                    </div>
-                `;
-                
-                if (config.emoji) {
-                    html += `<div class="file-info emoji-fallback">Fallback: ${config.emoji}</div>`;
-                }
-                
-                // Check file existence
+                html += `<div class="preview-wrap">${addPreviewImg('', fullPath)}</div>`;
+                html += addFileRow(path, statusId);
+                if (config.emoji) html += `<div class="file-info emoji-fallback">Fallback: ${config.emoji}</div>`;
                 checkFileExists(fullPath).then(exists => {
-                    const statusEl = document.getElementById(`status-${path.replace(/\//g, '-')}`);
-                    if (statusEl) {
-                        statusEl.textContent = exists ? '✓ Exists' : '✗ Missing';
-                        statusEl.className = `status-badge ${exists ? 'status-exists' : 'status-missing'}`;
-                    }
+                    const statusEl = document.getElementById(statusId);
+                    if (statusEl) { statusEl.textContent = exists ? '✓ Exists' : '✗ Missing'; statusEl.className = `status-badge ${exists ? 'status-exists' : 'status-missing'}`; }
                 });
             } else if (type === 'item' || type === 'grid') {
-                // Single image
                 const path = config.image;
-                const fullPath = ASSETS_CONFIG.basePath + path;
+                const fullPath = getFullAssetPath(path);
+                const statusId = 'status-' + path.replace(/\//g, '-');
                 html += `</h3>`;
-                html += `
-                    <div class="file-info">
-                        <span class="file-path">${path}</span>
-                        <span class="status-badge status-missing" id="status-${path.replace(/\//g, '-')}">Checking...</span>
-                    </div>
-                `;
-                
-                if (config.emoji) {
-                    html += `<div class="file-info emoji-fallback">Fallback: ${config.emoji}</div>`;
-                }
-                
-                // Check file existence
+                html += `<div class="preview-wrap">${addPreviewImg('', fullPath)}</div>`;
+                html += addFileRow(path, statusId);
+                if (config.emoji) html += `<div class="file-info emoji-fallback">Fallback: ${config.emoji}</div>`;
                 checkFileExists(fullPath).then(exists => {
-                    const statusEl = document.getElementById(`status-${path.replace(/\//g, '-')}`);
-                    if (statusEl) {
-                        statusEl.textContent = exists ? '✓ Exists' : '✗ Missing';
-                        statusEl.className = `status-badge ${exists ? 'status-exists' : 'status-missing'}`;
-                    }
+                    const statusEl = document.getElementById(statusId);
+                    if (statusEl) { statusEl.textContent = exists ? '✓ Exists' : '✗ Missing'; statusEl.className = `status-badge ${exists ? 'status-exists' : 'status-missing'}`; }
                 });
             } else if (type === 'ui') {
-                // UI elements
                 if (name === 'Dice') {
                     html += `</h3>`;
                     for (let i = 1; i <= 6; i++) {
                         const path = config[`face${i}`];
-                        const fullPath = ASSETS_CONFIG.basePath + path;
-                        html += `
-                            <div class="file-info">
-                                <span class="file-path">${path}</span>
-                                <span class="status-badge status-missing" id="status-${path.replace(/\//g, '-')}">Checking...</span>
-                            </div>
-                        `;
-                        
+                        const fullPath = getFullAssetPath(path);
+                        const statusId = 'status-' + path.replace(/\//g, '-');
+                        html += `<div class="file-info" style="display:flex;align-items:center;gap:10px;">${addPreviewImg('', fullPath, 'asset-preview')}<div><span class="file-path">${path}</span> <span class="status-badge status-missing" id="${statusId}">Checking...</span></div></div>`;
                         checkFileExists(fullPath).then(exists => {
-                            const statusEl = document.getElementById(`status-${path.replace(/\//g, '-')}`);
-                            if (statusEl) {
-                                statusEl.textContent = exists ? '✓ Exists' : '✗ Missing';
-                                statusEl.className = `status-badge ${exists ? 'status-exists' : 'status-missing'}`;
-                            }
+                            const statusEl = document.getElementById(statusId);
+                            if (statusEl) { statusEl.textContent = exists ? '✓ Exists' : '✗ Missing'; statusEl.className = `status-badge ${exists ? 'status-exists' : 'status-missing'}`; }
                         });
                     }
                     if (config.rolling) {
                         const path = config.rolling;
-                        const fullPath = ASSETS_CONFIG.basePath + path;
-                        html += `
-                            <div class="file-info">
-                                <span class="file-path">${path}</span>
-                                <span class="status-badge status-missing" id="status-${path.replace(/\//g, '-')}">Checking...</span>
-                            </div>
-                        `;
+                        const fullPath = getFullAssetPath(path);
+                        const statusId = 'status-' + path.replace(/\//g, '-');
+                        html += `<div class="file-info" style="display:flex;align-items:center;gap:10px;">${addPreviewImg('', fullPath, 'asset-preview')}<div><span class="file-path">${path}</span> <span class="status-badge status-missing" id="${statusId}">Checking...</span></div></div>`;
                         checkFileExists(fullPath).then(exists => {
-                            const statusEl = document.getElementById(`status-${path.replace(/\//g, '-')}`);
-                            if (statusEl) {
-                                statusEl.textContent = exists ? '✓ Exists' : '✗ Missing';
-                                statusEl.className = `status-badge ${exists ? 'status-exists' : 'status-missing'}`;
-                            }
+                            const statusEl = document.getElementById(statusId);
+                            if (statusEl) { statusEl.textContent = exists ? '✓ Exists' : '✗ Missing'; statusEl.className = `status-badge ${exists ? 'status-exists' : 'status-missing'}`; }
                         });
                     }
                 } else {
                     const path = config;
-                    const fullPath = ASSETS_CONFIG.basePath + path;
+                    const fullPath = getFullAssetPath(path);
+                    const statusId = 'status-' + path.replace(/\//g, '-');
                     html += `</h3>`;
-                    html += `
-                        <div class="file-info">
-                            <span class="file-path">${path}</span>
-                            <span class="status-badge status-missing" id="status-${path.replace(/\//g, '-')}">Checking...</span>
-                        </div>
-                    `;
+                    html += `<div class="preview-wrap">${addPreviewImg('', fullPath)}</div>`;
+                    html += addFileRow(path, statusId);
                     checkFileExists(fullPath).then(exists => {
-                        const statusEl = document.getElementById(`status-${path.replace(/\//g, '-')}`);
-                        if (statusEl) {
-                            statusEl.textContent = exists ? '✓ Exists' : '✗ Missing';
-                            statusEl.className = `status-badge ${exists ? 'status-exists' : 'status-missing'}`;
-                        }
+                        const statusEl = document.getElementById(statusId);
+                        if (statusEl) { statusEl.textContent = exists ? '✓ Exists' : '✗ Missing'; statusEl.className = `status-badge ${exists ? 'status-exists' : 'status-missing'}`; }
                     });
                 }
             }
@@ -347,8 +416,83 @@
             return item;
         }
         
+        // Resolve theme config with fallback to global grid/decor
+        function getThemeConfig(themeId) {
+            const themes = ASSETS_CONFIG.themes || {};
+            const theme = themes[themeId];
+            const gridCells = theme?.gridCells || ASSETS_CONFIG.gridCells || { variants: [], default: 'grid/grid.png' };
+            const wallDecor = theme?.wallDecor || (ASSETS_CONFIG.river && ASSETS_CONFIG.river.decorImage) || 'decor/decor1.png';
+            const multiCellDecorAssets = theme?.multiCellDecorAssets || ASSETS_CONFIG.multiCellDecorAssets || {};
+            return { gridCells, wallDecor, multiCellDecorAssets };
+        }
+        
+        // Render one theme subsection (grid + wall decor + multi-cell decor)
+        function renderThemeSubsection(themeId, displayName) {
+            const config = getThemeConfig(themeId);
+            const section = document.createElement('div');
+            section.className = 'theme-subsection';
+            const prefix = 'th-' + themeId + '-';
+            let html = `<h3>${displayName}</h3>`;
+            
+            // Grid: default + variants
+            const gc = config.gridCells;
+            const defaultPath = (typeof gc.default === 'string') ? gc.default : (gc.default || 'grid/grid.png');
+            const variants = Array.isArray(gc.variants) ? gc.variants : [];
+            const allPaths = [defaultPath, ...variants];
+            allPaths.forEach((path, i) => {
+                const label = i === 0 ? 'Grid default' : `Grid variant ${i}`;
+                const fullPath = getFullAssetPath(path);
+                const sid = prefix + path.replace(/\//g, '-').replace(/\./g, '_');
+                html += `<div class="theme-asset-row"><img class="theme-preview" src="${fullPath}" alt="" onerror="this.classList.add('failed')" /><span class="file-path">${path}</span> <span class="status-badge status-missing" id="${sid}">Checking...</span> <span style="color: rgba(255,255,255,0.5);">(${label})</span></div>`;
+                checkFileExists(fullPath).then(exists => {
+                    const el = document.getElementById(sid);
+                    if (el) { el.textContent = exists ? '✓ Exists' : '✗ Missing'; el.className = `status-badge ${exists ? 'status-exists' : 'status-missing'}`; }
+                });
+            });
+            
+            const wdPath = config.wallDecor;
+            const wdFull = getFullAssetPath(wdPath);
+            const wdId = prefix + 'wd-' + wdPath.replace(/\//g, '-').replace(/\./g, '_');
+            html += `<div class="theme-asset-row"><img class="theme-preview" src="${wdFull}" alt="" onerror="this.classList.add('failed')" /><span class="file-path">${wdPath}</span> <span class="status-badge status-missing" id="${wdId}">Checking...</span> <span style="color: rgba(255,255,255,0.5);">(Wall decor)</span></div>`;
+            checkFileExists(wdFull).then(exists => {
+                const el = document.getElementById(wdId);
+                if (el) { el.textContent = exists ? '✓ Exists' : '✗ Missing'; el.className = `status-badge ${exists ? 'status-exists' : 'status-missing'}`; }
+            });
+            
+            const multi = config.multiCellDecorAssets;
+            Object.entries(multi).forEach(([assetId, cfg]) => {
+                const imgPath = cfg && cfg.image;
+                if (!imgPath) return;
+                const mFull = getFullAssetPath(imgPath);
+                const mId = prefix + 'm-' + assetId.replace(/_/g, '-');
+                html += `<div class="theme-asset-row"><img class="theme-preview" src="${mFull}" alt="" onerror="this.classList.add('failed')" /><span class="file-path">${imgPath}</span> <span class="status-badge status-missing" id="${mId}">Checking...</span> <span style="color: rgba(255,255,255,0.5);">(${assetId} ${cfg.w || 1}x${cfg.h || 1})</span></div>`;
+                checkFileExists(mFull).then(exists => {
+                    const el = document.getElementById(mId);
+                    if (el) { el.textContent = exists ? '✓ Exists' : '✗ Missing'; el.className = `status-badge ${exists ? 'status-exists' : 'status-missing'}`; }
+                });
+            });
+            
+            section.innerHTML = html;
+            return section;
+        }
+        
+        // Render themed assets section (one subsection per theme)
+        function renderThemedAssets() {
+            const container = document.getElementById('themedAssets');
+            if (!container) return;
+            const themes = ASSETS_CONFIG.areaThemes || (ASSETS_CONFIG.themes ? Object.keys(ASSETS_CONFIG.themes).map(id => ({
+                id,
+                name: id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+            })) : []);
+            themes.forEach(({ id, name }) => {
+                container.appendChild(renderThemeSubsection(id, name));
+            });
+        }
+        
         // Render all assets
         function renderAssets() {
+            renderThemedAssets();
+            
             // Player
             const playerContainer = document.getElementById('playerAssets');
             const playerItem = createAssetItem('Player', ASSETS_CONFIG.player, 'player');
